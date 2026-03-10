@@ -2,33 +2,33 @@ import { useCallback } from "react";
 
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
-  cycleDashboardWidgetSize,
-  moveDashboardWidgets,
-  toggleDashboardWidgetVisibility,
+    cycleDashboardWidgetSize,
+    moveDashboardWidgets,
+    toggleDashboardWidgetVisibility,
 } from "@/services/dashboard/dashboardWidgets";
 import {
-  buildLogEntriesFromActionDraft,
-  type FormValueMap,
+    buildLogEntriesFromActionDraft,
+    type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { parseWorkspaceLogCsv } from "@/services/import/workspaceCsvImport";
 import { clearPersistedWorkspace } from "@/services/offline/workspacePersistence";
 import { enqueueWorkspaceSync } from "@/services/offline/workspaceSync";
 import {
-  applyReminderTriggerRules,
-  getNextReminderDate,
+    applyReminderTriggerRules,
+    getNextReminderDate,
 } from "@/services/reminders/reminderRules";
 import { applyTemplateImportToWorkspace } from "@/services/templates/templateImport";
 import type { WorkspaceUpdater } from "@/stores/useWorkspaceStore";
 import type {
-  TemplateCatalogItem,
-  TemplateImportMethod,
-  WorkspaceSnapshot,
+    TemplateCatalogItem,
+    TemplateImportMethod,
+    WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 import type {
-  SaveCustomTemplateResult,
-  SaveLogResult,
-  TemplateImportActionResult,
+    SaveCustomTemplateResult,
+    SaveLogResult,
+    TemplateImportActionResult,
 } from "./types";
 
 type WorkspaceSetter = (updater: WorkspaceUpdater) => void;
@@ -130,7 +130,10 @@ function applyLogsAndTriggeredReminders(
   };
 }
 
-export function useWorkspaceMutations(setWorkspace: WorkspaceSetter) {
+export function useWorkspaceMutations(
+  setWorkspace: WorkspaceSetter,
+  ownerScopeKey: string,
+) {
   const saveLogForAction = useCallback(
     (actionId: string, values: FormValueMap) => {
       let result: SaveLogResult = {
@@ -579,8 +582,18 @@ export function useWorkspaceMutations(setWorkspace: WorkspaceSetter) {
 
   const resetWorkspace = useCallback(() => {
     setWorkspace(createEmptyWorkspaceSnapshot());
-    void clearPersistedWorkspace();
-  }, [setWorkspace]);
+    void clearPersistedWorkspace(ownerScopeKey);
+  }, [ownerScopeKey, setWorkspace]);
+
+  const recoverBlockedWorkspace = useCallback(async () => {
+    await clearPersistedWorkspace(ownerScopeKey);
+    setWorkspace(createEmptyWorkspaceSnapshot());
+    return {
+      status: "success" as const,
+      message:
+        "Cleared the blocked protected workspace for this device scope and started a fresh local workspace.",
+    };
+  }, [ownerScopeKey, setWorkspace]);
 
   return {
     saveLogForAction,
@@ -595,5 +608,6 @@ export function useWorkspaceMutations(setWorkspace: WorkspaceSetter) {
     importTemplateFromUrl,
     saveCustomTemplate,
     resetWorkspace,
+    recoverBlockedWorkspace,
   };
 }

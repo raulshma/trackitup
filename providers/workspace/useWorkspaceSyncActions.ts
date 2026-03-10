@@ -2,12 +2,12 @@ import { useCallback } from "react";
 
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
-  isTrustedSyncEndpoint,
-  markWorkspaceSyncComplete,
-  markWorkspaceSyncError,
-  pullWorkspaceSync,
-  pushWorkspaceSync,
-  type SyncActionResult,
+    isTrustedSyncEndpoint,
+    markWorkspaceSyncComplete,
+    markWorkspaceSyncError,
+    pullWorkspaceSync,
+    pushWorkspaceSync,
+    type SyncActionResult,
 } from "@/services/offline/workspaceSync";
 import type { WorkspaceUpdater } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
@@ -70,6 +70,18 @@ export function useWorkspaceSyncActions({
     return null;
   }, [auth.isSignedIn, auth.userId, isSyncing, syncEndpoint]);
 
+  const getCloudSyncToken = useCallback(async () => {
+    const token = await auth.getToken();
+    if (token) {
+      return token;
+    }
+
+    return {
+      status: "blocked",
+      message: "Sign in again to refresh your secure sync session.",
+    } satisfies SyncActionResult;
+  }, [auth.getToken]);
+
   const syncWorkspaceNow = useCallback(async () => {
     const accessBlock = getCloudSyncAccessBlock();
     if (accessBlock) return accessBlock;
@@ -83,18 +95,26 @@ export function useWorkspaceSyncActions({
       } satisfies SyncActionResult;
     }
 
+    const tokenResult = await getCloudSyncToken();
+    if (typeof tokenResult !== "string") {
+      return tokenResult;
+    }
+
     setIsSyncing(true);
     try {
       const syncResult = await pushWorkspaceSync({
         endpoint: syncEndpoint!,
         snapshot: workspace,
         userId: auth.userId!,
-        getToken: auth.getToken,
+        getToken: async () => tokenResult,
       });
 
       setWorkspace((currentWorkspace) =>
         syncResult.status === "success"
-          ? markWorkspaceSyncComplete(currentWorkspace, new Date().toISOString())
+          ? markWorkspaceSyncComplete(
+              currentWorkspace,
+              new Date().toISOString(),
+            )
           : markWorkspaceSyncError(currentWorkspace, syncResult.message),
       );
       return syncResult;
@@ -104,6 +124,7 @@ export function useWorkspaceSyncActions({
   }, [
     auth.getToken,
     auth.userId,
+    getCloudSyncToken,
     getCloudSyncAccessBlock,
     setIsSyncing,
     setWorkspace,
@@ -123,13 +144,18 @@ export function useWorkspaceSyncActions({
       } satisfies SyncActionResult;
     }
 
+    const tokenResult = await getCloudSyncToken();
+    if (typeof tokenResult !== "string") {
+      return tokenResult;
+    }
+
     setIsSyncing(true);
     try {
       const pullResult = await pullWorkspaceSync({
         endpoint: syncEndpoint!,
         fallbackSnapshot: createEmptyWorkspaceSnapshot(),
         userId: auth.userId!,
-        getToken: auth.getToken,
+        getToken: async () => tokenResult,
       });
 
       if (pullResult.status !== "success" || !pullResult.snapshot) {
@@ -171,6 +197,7 @@ export function useWorkspaceSyncActions({
   }, [
     auth.getToken,
     auth.userId,
+    getCloudSyncToken,
     getCloudSyncAccessBlock,
     setIsSyncing,
     setWorkspace,
@@ -183,13 +210,18 @@ export function useWorkspaceSyncActions({
     const accessBlock = getCloudSyncAccessBlock();
     if (accessBlock) return accessBlock;
 
+    const tokenResult = await getCloudSyncToken();
+    if (typeof tokenResult !== "string") {
+      return tokenResult;
+    }
+
     setIsSyncing(true);
     try {
       const pullResult = await pullWorkspaceSync({
         endpoint: syncEndpoint!,
         fallbackSnapshot: createEmptyWorkspaceSnapshot(),
         userId: auth.userId!,
-        getToken: auth.getToken,
+        getToken: async () => tokenResult,
       });
 
       if (pullResult.status !== "success" || !pullResult.snapshot) {
@@ -213,6 +245,7 @@ export function useWorkspaceSyncActions({
   }, [
     auth.getToken,
     auth.userId,
+    getCloudSyncToken,
     getCloudSyncAccessBlock,
     setIsSyncing,
     setWorkspace,

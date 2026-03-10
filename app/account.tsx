@@ -2,10 +2,10 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Platform, ScrollView, StyleSheet } from "react-native";
 import {
-  ActivityIndicator,
-  Button,
-  Chip,
-  SegmentedButtons,
+    ActivityIndicator,
+    Button,
+    Chip,
+    SegmentedButtons,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -22,8 +22,18 @@ import { useAppAuth } from "@/providers/AuthProvider";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
-  THEME_PREFERENCE_OPTIONS,
-  type ThemePreference,
+    getWorkspaceLocalProtectionDescription,
+    getWorkspaceLocalProtectionLabel,
+} from "@/services/offline/workspaceLocalProtection";
+import {
+    getWorkspacePrivacyModeDescription,
+    getWorkspacePrivacyModeLabel,
+    WORKSPACE_PRIVACY_MODE_OPTIONS,
+    type WorkspacePrivacyMode,
+} from "@/services/offline/workspacePrivacyMode";
+import {
+    THEME_PREFERENCE_OPTIONS,
+    type ThemePreference,
 } from "@/services/theme/themePreferences";
 
 const themeOptionLabels: Record<ThemePreference, string> = {
@@ -61,6 +71,18 @@ export default function AccountScreen() {
     : workspace.workspace.syncQueue.length > 0
       ? `${workspace.workspace.syncQueue.length} queued`
       : "Up to date";
+  const localProtectionLabel = getWorkspaceLocalProtectionLabel(
+    workspace.localProtectionStatus,
+  );
+  const localProtectionDescription = getWorkspaceLocalProtectionDescription({
+    status: workspace.localProtectionStatus,
+    persistenceMode: workspace.persistenceMode,
+    blockedReason: workspace.blockedProtectionReason,
+  });
+  const privacyModeDescription = getWorkspacePrivacyModeDescription(
+    workspace.privacyMode,
+  );
+  const isProtectionBlocked = workspace.localProtectionStatus === "blocked";
 
   async function runAction(
     action: () => Promise<{ status: string; message: string }>,
@@ -80,7 +102,7 @@ export default function AccountScreen() {
     setIsSubmitting(true);
     await auth.signOut();
     setStatusMessage(
-      "Signed out. Your local workspace is still available on this device.",
+      "Signed out. This device switched back to its separate anonymous local workspace.",
     );
     setIsSubmitting(false);
   }
@@ -93,7 +115,7 @@ export default function AccountScreen() {
       <ScreenHero
         palette={palette}
         title="Account & sync"
-        subtitle="Local tracking stays available without login. Sign in only when you want cloud-linked features like backups and premium sync."
+        subtitle="Local tracking stays available without login. Anonymous use and each signed-in account keep separate on-device workspaces."
         badges={[
           {
             label: "Account & sync",
@@ -160,6 +182,69 @@ export default function AccountScreen() {
           </Chip>
         </ChipRow>
         <Text style={[styles.copy, paletteStyles.mutedText]}>{auth.note}</Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          This device keeps anonymous use and each signed-in account in separate
+          local workspace storage.
+        </Text>
+      </SectionSurface>
+
+      <SectionSurface
+        palette={palette}
+        label="Privacy"
+        title="Local protection"
+      >
+        <ChipRow style={styles.themeChipRow}>
+          <Chip compact style={styles.themeChip} icon="shield-check">
+            Mode: {getWorkspacePrivacyModeLabel(workspace.privacyMode)}
+          </Chip>
+          <Chip compact style={styles.themeChip} icon="shield-lock">
+            {localProtectionLabel}
+          </Chip>
+          <Chip compact style={styles.themeChip}>
+            Storage: {workspace.persistenceMode}
+          </Chip>
+        </ChipRow>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
+          {privacyModeDescription}
+        </Text>
+        <SegmentedButtons
+          value={workspace.privacyMode}
+          onValueChange={(value: string) =>
+            runAction(() =>
+              workspace.setWorkspacePrivacyMode(value as WorkspacePrivacyMode),
+            )
+          }
+          style={styles.themeSelector}
+          buttons={WORKSPACE_PRIVACY_MODE_OPTIONS.map((value) => ({
+            value,
+            label: getWorkspacePrivacyModeLabel(value),
+            disabled: isSubmitting || isProtectionBlocked,
+          }))}
+        />
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
+          {localProtectionDescription}
+        </Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          Protected mode keeps anonymous use and each signed-in account in
+          separate local scopes when secure local storage is supported.
+        </Text>
+        {isProtectionBlocked ? (
+          <Text style={[styles.meta, paletteStyles.mutedText]}>
+            Privacy mode changes stay disabled until the blocked protected
+            workspace is reset for this scope.
+          </Text>
+        ) : null}
+        {isProtectionBlocked ? (
+          <Button
+            mode="contained"
+            onPress={() => runAction(workspace.recoverBlockedWorkspace)}
+            style={styles.button}
+            loading={isSubmitting}
+            disabled={isSubmitting}
+          >
+            Reset blocked protected workspace
+          </Button>
+        ) : null}
       </SectionSurface>
 
       {!auth.clerkPublishableKeyConfigured ? (
@@ -199,6 +284,9 @@ export default function AccountScreen() {
           <Text style={[styles.copy, paletteStyles.mutedText]}>
             User ID: {auth.userId ?? "Unavailable"}
           </Text>
+          <Text style={[styles.meta, paletteStyles.mutedText]}>
+            This signed-in account uses its own local workspace on this device.
+          </Text>
           <ActionButtonRow style={styles.buttonRow}>
             <Button
               mode="contained"
@@ -228,6 +316,10 @@ export default function AccountScreen() {
             Use Clerk to connect this device to future premium sync, backups,
             and multi-device access. You can still continue locally without
             signing in.
+          </Text>
+          <Text style={[styles.meta, paletteStyles.mutedText]}>
+            Signing in switches this device to that account&apos;s separate
+            local workspace. Anonymous data is not merged automatically.
           </Text>
           <Button
             mode="contained"
@@ -304,7 +396,7 @@ export default function AccountScreen() {
           onPress={() => runAction(workspace.syncWorkspaceNow)}
           style={styles.button}
           loading={isSubmitting || workspace.isSyncing}
-          disabled={isSubmitting || workspace.isSyncing}
+          disabled={isSubmitting || workspace.isSyncing || isProtectionBlocked}
         >
           Sync now
         </Button>
@@ -314,7 +406,9 @@ export default function AccountScreen() {
             onPress={() => runAction(workspace.pullWorkspaceFromCloud)}
             style={styles.inlineButton}
             loading={isSubmitting || workspace.isSyncing}
-            disabled={isSubmitting || workspace.isSyncing}
+            disabled={
+              isSubmitting || workspace.isSyncing || isProtectionBlocked
+            }
           >
             Pull latest backup
           </Button>
@@ -323,11 +417,19 @@ export default function AccountScreen() {
             onPress={() => runAction(workspace.restoreWorkspaceFromCloud)}
             style={styles.inlineButton}
             loading={isSubmitting || workspace.isSyncing}
-            disabled={isSubmitting || workspace.isSyncing}
+            disabled={
+              isSubmitting || workspace.isSyncing || isProtectionBlocked
+            }
           >
             Force restore
           </Button>
         </ActionButtonRow>
+        {isProtectionBlocked ? (
+          <Text style={[styles.meta, paletteStyles.mutedText]}>
+            Cloud sync actions stay disabled until the blocked protected
+            workspace is reset for this scope.
+          </Text>
+        ) : null}
       </SectionSurface>
 
       <SectionMessage

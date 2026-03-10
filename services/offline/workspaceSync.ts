@@ -38,6 +38,8 @@ const SYNC_PROTOCOL_VERSION = "1";
 const SYNC_TIMEOUT_MS = 10_000;
 const SYNC_MAX_ATTEMPTS = 2;
 const RETRYABLE_SYNC_STATUS_CODES = new Set([408, 429, 500, 502, 503, 504]);
+const MISSING_TOKEN_MESSAGE =
+  "Sign in again to refresh your secure sync session.";
 
 function cloneWorkspaceSnapshot(
   snapshot: WorkspaceSnapshot,
@@ -241,6 +243,13 @@ export async function pushWorkspaceSync({
 }: PushOptions): Promise<SyncActionResult> {
   try {
     const token = await getToken();
+    if (!token) {
+      return {
+        status: "blocked",
+        message: MISSING_TOKEN_MESSAGE,
+      };
+    }
+
     const response = await fetchWithTimeoutAndRetry(endpoint, {
       method: "POST",
       headers: buildSyncHeaders(token, {
@@ -287,6 +296,13 @@ export async function pullWorkspaceSync({
   let response: Response;
   try {
     const token = await getToken();
+    if (!token) {
+      return {
+        status: "blocked",
+        message: MISSING_TOKEN_MESSAGE,
+      };
+    }
+
     response = await fetchWithTimeoutAndRetry(
       buildWorkspacePullUrl(endpoint, userId),
       {

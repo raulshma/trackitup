@@ -1,15 +1,18 @@
 import {
-  getOverviewStats,
-  getQuickActionCards,
-  getSpaceSummaries,
-  getTimelineEntries,
+    getOverviewStats,
+    getQuickActionCards,
+    getSpaceSummaries,
+    getTimelineEntries,
 } from "@/constants/TrackItUpSelectors";
 import type { FormValueMap } from "@/services/forms/workspaceForm";
+import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
+import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
+import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type {
-  TemplateCatalogItem,
-  TemplateImportMethod,
-  WorkspaceSnapshot,
+    TemplateCatalogItem,
+    TemplateImportMethod,
+    WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 import type { SyncActionResult } from "@/services/offline/workspaceSync";
@@ -37,13 +40,19 @@ export type WorkspaceContextValue = {
   logEntries: WorkspaceSnapshot["logs"];
   isHydrated: boolean;
   persistenceMode: PersistenceMode;
+  privacyMode: WorkspacePrivacyMode;
+  localProtectionStatus: WorkspaceLocalProtectionStatus;
+  blockedProtectionReason: BlockedEncryptedWorkspaceReason | null;
   isSyncing: boolean;
   overviewStats: ReturnType<typeof getOverviewStats>;
   quickActionCards: ReturnType<typeof getQuickActionCards>;
   spaceSummaries: ReturnType<typeof getSpaceSummaries>;
   timelineEntries: ReturnType<typeof getTimelineEntries>;
   saveLogForAction: (actionId: string, values: FormValueMap) => SaveLogResult;
-  saveLogForTemplate: (templateId: string, values: FormValueMap) => SaveLogResult;
+  saveLogForTemplate: (
+    templateId: string,
+    values: FormValueMap,
+  ) => SaveLogResult;
   moveDashboardWidget: (widgetId: string, direction: "up" | "down") => void;
   cycleDashboardWidgetSize: (widgetId: string) => void;
   toggleDashboardWidgetVisibility: (widgetId: string) => void;
@@ -58,8 +67,14 @@ export type WorkspaceContextValue = {
     rawUrl: string,
     preferredMethod?: TemplateImportMethod,
   ) => TemplateImportActionResult;
-  saveCustomTemplate: (template: TemplateCatalogItem) => SaveCustomTemplateResult;
+  saveCustomTemplate: (
+    template: TemplateCatalogItem,
+  ) => SaveCustomTemplateResult;
   resetWorkspace: () => void;
+  setWorkspacePrivacyMode: (
+    mode: WorkspacePrivacyMode,
+  ) => Promise<{ status: string; message: string }>;
+  recoverBlockedWorkspace: () => Promise<{ status: string; message: string }>;
   syncWorkspaceNow: () => Promise<SyncActionResult>;
   pullWorkspaceFromCloud: () => Promise<SyncActionResult>;
   restoreWorkspaceFromCloud: () => Promise<SyncActionResult>;

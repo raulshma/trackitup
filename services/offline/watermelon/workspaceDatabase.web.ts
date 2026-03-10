@@ -3,14 +3,30 @@ import LokiJSAdapter from "@nozbe/watermelondb/adapters/lokijs/index.js";
 
 import { workspaceWatermelonModels } from "@/services/offline/watermelon/workspaceModels";
 import { workspaceWatermelonSchema } from "@/services/offline/watermelon/workspaceSchema";
+import {
+    ANONYMOUS_WORKSPACE_SCOPE_KEY,
+    buildWorkspaceDatabaseName,
+    LEGACY_WORKSPACE_DATABASE_NAME,
+} from "@/services/offline/workspaceOwnership";
 
-const DB_NAME = "trackitup-workspace";
+type WorkspaceDatabaseOptions = {
+  useLegacyName?: boolean;
+};
 
-let databasePromise: Promise<Database | null> | null = null;
+const databasePromises = new Map<string, Promise<Database | null>>();
 
-function createWorkspaceDatabase() {
+function resolveDatabaseName(
+  ownerScopeKey = ANONYMOUS_WORKSPACE_SCOPE_KEY,
+  options?: WorkspaceDatabaseOptions,
+) {
+  return options?.useLegacyName
+    ? LEGACY_WORKSPACE_DATABASE_NAME
+    : buildWorkspaceDatabaseName(ownerScopeKey);
+}
+
+function createWorkspaceDatabase(dbName: string) {
   const adapter = new LokiJSAdapter({
-    dbName: DB_NAME,
+    dbName,
     schema: workspaceWatermelonSchema,
     useWebWorker: false,
     useIncrementalIndexedDB: true,
@@ -24,21 +40,40 @@ function createWorkspaceDatabase() {
 
 export function isWatermelonPersistenceAvailable() {
   try {
-    createWorkspaceDatabase();
+    createWorkspaceDatabase(
+      buildWorkspaceDatabaseName(ANONYMOUS_WORKSPACE_SCOPE_KEY),
+    );
     return true;
   } catch {
     return false;
   }
 }
 
-export async function getWorkspaceDatabase() {
-  if (!databasePromise) {
-    databasePromise = Promise.resolve().then(createWorkspaceDatabase).catch(() => null);
+export async function getWorkspaceDatabase(
+  ownerScopeKey = ANONYMOUS_WORKSPACE_SCOPE_KEY,
+  options?: WorkspaceDatabaseOptions,
+) {
+  const dbName = resolveDatabaseName(ownerScopeKey, options);
+  if (!databasePromises.has(dbName)) {
+    databasePromises.set(
+      dbName,
+      Promise.resolve()
+        .then(() => createWorkspaceDatabase(dbName))
+        .catch(() => null),
+    );
   }
 
-  return databasePromise;
+  return databasePromises.get(dbName)!;
 }
 
-export function resetWorkspaceDatabaseCache() {
-  databasePromise = null;
+export function resetWorkspaceDatabaseCache(
+  ownerScopeKey?: string,
+  options?: WorkspaceDatabaseOptions,
+) {
+  if (!ownerScopeKey) {
+    databasePromises.clear();
+    return;
+  }
+
+  databasePromises.delete(resolveDatabaseName(ownerScopeKey, options));
 }

@@ -2,11 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const { trackItUpWorkspace } = await import("../constants/TrackItUpData.ts");
-const {
-  isTrustedSyncEndpoint,
-  pullWorkspaceSync,
-  pushWorkspaceSync,
-} = await import("../services/offline/workspaceSync.ts");
+const { isTrustedSyncEndpoint, pullWorkspaceSync, pushWorkspaceSync } =
+  await import("../services/offline/workspaceSync.ts");
 
 function createSnapshot(overrides = {}) {
   return {
@@ -49,12 +46,16 @@ test("pushWorkspaceSync retries retryable failures and sends protocol metadata",
   try {
     const result = await pushWorkspaceSync({
       endpoint: "https://example.com/api/trackitup-sync",
-      snapshot: createSnapshot({ syncQueue: [{
-        id: "sync-1",
-        kind: "log-created",
-        summary: "Saved reef check",
-        createdAt: "2026-03-10T12:00:00.000Z",
-      }] }),
+      snapshot: createSnapshot({
+        syncQueue: [
+          {
+            id: "sync-1",
+            kind: "log-created",
+            summary: "Saved reef check",
+            createdAt: "2026-03-10T12:00:00.000Z",
+          },
+        ],
+      }),
       userId: "user_123",
       getToken: async () => "token-123",
     });
@@ -99,6 +100,56 @@ test("pullWorkspaceSync includes version metadata and rejects incompatible respo
 
     assert.equal(result.status, "error");
     assert.match(result.message, /incompatible sync protocol version/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pushWorkspaceSync blocks before network requests when no auth token is available", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalled = false;
+
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response(null, { status: 200 });
+  };
+
+  try {
+    const result = await pushWorkspaceSync({
+      endpoint: "https://example.com/api/trackitup-sync",
+      snapshot: createSnapshot(),
+      userId: "user_123",
+      getToken: async () => null,
+    });
+
+    assert.equal(result.status, "blocked");
+    assert.match(result.message, /refresh your secure sync session/i);
+    assert.equal(fetchCalled, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pullWorkspaceSync blocks before network requests when no auth token is available", async () => {
+  const originalFetch = globalThis.fetch;
+  let fetchCalled = false;
+
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    return new Response(null, { status: 200 });
+  };
+
+  try {
+    const result = await pullWorkspaceSync({
+      endpoint: "https://example.com/api/trackitup-sync",
+      fallbackSnapshot: trackItUpWorkspace,
+      userId: "user_123",
+      getToken: async () => null,
+    });
+
+    assert.equal(result.status, "blocked");
+    assert.match(result.message, /refresh your secure sync session/i);
+    assert.equal(fetchCalled, false);
   } finally {
     globalThis.fetch = originalFetch;
   }

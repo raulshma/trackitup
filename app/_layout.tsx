@@ -12,6 +12,7 @@ import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
 import { uiTypography } from "@/constants/UiTokens";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ThemePreferenceProvider } from "@/providers/ThemePreferenceProvider";
+import { WorkspacePrivacyModeProvider } from "@/providers/WorkspacePrivacyModeProvider";
 import { WorkspaceProvider } from "@/providers/WorkspaceProvider";
 
 export {
@@ -49,7 +50,9 @@ export default function RootLayout() {
 
   return (
     <ThemePreferenceProvider>
-      <RootLayoutNav />
+      <WorkspacePrivacyModeProvider>
+        <RootLayoutNav />
+      </WorkspacePrivacyModeProvider>
     </ThemePreferenceProvider>
   );
 }

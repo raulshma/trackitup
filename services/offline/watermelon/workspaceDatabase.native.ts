@@ -1,14 +1,21 @@
 import { Database } from "@nozbe/watermelondb";
-import type { DatabaseAdapter } from "@nozbe/watermelondb/adapters/type";
 import SQLiteAdapter from "@nozbe/watermelondb/adapters/sqlite/index.js";
+import type { DatabaseAdapter } from "@nozbe/watermelondb/adapters/type";
 import { NativeModules } from "react-native";
 
 import { workspaceWatermelonModels } from "@/services/offline/watermelon/workspaceModels";
 import { workspaceWatermelonSchema } from "@/services/offline/watermelon/workspaceSchema";
+import {
+    ANONYMOUS_WORKSPACE_SCOPE_KEY,
+    buildWorkspaceDatabaseName,
+    LEGACY_WORKSPACE_DATABASE_NAME,
+} from "@/services/offline/workspaceOwnership";
 
-const DB_NAME = "trackitup-workspace";
+type WorkspaceDatabaseOptions = {
+  useLegacyName?: boolean;
+};
 
-let databasePromise: Promise<Database | null> | null = null;
+const databasePromises = new Map<string, Promise<Database | null>>();
 
 type WatermelonGlobal = typeof globalThis & {
   nativeWatermelonCreateAdapter?: unknown;
@@ -23,16 +30,25 @@ function hasNativeWatermelonBridge() {
 
   return Boolean(
     runtimeGlobal.nativeWatermelonCreateAdapter ||
-      NativeModules?.WMDatabaseBridge ||
-      NativeModules?.WMDatabaseJSIBridge,
+    NativeModules?.WMDatabaseBridge ||
+    NativeModules?.WMDatabaseJSIBridge,
   );
 }
 
-async function createWorkspaceDatabase() {
+function resolveDatabaseName(
+  ownerScopeKey = ANONYMOUS_WORKSPACE_SCOPE_KEY,
+  options?: WorkspaceDatabaseOptions,
+) {
+  return options?.useLegacyName
+    ? LEGACY_WORKSPACE_DATABASE_NAME
+    : buildWorkspaceDatabaseName(ownerScopeKey);
+}
+
+async function createWorkspaceDatabase(dbName: string) {
   if (!hasNativeWatermelonBridge()) return null;
 
   const adapter = new SQLiteAdapter({
-    dbName: DB_NAME,
+    dbName,
     schema: workspaceWatermelonSchema,
   }) as InitializingAdapter;
 
@@ -50,14 +66,29 @@ export function isWatermelonPersistenceAvailable() {
   return hasNativeWatermelonBridge();
 }
 
-export async function getWorkspaceDatabase() {
-  if (!databasePromise) {
-    databasePromise = createWorkspaceDatabase().catch(() => null);
+export async function getWorkspaceDatabase(
+  ownerScopeKey = ANONYMOUS_WORKSPACE_SCOPE_KEY,
+  options?: WorkspaceDatabaseOptions,
+) {
+  const dbName = resolveDatabaseName(ownerScopeKey, options);
+  if (!databasePromises.has(dbName)) {
+    databasePromises.set(
+      dbName,
+      createWorkspaceDatabase(dbName).catch(() => null),
+    );
   }
 
-  return databasePromise;
+  return databasePromises.get(dbName)!;
 }
 
-export function resetWorkspaceDatabaseCache() {
-  databasePromise = null;
+export function resetWorkspaceDatabaseCache(
+  ownerScopeKey?: string,
+  options?: WorkspaceDatabaseOptions,
+) {
+  if (!ownerScopeKey) {
+    databasePromises.clear();
+    return;
+  }
+
+  databasePromises.delete(resolveDatabaseName(ownerScopeKey, options));
 }

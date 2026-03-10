@@ -1,15 +1,17 @@
 import { useEffect, type Dispatch, type SetStateAction } from "react";
 
 import { getTimelineEntries } from "@/constants/TrackItUpSelectors";
-import {
-  getWorkspaceDatabase,
-} from "@/services/offline/watermelon/workspaceDatabase";
+import { getWorkspaceDatabase } from "@/services/offline/watermelon/workspaceDatabase";
 import { loadLogReadModelFromWatermelon } from "@/services/offline/watermelon/workspaceQueries";
+import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
+import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import {
+  cloneWorkspaceSnapshot,
   loadPersistedWorkspace,
   persistWorkspace,
   waitForWorkspacePersistence,
 } from "@/services/offline/workspacePersistence";
+import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import type {
   PersistenceMode,
   WorkspaceUpdater,
@@ -20,8 +22,11 @@ type TimelineEntries = ReturnType<typeof getTimelineEntries>;
 type WorkspaceSetter = (updater: WorkspaceUpdater) => void;
 
 type UseWorkspaceHydrationArgs = {
+  ownerScopeKey: string;
   workspace: WorkspaceSnapshot;
   isHydrated: boolean;
+  privacyMode: WorkspacePrivacyMode;
+  isPrivacyModeLoaded: boolean;
   persistenceMode: PersistenceMode;
   defaultWorkspace: WorkspaceSnapshot;
   snapshotLogEntries: WorkspaceSnapshot["logs"];
@@ -29,16 +34,25 @@ type UseWorkspaceHydrationArgs = {
   setWorkspace: WorkspaceSetter;
   setIsHydrated: (isHydrated: boolean) => void;
   setPersistenceMode: (mode: PersistenceMode) => void;
+  setLocalProtectionStatus: (status: WorkspaceLocalProtectionStatus) => void;
+  setBlockedProtectionReason: (
+    reason: BlockedEncryptedWorkspaceReason | null,
+  ) => void;
   setLogEntries: Dispatch<SetStateAction<WorkspaceSnapshot["logs"]>>;
   setTimelineEntries: Dispatch<SetStateAction<TimelineEntries>>;
 };
 
 export function useWorkspaceHydration({
   defaultWorkspace,
+  isPrivacyModeLoaded,
   isHydrated,
+  ownerScopeKey,
+  privacyMode,
   persistenceMode,
+  setBlockedProtectionReason,
   setIsHydrated,
   setLogEntries,
+  setLocalProtectionStatus,
   setPersistenceMode,
   setTimelineEntries,
   setWorkspace,
@@ -47,26 +61,50 @@ export function useWorkspaceHydration({
   workspace,
 }: UseWorkspaceHydrationArgs) {
   useEffect(() => {
+    if (!isPrivacyModeLoaded) return;
+
     let isMounted = true;
 
+    setIsHydrated(false);
+    setPersistenceMode("memory");
+    setLocalProtectionStatus("standard");
+    setBlockedProtectionReason(null);
+    setWorkspace(cloneWorkspaceSnapshot(defaultWorkspace));
+
     void (async () => {
-      const loaded = await loadPersistedWorkspace(defaultWorkspace);
+      const loaded = await loadPersistedWorkspace(
+        defaultWorkspace,
+        ownerScopeKey,
+        privacyMode,
+      );
       if (!isMounted) return;
 
       setWorkspace(loaded.workspace);
       setPersistenceMode(loaded.persistenceMode);
+      setLocalProtectionStatus(loaded.localProtectionStatus);
+      setBlockedProtectionReason(loaded.blockedProtectionReason ?? null);
       setIsHydrated(true);
     })();
 
     return () => {
       isMounted = false;
     };
-  }, [defaultWorkspace, setIsHydrated, setPersistenceMode, setWorkspace]);
+  }, [
+    defaultWorkspace,
+    isPrivacyModeLoaded,
+    ownerScopeKey,
+    privacyMode,
+    setBlockedProtectionReason,
+    setIsHydrated,
+    setLocalProtectionStatus,
+    setPersistenceMode,
+    setWorkspace,
+  ]);
 
   useEffect(() => {
     if (!isHydrated) return;
-    void persistWorkspace(workspace);
-  }, [isHydrated, workspace]);
+    void persistWorkspace(workspace, ownerScopeKey, privacyMode);
+  }, [isHydrated, ownerScopeKey, workspace]);
 
   useEffect(() => {
     setLogEntries(snapshotLogEntries);
@@ -81,7 +119,7 @@ export function useWorkspaceHydration({
       if (cancelled) return;
 
       try {
-        const database = await getWorkspaceDatabase();
+        const database = await getWorkspaceDatabase(ownerScopeKey);
         if (!database) return;
 
         const queriedLogReadModel = await loadLogReadModelFromWatermelon(
@@ -108,6 +146,7 @@ export function useWorkspaceHydration({
     setTimelineEntries,
     snapshotLogEntries,
     snapshotTimelineEntries,
+    ownerScopeKey,
     workspace.generatedAt,
   ]);
 }
