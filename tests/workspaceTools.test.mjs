@@ -56,6 +56,12 @@ const { getLinkedLogEntries } =
   await import("../services/logs/logRelationships.ts");
 const { applyTemplateImportToWorkspace, parseTemplateImportUrl } =
   await import("../services/templates/templateImport.ts");
+const {
+  DEFAULT_THEME_PREFERENCE,
+  getThemeBackgroundColor,
+  isDarkThemePreference,
+  normalizeThemePreference,
+} = await import("../services/theme/themePreferences.ts");
 
 function createSnapshot(overrides = {}) {
   return {
@@ -602,6 +608,20 @@ test("persistence strategy prefers file-system fallback when localStorage is una
     choosePersistenceMode({ hasLocalStorage: true, hasFileSystem: true }),
     "local-storage",
   );
+});
+
+test("theme preferences default to dark and support oled selection", () => {
+  assert.equal(DEFAULT_THEME_PREFERENCE, "dark");
+  assert.equal(normalizeThemePreference("light"), "light");
+  assert.equal(normalizeThemePreference("dark"), "dark");
+  assert.equal(normalizeThemePreference("oled"), "oled");
+  assert.equal(normalizeThemePreference("system"), "dark");
+  assert.equal(isDarkThemePreference("light"), false);
+  assert.equal(isDarkThemePreference("dark"), true);
+  assert.equal(isDarkThemePreference("oled"), true);
+  assert.equal(getThemeBackgroundColor("light"), "#f7f9fc");
+  assert.equal(getThemeBackgroundColor("dark"), "#111318");
+  assert.equal(getThemeBackgroundColor("oled"), "#000000");
 });
 
 test("workspace snapshot normalization preserves attachments while filling defaults", () => {

@@ -1,9 +1,11 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet } from "react-native";
-import { Button } from "react-native-paper";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { Button, Chip } from "react-native-paper";
 
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
+import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
@@ -56,10 +58,7 @@ function buildImportUrlFromParams(params: ImportParams) {
         pickParam(params.fieldTypes) ??
         pickParam(params.supportedFieldTypes),
     ],
-    [
-      "methods",
-      pickParam(params.methods) ?? pickParam(params.importMethods),
-    ],
+    ["methods", pickParam(params.methods) ?? pickParam(params.importMethods)],
   ] as const;
 
   entries.forEach(([key, value]) => {
@@ -105,7 +104,13 @@ export default function TemplateImportScreen() {
     setStatusMessage(result.message);
     setTemplateName(result.templateName ?? null);
     setLastImportKey(importKey);
-  }, [importKey, importTemplateFromUrl, importUrl, lastImportKey, preferredMethod]);
+  }, [
+    importKey,
+    importTemplateFromUrl,
+    importUrl,
+    lastImportKey,
+    preferredMethod,
+  ]);
 
   return (
     <ScrollView
@@ -114,46 +119,77 @@ export default function TemplateImportScreen() {
     >
       <Stack.Screen options={{ title: "Template import" }} />
 
-      <View style={styles.hero}>
-        <Text style={[styles.eyebrow, { color: palette.tint }]}>TrackItUp</Text>
-        <Text style={styles.title}>Template import</Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>Import a shared template from a deep link or a scanned QR code into the local workspace catalog.</Text>
-      </View>
-
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: palette.card, borderColor: palette.border },
+      <ScreenHero
+        palette={palette}
+        title="Template import"
+        subtitle="Import a shared template from a deep link or a scanned QR code into the local workspace catalog."
+        badges={[
+          {
+            label: "TrackItUp",
+            backgroundColor: palette.card,
+            textColor: palette.tint,
+          },
+          {
+            label: preferredMethod
+              ? `Source: ${preferredMethod}`
+              : "Source: auto",
+            backgroundColor: palette.accentSoft,
+          },
         ]}
-      >
-        <Text style={styles.sectionTitle}>Import status</Text>
-        <Text style={[styles.body, { color: palette.muted }]}>{statusMessage}</Text>
-        {templateName ? (
-          <Text style={[styles.meta, { color: palette.tint }]}>Template: {templateName}</Text>
-        ) : null}
-        <Text style={[styles.meta, { color: palette.muted }]}>Catalog size: {workspace.templates.length} templates</Text>
-      </View>
+      />
 
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+      <SectionSurface
+        palette={palette}
+        label="Import status"
+        title={
+          templateName ? `Imported ${templateName}` : "Workspace catalog update"
+        }
       >
-        <Text style={styles.sectionTitle}>Import payload</Text>
+        <View style={styles.statusChipRow}>
+          {templateName ? (
+            <Chip compact style={styles.statusChip}>
+              Template: {templateName}
+            </Chip>
+          ) : null}
+          <Chip compact style={styles.statusChip}>
+            Catalog: {workspace.templates.length} templates
+          </Chip>
+        </View>
+        <Text style={[styles.body, { color: palette.muted }]}>
+          {statusMessage}
+        </Text>
+      </SectionSurface>
+
+      <SectionSurface
+        palette={palette}
+        label="Import payload"
+        title="Detected import link"
+      >
         <Text style={[styles.body, { color: palette.muted }]}>
           {importUrl || "No URL or import payload was provided."}
         </Text>
-      </View>
+      </SectionSurface>
 
       <View style={styles.buttonRow}>
-        <Button mode="contained" onPress={() => router.replace("/(tabs)" as never)} style={styles.button}>
+        <Button
+          mode="contained"
+          onPress={() => router.replace("/(tabs)" as never)}
+          style={styles.button}
+        >
           View catalog
         </Button>
-        <Button mode="contained-tonal" onPress={() => router.replace("/modal" as never)} style={styles.button}>
+        <Button
+          mode="contained-tonal"
+          onPress={() => router.replace("/modal" as never)}
+          style={styles.button}
+        >
           Open tools
         </Button>
-        <Button mode="outlined" onPress={() => router.replace("/scanner" as never)} style={styles.button}>
+        <Button
+          mode="outlined"
+          onPress={() => router.replace("/scanner" as never)}
+          style={styles.button}
+        >
           Scan again
         </Button>
       </View>
@@ -164,14 +200,14 @@ export default function TemplateImportScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 20, paddingBottom: 32 },
-  hero: { marginBottom: 18 },
-  eyebrow: { fontSize: 13, fontWeight: "800", marginBottom: 8 },
-  title: { fontSize: 28, fontWeight: "bold", marginBottom: 8 },
-  subtitle: { fontSize: 15, lineHeight: 22 },
-  card: { borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 14 },
-  sectionTitle: { fontSize: 16, fontWeight: "800", marginBottom: 10 },
   body: { fontSize: 14, lineHeight: 20 },
-  meta: { fontSize: 13, lineHeight: 18, marginTop: 10 },
-  buttonRow: { gap: 10 },
+  statusChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
+  },
+  statusChip: { borderRadius: 999 },
+  buttonRow: { gap: 10, marginTop: 2 },
   button: { flexGrow: 1 },
 });

@@ -38,6 +38,7 @@ import {
     enqueueWorkspaceSync,
     markWorkspaceSyncComplete,
     markWorkspaceSyncError,
+    pullWorkspaceSync,
     pushWorkspaceSync,
     type SyncActionResult,
 } from "@/services/offline/workspaceSync";

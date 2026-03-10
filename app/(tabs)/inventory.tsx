@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet } from "react-native";
-import { Button } from "react-native-paper";
+import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text, View } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -61,43 +61,34 @@ export default function InventoryScreen() {
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <View
+      <Surface
         style={[
           styles.header,
           {
             backgroundColor: palette.hero,
             borderColor: palette.heroBorder,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={2}
       >
         <View style={styles.headerBadgeRow}>
-          <View
+          <Chip
+            compact
+            style={[styles.headerBadge, { backgroundColor: palette.card }]}
+            textStyle={[styles.headerBadgeLabel, { color: palette.tint }]}
+          >
+            Inventory
+          </Chip>
+          <Chip
+            compact
             style={[
               styles.headerBadge,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.heroBorder,
-              },
+              { backgroundColor: palette.accentSoft },
             ]}
+            textStyle={styles.headerBadgeLabel}
           >
-            <Text style={[styles.headerBadgeLabel, { color: palette.tint }]}>
-              Inventory
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.headerBadge,
-              {
-                backgroundColor: palette.accentSoft,
-                borderColor: palette.heroBorder,
-              },
-            ]}
-          >
-            <Text style={styles.headerBadgeLabel}>
-              {formatCurrency(totalOwnership)} total
-            </Text>
-          </View>
+            {formatCurrency(totalOwnership)} total
+          </Chip>
         </View>
         <Text style={styles.title}>Inventory & lifecycle</Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
@@ -106,31 +97,31 @@ export default function InventoryScreen() {
         </Text>
         <View style={styles.highlightRow}>
           {inventoryHighlights.map((item) => (
-            <View
+            <Chip
               key={item}
               style={[
                 styles.highlightPill,
                 {
                   backgroundColor: palette.card,
-                  borderColor: palette.heroBorder,
                 },
               ]}
+              textStyle={styles.highlightLabel}
             >
-              <Text style={styles.highlightLabel}>{item}</Text>
-            </View>
+              {item}
+            </Chip>
           ))}
         </View>
-      </View>
+      </Surface>
 
-      <View
+      <Surface
         style={[
           styles.summaryCard,
           {
             backgroundColor: palette.card,
             borderColor: palette.border,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={1}
       >
         <Text style={styles.summaryTitle}>Tracked ownership cost</Text>
         <Text style={styles.summaryValue}>
@@ -147,7 +138,7 @@ export default function InventoryScreen() {
         >
           Scan barcode / QR
         </Button>
-      </View>
+      </Surface>
 
       {assetCards.length === 0 ? (
         <View
@@ -220,10 +211,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 28,
     padding: 22,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 4,
   },
   headerBadgeRow: {
     flexDirection: "row",
@@ -232,10 +219,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   headerBadge: {
-    borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
   },
   headerBadgeLabel: {
     fontSize: 12,
@@ -250,10 +234,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   highlightPill: {
-    borderWidth: 1,
     borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
   },
   highlightLabel: {
     fontSize: 13,
@@ -261,12 +242,8 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 20,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
   },
   summaryTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
   summaryValue: { fontSize: 26, fontWeight: "800", marginBottom: 6 },

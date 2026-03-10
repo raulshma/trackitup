@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
-import { Button, Chip } from "react-native-paper";
+import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text, View } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -117,41 +117,34 @@ export default function PlannerScreen() {
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <View
+      <Surface
         style={[
           styles.header,
           {
             backgroundColor: palette.hero,
             borderColor: palette.heroBorder,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={2}
       >
         <View style={styles.headerBadgeRow}>
-          <View
+          <Chip
+            compact
+            style={[styles.headerBadge, { backgroundColor: palette.card }]}
+            textStyle={[styles.headerBadgeLabel, { color: palette.tint }]}
+          >
+            Planner
+          </Chip>
+          <Chip
+            compact
             style={[
               styles.headerBadge,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.heroBorder,
-              },
+              { backgroundColor: palette.accentSoft },
             ]}
+            textStyle={styles.headerBadgeLabel}
           >
-            <Text style={[styles.headerBadgeLabel, { color: palette.tint }]}>
-              Planner
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.headerBadge,
-              {
-                backgroundColor: palette.accentSoft,
-                borderColor: palette.heroBorder,
-              },
-            ]}
-          >
-            <Text style={styles.headerBadgeLabel}>{calendar.monthLabel}</Text>
-          </View>
+            {calendar.monthLabel}
+          </Chip>
         </View>
         <Text style={styles.title}>Planner calendar</Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
@@ -160,31 +153,31 @@ export default function PlannerScreen() {
         </Text>
         <View style={styles.highlightRow}>
           {plannerHighlights.map((item) => (
-            <View
+            <Chip
               key={item}
               style={[
                 styles.highlightPill,
                 {
                   backgroundColor: palette.card,
-                  borderColor: palette.heroBorder,
                 },
               ]}
+              textStyle={styles.highlightLabel}
             >
-              <Text style={styles.highlightLabel}>{item}</Text>
-            </View>
+              {item}
+            </Chip>
           ))}
         </View>
-      </View>
+      </Surface>
 
-      <View
+      <Surface
         style={[
           styles.calendarCard,
           {
             backgroundColor: palette.card,
             borderColor: palette.border,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={1}
       >
         <View style={styles.calendarHeader}>
           <Button
@@ -250,7 +243,7 @@ export default function PlannerScreen() {
             })}
           </View>
         ))}
-      </View>
+      </Surface>
 
       <View
         style={[
@@ -405,10 +398,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 28,
     padding: 22,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 4,
   },
   headerBadgeRow: {
     flexDirection: "row",
@@ -417,10 +406,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   headerBadge: {
-    borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
   },
   headerBadgeLabel: {
     fontSize: 12,
@@ -435,10 +421,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   highlightPill: {
-    borderWidth: 1,
     borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
   },
   highlightLabel: {
     fontSize: 13,
@@ -446,12 +429,8 @@ const styles = StyleSheet.create({
   },
   calendarCard: {
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
   },
   calendarHeader: {
     flexDirection: "row",

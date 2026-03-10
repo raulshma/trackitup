@@ -1,9 +1,10 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Button, Chip, SegmentedButtons, Surface } from "react-native-paper";
 
 import { MiniMetricChart, type ChartMode } from "@/components/MiniMetricChart";
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
@@ -236,36 +237,18 @@ export default function TabOneScreen() {
 
       return (
         <>
-          <View style={styles.chartModeRow}>
-            {(["line", "bar", "scatter"] as ChartMode[]).map((mode) => {
-              const isActive = chartMode === mode;
-
-              return (
-                <Pressable
-                  key={mode}
-                  onPress={() => setChartMode(mode)}
-                  style={[
-                    styles.chartModeChip,
-                    {
-                      backgroundColor: isActive
-                        ? palette.tint
-                        : palette.background,
-                      borderColor: isActive ? palette.tint : palette.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.chartModeLabel,
-                      { color: isActive ? palette.card : palette.text },
-                    ]}
-                  >
-                    {mode}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <SegmentedButtons
+            value={chartMode}
+            onValueChange={(value: string) => setChartMode(value as ChartMode)}
+            density="small"
+            style={styles.chartModeRow}
+            buttons={(["line", "bar", "scatter"] as ChartMode[]).map(
+              (mode) => ({
+                value: mode,
+                label: mode,
+              }),
+            )}
+          />
           <MiniMetricChart
             points={points}
             metrics={metrics}
@@ -285,43 +268,31 @@ export default function TabOneScreen() {
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <View
+      <Surface
         style={[
           styles.hero,
           {
             backgroundColor: palette.hero,
             borderColor: palette.heroBorder,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={2}
       >
         <View style={styles.heroBadgeRow}>
-          <View
-            style={[
-              styles.heroBadge,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.heroBorder,
-              },
-            ]}
+          <Chip
+            compact
+            style={[styles.heroBadge, { backgroundColor: palette.card }]}
+            textStyle={[styles.heroBadgeLabel, { color: palette.tint }]}
           >
-            <Text style={[styles.heroBadgeLabel, { color: palette.tint }]}>
-              TrackItUp
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.heroBadge,
-              {
-                backgroundColor: palette.accentSoft,
-                borderColor: palette.heroBorder,
-              },
-            ]}
+            TrackItUp
+          </Chip>
+          <Chip
+            compact
+            style={[styles.heroBadge, { backgroundColor: palette.accentSoft }]}
+            textStyle={[styles.heroBadgeLabel, { color: palette.text }]}
           >
-            <Text style={[styles.heroBadgeLabel, { color: palette.text }]}>
-              {attentionSummary}
-            </Text>
-          </View>
+            {attentionSummary}
+          </Chip>
         </View>
         <Text style={[styles.eyebrow, { color: palette.tint }]}>
           Streamlined workspace command center
@@ -335,34 +306,34 @@ export default function TabOneScreen() {
         </Text>
         <View style={styles.heroStatRow}>
           {workspacePulse.map((item) => (
-            <View
+            <Chip
               key={item}
               style={[
                 styles.heroStatPill,
                 {
                   backgroundColor: palette.card,
-                  borderColor: palette.heroBorder,
                 },
               ]}
+              textStyle={styles.heroStatLabel}
             >
-              <Text style={styles.heroStatLabel}>{item}</Text>
-            </View>
+              {item}
+            </Chip>
           ))}
         </View>
-      </View>
+      </Surface>
 
       <View style={styles.statRow}>
         {overviewStats.map((stat) => (
-          <View
+          <Surface
             key={stat.label}
             style={[
               styles.statCard,
               {
                 backgroundColor: palette.card,
                 borderColor: palette.border,
-                shadowColor: palette.shadow,
               },
             ]}
+            elevation={1}
           >
             <Text style={[styles.statEyebrow, { color: palette.muted }]}>
               Live
@@ -371,7 +342,7 @@ export default function TabOneScreen() {
             <Text style={[styles.statLabel, { color: palette.muted }]}>
               {stat.label}
             </Text>
-          </View>
+          </Surface>
         ))}
       </View>
 
@@ -392,27 +363,36 @@ export default function TabOneScreen() {
                 params: { actionId: action.id },
               })
             }
-            style={[
-              styles.actionButton,
-              {
-                backgroundColor: palette.card,
-                borderColor: action.accent,
-                shadowColor: palette.shadow,
-              },
+            style={({ pressed }) => [
+              styles.actionPressable,
+              { opacity: pressed ? 0.9 : 1 },
             ]}
           >
-            <Text style={styles.actionLabel}>{action.label}</Text>
-            <Text style={[styles.actionDescription, { color: palette.muted }]}>
-              {action.description}
-            </Text>
-            <View style={styles.actionFooter}>
-              <Text style={[styles.actionMeta, { color: palette.muted }]}>
-                {action.target}
+            <Surface
+              style={[
+                styles.actionButton,
+                {
+                  backgroundColor: palette.card,
+                  borderColor: action.accent,
+                },
+              ]}
+              elevation={1}
+            >
+              <Text style={styles.actionLabel}>{action.label}</Text>
+              <Text
+                style={[styles.actionDescription, { color: palette.muted }]}
+              >
+                {action.description}
               </Text>
-              <Text style={[styles.actionCta, { color: action.accent }]}>
-                Open →
-              </Text>
-            </View>
+              <View style={styles.actionFooter}>
+                <Text style={[styles.actionMeta, { color: palette.muted }]}>
+                  {action.target}
+                </Text>
+                <Text style={[styles.actionCta, { color: action.accent }]}>
+                  Open
+                </Text>
+              </View>
+            </Surface>
           </Pressable>
         ))}
       </View>
@@ -425,26 +405,26 @@ export default function TabOneScreen() {
         </Text>
       </View>
       {spaceSummaries.length === 0 ? (
-        <View
+        <Surface
           style={[
             styles.spaceCard,
             {
               backgroundColor: palette.card,
               borderColor: palette.border,
               borderLeftColor: palette.border,
-              shadowColor: palette.shadow,
             },
           ]}
+          elevation={1}
         >
           <Text style={styles.spaceName}>No tracked spaces yet</Text>
           <Text style={[styles.spaceNote, { color: palette.muted }]}>
             Real spaces will appear here after you connect cloud data, import a
             workspace, or begin logging on this device.
           </Text>
-        </View>
+        </Surface>
       ) : (
         spaceSummaries.map((space) => (
-          <View
+          <Surface
             key={space.id}
             style={[
               styles.spaceCard,
@@ -452,9 +432,9 @@ export default function TabOneScreen() {
                 backgroundColor: palette.card,
                 borderColor: palette.border,
                 borderLeftColor: space.accent,
-                shadowColor: palette.shadow,
               },
             ]}
+            elevation={1}
           >
             <View style={styles.spaceHeader}>
               <View style={styles.spaceHeadingCopy}>
@@ -494,7 +474,7 @@ export default function TabOneScreen() {
                 {space.lastLog}
               </Text>
             </View>
-          </View>
+          </Surface>
         ))
       )}
 
@@ -506,7 +486,7 @@ export default function TabOneScreen() {
         </Text>
       </View>
       {visibleWidgets.map((widget, index) => (
-        <View
+        <Surface
           key={widget.id}
           style={[
             styles.spaceCard,
@@ -514,9 +494,9 @@ export default function TabOneScreen() {
               backgroundColor: palette.card,
               borderColor: palette.border,
               borderLeftColor: palette.tint,
-              shadowColor: palette.shadow,
             },
           ]}
+          elevation={1}
         >
           <View style={styles.spaceHeader}>
             <View style={styles.spaceHeadingCopy}>
@@ -526,30 +506,46 @@ export default function TabOneScreen() {
               </Text>
             </View>
             <View style={styles.widgetControls}>
-              <Pressable
+              <Button
                 onPress={() => moveDashboardWidget(widget.id, "up")}
+                mode="outlined"
+                compact
                 style={[styles.widgetButton, { borderColor: palette.border }]}
+                contentStyle={styles.widgetButtonContent}
+                labelStyle={styles.widgetButtonLabel}
               >
-                <Text style={styles.widgetButtonLabel}>↑</Text>
-              </Pressable>
-              <Pressable
+                Up
+              </Button>
+              <Button
                 onPress={() => moveDashboardWidget(widget.id, "down")}
+                mode="outlined"
+                compact
                 style={[styles.widgetButton, { borderColor: palette.border }]}
+                contentStyle={styles.widgetButtonContent}
+                labelStyle={styles.widgetButtonLabel}
               >
-                <Text style={styles.widgetButtonLabel}>↓</Text>
-              </Pressable>
-              <Pressable
+                Down
+              </Button>
+              <Button
                 onPress={() => cycleDashboardWidgetSize(widget.id)}
+                mode="outlined"
+                compact
                 style={[styles.widgetButton, { borderColor: palette.border }]}
+                contentStyle={styles.widgetButtonContent}
+                labelStyle={styles.widgetButtonLabel}
               >
-                <Text style={styles.widgetButtonLabel}>Size</Text>
-              </Pressable>
-              <Pressable
+                Size
+              </Button>
+              <Button
                 onPress={() => toggleDashboardWidgetVisibility(widget.id)}
+                mode="outlined"
+                compact
                 style={[styles.widgetButton, { borderColor: palette.border }]}
+                contentStyle={styles.widgetButtonContent}
+                labelStyle={styles.widgetButtonLabel}
               >
-                <Text style={styles.widgetButtonLabel}>Hide</Text>
-              </Pressable>
+                Hide
+              </Button>
             </View>
           </View>
           <Text style={[styles.spaceNote, { color: palette.muted }]}>
@@ -557,18 +553,18 @@ export default function TabOneScreen() {
           </Text>
           <View style={styles.widgetBody}>{renderWidgetBody(widget)}</View>
           <Text style={styles.spaceFooterLabel}>Widget #{index + 1}</Text>
-        </View>
+        </Surface>
       ))}
       {hiddenWidgets.length > 0 ? (
-        <View
+        <Surface
           style={[
             styles.focusCard,
             {
               backgroundColor: palette.card,
               borderColor: palette.border,
-              shadowColor: palette.shadow,
             },
           ]}
+          elevation={1}
         >
           <Text style={styles.sectionTitle}>Hidden widgets</Text>
           {hiddenWidgets.map((widget) => (
@@ -581,15 +577,19 @@ export default function TabOneScreen() {
                   {widget.type} • {widget.size} card
                 </Text>
               </View>
-              <Pressable
+              <Button
                 onPress={() => toggleDashboardWidgetVisibility(widget.id)}
+                mode="outlined"
+                compact
                 style={[styles.widgetButton, { borderColor: palette.border }]}
+                contentStyle={styles.widgetButtonContent}
+                labelStyle={styles.widgetButtonLabel}
               >
-                <Text style={styles.widgetButtonLabel}>Show</Text>
-              </Pressable>
+                Show
+              </Button>
             </View>
           ))}
-        </View>
+        </Surface>
       ) : null}
 
       <View style={styles.sectionHeader}>
@@ -599,15 +599,15 @@ export default function TabOneScreen() {
           workspace.
         </Text>
       </View>
-      <View
+      <Surface
         style={[
           styles.focusCard,
           {
             backgroundColor: palette.card,
             borderColor: palette.border,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={1}
       >
         {attentionItems.map((item) => (
           <View key={item} style={styles.focusItem}>
@@ -619,7 +619,7 @@ export default function TabOneScreen() {
             </Text>
           </View>
         ))}
-      </View>
+      </Surface>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Template catalog</Text>
@@ -629,30 +629,36 @@ export default function TabOneScreen() {
         </Text>
       </View>
       <View style={styles.widgetToolbar}>
-        <Pressable
+        <Button
           onPress={() => router.push("/schema-builder")}
+          mode="outlined"
           style={[styles.toolbarButton, { borderColor: palette.border }]}
+          contentStyle={styles.toolbarButtonContent}
+          labelStyle={styles.toolbarButtonLabel}
         >
-          <Text style={styles.toolbarButtonLabel}>Build custom schema</Text>
-        </Pressable>
-        <Pressable
+          Build custom schema
+        </Button>
+        <Button
           onPress={() => router.push("/template-import")}
+          mode="outlined"
           style={[styles.toolbarButton, { borderColor: palette.border }]}
+          contentStyle={styles.toolbarButtonContent}
+          labelStyle={styles.toolbarButtonLabel}
         >
-          <Text style={styles.toolbarButtonLabel}>Import template</Text>
-        </Pressable>
+          Import template
+        </Button>
       </View>
       {workspace.templates.length === 0 ? (
-        <View
+        <Surface
           style={[
             styles.spaceCard,
             {
               backgroundColor: palette.card,
               borderColor: palette.border,
               borderLeftColor: palette.border,
-              shadowColor: palette.shadow,
             },
           ]}
+          elevation={1}
         >
           <Text style={styles.spaceName}>
             No templates in this workspace yet
@@ -660,10 +666,10 @@ export default function TabOneScreen() {
           <Text style={[styles.spaceNote, { color: palette.muted }]}>
             Import a template or build your own schema to populate this catalog.
           </Text>
-        </View>
+        </Surface>
       ) : (
         workspace.templates.map((template) => (
-          <View
+          <Surface
             key={template.id}
             style={[
               styles.spaceCard,
@@ -671,9 +677,9 @@ export default function TabOneScreen() {
                 backgroundColor: palette.card,
                 borderColor: palette.border,
                 borderLeftColor: palette.tint,
-                shadowColor: palette.shadow,
               },
             ]}
+            elevation={1}
           >
             <View style={styles.spaceHeader}>
               <View style={styles.spaceHeadingCopy}>
@@ -698,23 +704,26 @@ export default function TabOneScreen() {
             </Text>
             {template.formTemplate ? (
               <View style={styles.widgetToolbar}>
-                <Pressable
+                <Button
                   onPress={() =>
                     router.push({
                       pathname: "/logbook",
                       params: { templateId: template.id },
                     })
                   }
+                  mode="outlined"
                   style={[
                     styles.toolbarButton,
                     { borderColor: palette.border },
                   ]}
+                  contentStyle={styles.toolbarButtonContent}
+                  labelStyle={styles.toolbarButtonLabel}
                 >
-                  <Text style={styles.toolbarButtonLabel}>Open form</Text>
-                </Pressable>
+                  Open form
+                </Button>
               </View>
             ) : null}
-          </View>
+          </Surface>
         ))
       )}
 
@@ -724,15 +733,15 @@ export default function TabOneScreen() {
           Tips here reflect your current real workspace state.
         </Text>
       </View>
-      <View
+      <Surface
         style={[
           styles.focusCard,
           {
             backgroundColor: palette.card,
             borderColor: palette.border,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={1}
       >
         {workspaceGuidance.map((item) => (
           <View key={item} style={styles.focusItem}>
@@ -744,7 +753,7 @@ export default function TabOneScreen() {
             </Text>
           </View>
         ))}
-      </View>
+      </Surface>
     </ScrollView>
   );
 }
@@ -762,10 +771,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 28,
     padding: 22,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 4,
   },
   heroBadgeRow: {
     flexDirection: "row",
@@ -774,10 +779,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   heroBadge: {
-    borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
   },
   heroBadgeLabel: {
     fontSize: 12,
@@ -805,10 +807,7 @@ const styles = StyleSheet.create({
     marginTop: 18,
   },
   heroStatPill: {
-    borderWidth: 1,
     borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
   },
   heroStatLabel: {
     fontSize: 13,
@@ -825,10 +824,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 22,
     padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
   },
   statEyebrow: {
     fontSize: 11,
@@ -863,19 +858,17 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 10,
   },
-  actionButton: {
+  actionPressable: {
     flex: 1,
     minWidth: 200,
+  },
+  actionButton: {
     paddingVertical: 16,
     paddingHorizontal: 14,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     alignItems: "flex-start",
     minHeight: 148,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
   },
   actionLabel: {
     fontSize: 16,
@@ -908,12 +901,8 @@ const styles = StyleSheet.create({
   spaceCard: {
     borderWidth: 1,
     borderLeftWidth: 5,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
   },
   spaceHeader: {
     flexDirection: "row",
@@ -962,12 +951,8 @@ const styles = StyleSheet.create({
   },
   focusCard: {
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
   },
   focusItem: {
     flexDirection: "row",
@@ -993,18 +978,18 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   widgetButton: {
-    minWidth: 34,
-    height: 34,
+    minWidth: 56,
     borderRadius: 999,
     borderWidth: 1,
-    backgroundColor: "rgba(255,255,255,0.02)",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
+    backgroundColor: "transparent",
+  },
+  widgetButtonContent: {
+    minHeight: 34,
   },
   widgetButtonLabel: {
     fontSize: 12,
     fontWeight: "700",
+    marginHorizontal: 4,
   },
   widgetBody: {
     marginBottom: 12,
@@ -1052,28 +1037,17 @@ const styles = StyleSheet.create({
   toolbarButton: {
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: "rgba(255,255,255,0.02)",
+    backgroundColor: "transparent",
+  },
+  toolbarButtonContent: {
+    minHeight: 42,
+    paddingHorizontal: 8,
   },
   toolbarButtonLabel: {
     fontSize: 13,
     fontWeight: "700",
   },
   chartModeRow: {
-    flexDirection: "row",
-    gap: 8,
     marginTop: 2,
-  },
-  chartModeChip: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  chartModeLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "capitalize",
   },
 });

@@ -1,4 +1,10 @@
-import { ScrollViewStyleReset } from 'expo-router/html';
+import { ScrollViewStyleReset } from "expo-router/html";
+
+import {
+    DEFAULT_THEME_PREFERENCE,
+    THEME_PREFERENCE_STORAGE_KEY,
+    getThemeBackgroundColor,
+} from "@/services/theme/themePreferences";
 
 // This file is web-only and used to configure the root HTML for every
 // web page during static rendering.
@@ -10,7 +16,10 @@ export default function Root({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, shrink-to-fit=no"
+        />
 
         {/* 
           Disable body scrolling on web. This makes ScrollView components work closer to how they do on native. 
@@ -18,6 +27,7 @@ export default function Root({ children }: { children: React.ReactNode }) {
         */}
         <ScrollViewStyleReset />
 
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
         {/* Add any additional <head> elements that you want globally available on web... */}
@@ -27,12 +37,38 @@ export default function Root({ children }: { children: React.ReactNode }) {
   );
 }
 
-const responsiveBackground = `
-body {
-  background-color: #fff;
-}
-@media (prefers-color-scheme: dark) {
-  body {
-    background-color: #000;
+const themeBootstrapScript = `
+(function () {
+  try {
+    var storedPreference = localStorage.getItem("${THEME_PREFERENCE_STORAGE_KEY}");
+    var preference =
+      storedPreference === "light" ||
+      storedPreference === "dark" ||
+      storedPreference === "oled"
+        ? storedPreference
+        : "${DEFAULT_THEME_PREFERENCE}";
+    document.documentElement.dataset.themePreference = preference;
+    document.documentElement.style.colorScheme = preference === "light" ? "light" : "dark";
+  } catch (error) {
+    document.documentElement.dataset.themePreference = "${DEFAULT_THEME_PREFERENCE}";
+    document.documentElement.style.colorScheme = "dark";
   }
+})();`;
+
+const responsiveBackground = `
+html,
+body {
+  background-color: ${getThemeBackgroundColor(DEFAULT_THEME_PREFERENCE)};
+}
+html[data-theme-preference="light"],
+html[data-theme-preference="light"] body {
+  background-color: ${getThemeBackgroundColor("light")};
+}
+html[data-theme-preference="dark"],
+html[data-theme-preference="dark"] body {
+  background-color: ${getThemeBackgroundColor("dark")};
+}
+html[data-theme-preference="oled"],
+html[data-theme-preference="oled"] body {
+  background-color: ${getThemeBackgroundColor("oled")};
 }`;

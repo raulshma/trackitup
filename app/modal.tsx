@@ -2,12 +2,21 @@ import { File } from "expo-file-system";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Platform, ScrollView, StyleSheet } from "react-native";
-import { Button, TextInput } from "react-native-paper";
+import { ScrollView, StyleSheet, View } from "react-native";
+import {
+    Button,
+    Chip,
+    SegmentedButtons,
+    Surface,
+    TextInput,
+} from "react-native-paper";
 
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
+import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
     getCameraPermissionStatusAsync,
@@ -21,6 +30,13 @@ import {
     exportWorkspaceLogsCsvAsync,
     exportWorkspaceSummaryPdfAsync,
 } from "@/services/export/workspaceExport";
+import type { ThemePreference } from "@/services/theme/themePreferences";
+
+const themeOptionLabels: Record<ThemePreference, string> = {
+  light: "Light",
+  dark: "Dark",
+  oled: "OLED",
+};
 
 function formatPermissionSummary(permission: {
   granted?: boolean;
@@ -37,6 +53,7 @@ export default function ModalScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
   const router = useRouter();
+  const { themePreference, setThemePreference } = useThemePreference();
   const { importLogsFromCsv, workspace } = useWorkspace();
   const [toolMessage, setToolMessage] = useState<string | null>(null);
   const [csvInput, setCsvInput] = useState("");
@@ -166,19 +183,66 @@ export default function ModalScreen() {
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <Text style={styles.title}>TrackItUp workspace tools</Text>
-      <Text style={[styles.subtitle, { color: palette.muted }]}>
-        Export, import, and device capability checks for your real workspace
-        data.
-      </Text>
-
-      <View
-        style={[
-          styles.sectionCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
+      <ScreenHero
+        palette={palette}
+        title="TrackItUp workspace tools"
+        subtitle="Export, import, and device capability checks for your real workspace data."
+        badges={[
+          {
+            label: "Workspace tools",
+            backgroundColor: palette.card,
+            textColor: palette.tint,
+          },
+          {
+            label: `${workspace.templates.length} templates`,
+            backgroundColor: palette.accentSoft,
+          },
         ]}
+      />
+
+      <SectionSurface
+        palette={palette}
+        label="Appearance"
+        title="Choose your default app theme"
+        style={styles.sectionCardSpacing}
       >
-        <Text style={styles.sectionTitle}>DATA PORTABILITY</Text>
+        <Text style={[styles.listText, { color: palette.muted }]}>
+          TrackItUp now defaults to dark mode. Switch between light, dark, and
+          OLED whenever you want.
+        </Text>
+        <SegmentedButtons
+          value={themePreference}
+          onValueChange={(value: string) =>
+            setThemePreference(value as ThemePreference)
+          }
+          style={styles.themeSelector}
+          buttons={(Object.keys(themeOptionLabels) as ThemePreference[]).map(
+            (value) => ({
+              value,
+              label: themeOptionLabels[value],
+            }),
+          )}
+        />
+        <View style={styles.statusChipRow}>
+          <Chip compact style={styles.statusChip} icon="theme-light-dark">
+            Active: {themeOptionLabels[themePreference]}
+          </Chip>
+          <Chip compact style={styles.statusChip}>
+            Default: Dark
+          </Chip>
+        </View>
+        <Text style={[styles.helperText, { color: palette.muted }]}>
+          OLED uses pure-black backgrounds for a darker nighttime look and can
+          reduce power usage on compatible displays.
+        </Text>
+      </SectionSurface>
+
+      <SectionSurface
+        palette={palette}
+        label="Data portability"
+        title="Export or import workspace history"
+        style={styles.sectionCardSpacing}
+      >
         <Text style={[styles.listText, { color: palette.muted }]}>
           Export the live workspace snapshot as JSON, CSV, or PDF. Paste CSV
           rows below or pick a CSV file to bulk import log history into your
@@ -263,15 +327,14 @@ export default function ModalScreen() {
             Pick CSV file
           </Button>
         </View>
-      </View>
+      </SectionSurface>
 
-      <View
-        style={[
-          styles.sectionCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+      <SectionSurface
+        palette={palette}
+        label="Template import"
+        title="Bring in shared TrackItUp templates"
+        style={styles.sectionCardSpacing}
       >
-        <Text style={styles.sectionTitle}>TEMPLATE IMPORT</Text>
         <Text style={[styles.listText, { color: palette.muted }]}>
           Paste a shared TrackItUp template link or scan a QR code to import
           community or official templates into the local catalog.
@@ -312,19 +375,26 @@ export default function ModalScreen() {
             Scan QR code
           </Button>
         </View>
-      </View>
+      </SectionSurface>
 
-      <View
-        style={[
-          styles.sectionCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+      <SectionSurface
+        palette={palette}
+        label="Hardware capabilities"
+        title="Check camera and location readiness"
+        style={styles.sectionCardSpacing}
       >
-        <Text style={styles.sectionTitle}>HARDWARE CAPABILITIES</Text>
         <Text style={[styles.listText, { color: palette.muted }]}>
           Validate the camera and location foundations used for barcode
           scanning, media capture, and geotagged logs.
         </Text>
+        <View style={styles.statusChipRow}>
+          <Chip compact style={styles.statusChip} icon="camera-outline">
+            {cameraStatus}
+          </Chip>
+          <Chip compact style={styles.statusChip} icon="map-marker-outline">
+            {locationStatus}
+          </Chip>
+        </View>
         <Text style={[styles.helperText, { color: palette.muted }]}>
           Camera: {cameraStatus}
         </Text>
@@ -370,37 +440,36 @@ export default function ModalScreen() {
             Open scanner
           </Button>
         </View>
-      </View>
+      </SectionSurface>
 
       {toolMessage ? (
-        <View
-          style={[
-            styles.sectionCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
-          ]}
+        <SectionSurface
+          palette={palette}
+          label="Last action"
+          title="Latest workspace tool result"
+          style={styles.sectionCardSpacing}
         >
-          <Text style={styles.sectionTitle}>LAST ACTION</Text>
           <Text style={[styles.listText, { color: palette.muted }]}>
             {toolMessage}
           </Text>
-        </View>
+        </SectionSurface>
       ) : null}
 
-      <View
+      <Surface
         style={[
           styles.footnoteCard,
           { backgroundColor: palette.card, borderColor: palette.border },
         ]}
+        elevation={1}
       >
         <Text style={styles.footnoteTitle}>Workspace note</Text>
         <Text style={[styles.footnoteCopy, { color: palette.muted }]}>
           This screen only exposes tools and checks for your current workspace,
           not seeded sample content.
         </Text>
-      </View>
+      </Surface>
 
-      {/* Use a light status bar on iOS to account for the black space above the modal */}
-      <StatusBar style={Platform.OS === "ios" ? "light" : "auto"} />
+      <StatusBar style={colorScheme === "light" ? "dark" : "light"} />
     </ScrollView>
   );
 }
@@ -413,26 +482,8 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 32,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 18,
-  },
-  sectionCard: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 18,
+  sectionCardSpacing: {
     marginBottom: 14,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: "800",
-    marginBottom: 10,
   },
   listItem: {
     flexDirection: "row",
@@ -463,6 +514,9 @@ const styles = StyleSheet.create({
   toolButton: {
     flexGrow: 1,
   },
+  themeSelector: {
+    marginTop: 14,
+  },
   csvInput: {
     marginTop: 12,
     marginBottom: 10,
@@ -472,6 +526,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 18,
     marginBottom: 8,
+  },
+  statusChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  statusChip: {
+    borderRadius: 999,
   },
   statusPill: {
     borderWidth: 1,
@@ -498,7 +562,7 @@ const styles = StyleSheet.create({
   },
   footnoteCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 24,
     padding: 18,
     marginTop: 4,
   },

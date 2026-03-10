@@ -340,7 +340,7 @@ export const DynamicFormRenderer = memo(function DynamicFormRenderer({
         control = (
           <>
             <TextInput
-              ref={(ref) => {
+              ref={(ref: ComponentRef<typeof TextInput> | null) => {
                 textFieldRefs.current[field.id] = ref;
               }}
               mode="outlined"

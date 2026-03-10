@@ -1,6 +1,7 @@
 import type {
     LogEntry,
     Reminder,
+    ReminderHistoryEntry,
     ReminderTriggerRule,
 } from "@/types/trackitup";
 
@@ -146,7 +147,7 @@ export function applyReminderTriggerRules(
   reminders: Reminder[],
   logs: LogEntry[],
   scheduledAt: string,
-) {
+): Reminder[] {
   const now = new Date(scheduledAt).getTime();
 
   return reminders.map((reminder) => {
@@ -164,22 +165,22 @@ export function applyReminderTriggerRules(
     dueAt.setHours(dueAt.getHours() + (matchedRule?.delayHours ?? 0));
 
     const note = `Condition met from '${match.title}' and scheduled automatically.`;
+    const status: Reminder["status"] =
+      dueAt.getTime() <= now ? "due" : "scheduled";
+    const historyEntry: ReminderHistoryEntry = {
+      id: `${reminder.id}-history-${Date.now()}`,
+      action: "scheduled",
+      at: scheduledAt,
+      note,
+    };
 
     return {
       ...reminder,
       dueAt: dueAt.toISOString(),
       snoozedUntil: undefined,
       skipReason: undefined,
-      status: dueAt.getTime() <= now ? "due" : "scheduled",
-      history: [
-        {
-          id: `${reminder.id}-history-${Date.now()}`,
-          action: "scheduled",
-          at: scheduledAt,
-          note,
-        },
-        ...(reminder.history ?? []),
-      ].slice(0, 12),
+      status,
+      history: [historyEntry, ...(reminder.history ?? [])].slice(0, 12),
     };
   });
 }

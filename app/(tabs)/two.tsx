@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet } from "react-native";
-import { Searchbar } from "react-native-paper";
+import { Chip, Searchbar, Surface } from "react-native-paper";
 
 import { Text, View } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -172,58 +172,51 @@ export default function TabTwoScreen() {
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <View
+      <Surface
         style={[
           styles.header,
           {
             backgroundColor: palette.hero,
             borderColor: palette.heroBorder,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={2}
       >
         <View style={styles.headerBadgeRow}>
-          <View
+          <Chip
+            compact
+            style={[styles.headerBadge, { backgroundColor: palette.card }]}
+            textStyle={[styles.headerBadgeLabel, { color: palette.tint }]}
+          >
+            Smart feed
+          </Chip>
+          <Chip
+            compact
             style={[
               styles.headerBadge,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.heroBorder,
-              },
+              { backgroundColor: palette.accentSoft },
             ]}
+            textStyle={styles.headerBadgeLabel}
           >
-            <Text style={[styles.headerBadgeLabel, { color: palette.tint }]}>
-              Smart feed
-            </Text>
-          </View>
-          <View
-            style={[
-              styles.headerBadge,
-              {
-                backgroundColor: palette.accentSoft,
-                borderColor: palette.heroBorder,
-              },
-            ]}
-          >
-            <Text style={styles.headerBadgeLabel}>{resultSummary}</Text>
-          </View>
+            {resultSummary}
+          </Chip>
         </View>
         <Text style={styles.title}>Unified Timeline</Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
           Search, scan, and narrow every log, reminder, metric reading, and
           asset event from one clean chronological feed.
         </Text>
-      </View>
+      </Surface>
 
-      <View
+      <Surface
         style={[
           styles.searchCard,
           {
             backgroundColor: palette.card,
             borderColor: palette.border,
-            shadowColor: palette.shadow,
           },
         ]}
+        elevation={1}
       >
         <Text style={styles.filterGroupTitle}>Search the logbook</Text>
         <Searchbar
@@ -236,7 +229,7 @@ export default function TabTwoScreen() {
           {resultSummary} • {activeFilterCount} active filter
           {activeFilterCount === 1 ? "" : "s"}
         </Text>
-      </View>
+      </Surface>
 
       <View
         style={[
@@ -546,10 +539,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 28,
     padding: 22,
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.16,
-    shadowRadius: 24,
-    elevation: 4,
   },
   headerBadgeRow: {
     flexDirection: "row",
@@ -558,10 +547,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   headerBadge: {
-    borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
   },
   headerBadgeLabel: {
     fontSize: 12,
@@ -578,12 +564,8 @@ const styles = StyleSheet.create({
   },
   searchCard: {
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
   },
   searchInput: {
     marginTop: 10,

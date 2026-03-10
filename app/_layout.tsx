@@ -1,18 +1,16 @@
-import {
-    DarkTheme,
-    DefaultTheme,
-    ThemeProvider,
-} from "@react-navigation/native";
+import { ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { MD3DarkTheme, MD3LightTheme, PaperProvider } from "react-native-paper";
+import { PaperProvider } from "react-native-paper";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
-import Colors from "@/constants/Colors";
+import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { ThemePreferenceProvider } from "@/providers/ThemePreferenceProvider";
 import { WorkspaceProvider } from "@/providers/WorkspaceProvider";
 
 export {
@@ -48,63 +46,36 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <ThemePreferenceProvider>
+      <RootLayoutNav />
+    </ThemePreferenceProvider>
+  );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const palette = Colors[colorScheme];
-  const navigationBaseTheme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
-  const paperBaseTheme = colorScheme === "dark" ? MD3DarkTheme : MD3LightTheme;
-  const navigationTheme = {
-    ...navigationBaseTheme,
-    colors: {
-      ...navigationBaseTheme.colors,
-      primary: palette.tint,
-      background: palette.background,
-      card: palette.card,
-      text: palette.text,
-      border: palette.border,
-      notification: palette.tint,
-    },
-  };
-  const paperTheme = {
-    ...paperBaseTheme,
-    roundness: 6,
-    colors: {
-      ...paperBaseTheme.colors,
-      primary: palette.tint,
-      secondary: palette.tint,
-      background: palette.background,
-      surface: palette.card,
-      surfaceVariant: palette.cardAlt,
-      outline: palette.border,
-      outlineVariant: palette.border,
-      onSurface: palette.text,
-      onSurfaceVariant: palette.muted,
-      elevation: {
-        ...paperBaseTheme.colors.elevation,
-        level1: palette.cardAlt,
-        level2: palette.hero,
-        level3: palette.card,
-      },
-    },
-  };
+  const { navigationTheme, paperTheme, palette } = getAppThemes(colorScheme);
+  const statusBarStyle = isDarkColorScheme(colorScheme) ? "light" : "dark";
 
   return (
     <AuthProvider>
       <PaperProvider theme={paperTheme}>
+        <StatusBar style={statusBarStyle} />
         <WorkspaceProvider>
           <ThemeProvider value={navigationTheme}>
             <Stack
               screenOptions={{
                 contentStyle: { backgroundColor: palette.background },
-                headerStyle: { backgroundColor: palette.background },
-                headerTintColor: palette.text,
+                headerStyle: {
+                  backgroundColor: paperTheme.colors.elevation.level2,
+                },
+                headerTintColor: paperTheme.colors.onSurface,
                 headerShadowVisible: false,
+                headerTitleAlign: "left",
                 headerTitleStyle: {
-                  fontSize: 18,
-                  fontWeight: "700",
+                  fontSize: 22,
+                  fontWeight: "600",
                 },
               }}
             >

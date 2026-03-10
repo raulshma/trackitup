@@ -1,10 +1,19 @@
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet } from "react-native";
-import { Button, Switch, TextInput } from "react-native-paper";
+import { ScrollView, StyleSheet, View } from "react-native";
+import {
+    Button,
+    Chip,
+    SegmentedButtons,
+    Surface,
+    Switch,
+    TextInput,
+} from "react-native-paper";
 
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
+import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
@@ -156,26 +165,18 @@ export default function SchemaBuilderScreen() {
     >
       <Stack.Screen options={{ title: "Schema builder" }} />
 
-      <View style={styles.hero}>
-        <Text style={[styles.eyebrow, { color: palette.tint }]}>
-          Schema builder
-        </Text>
-        <Text style={styles.title}>
-          Build a local template with real form fields.
-        </Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
-          Base tracking fields come from the selected template family, and the
-          extra fields below are saved into the form schema.
-        </Text>
-      </View>
+      <ScreenHero
+        palette={palette}
+        eyebrow="Schema builder"
+        title="Build a local template with real form fields."
+        subtitle="Base tracking fields come from the selected template family, and the extra fields below are saved into the form schema."
+      />
 
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+      <SectionSurface
+        palette={palette}
+        label="Template setup"
+        title="Choose the base schema family"
       >
-        <Text style={styles.sectionTitle}>Template setup</Text>
         <TextInput
           mode="outlined"
           label="Template name"
@@ -197,61 +198,42 @@ export default function SchemaBuilderScreen() {
           onChangeText={setCategory}
           style={styles.input}
         />
-        <View style={styles.chipRow}>
-          {quickActionKinds.map((kind) => {
-            const isActive = quickActionKind === kind;
-            return (
-              <Pressable
-                key={kind}
-                onPress={() => setQuickActionKind(kind)}
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: isActive ? palette.tint : palette.border,
-                    backgroundColor: isActive
-                      ? `${palette.tint}22`
-                      : palette.card,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.chipLabel,
-                    { color: isActive ? palette.tint : palette.text },
-                  ]}
-                >
-                  {customSchemaQuickActionLabels[kind]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <SegmentedButtons
+          value={quickActionKind}
+          onValueChange={(value: string) =>
+            setQuickActionKind(value as QuickActionKind)
+          }
+          style={styles.segmentedButtons}
+          buttons={quickActionKinds.map((kind) => ({
+            value: kind,
+            label: customSchemaQuickActionLabels[kind],
+          }))}
+        />
         <Text style={[styles.helperCopy, { color: palette.muted }]}>
           Previewing {totalFieldCount} total form fields across{" "}
           {builtTemplate.formTemplate?.sections.length ?? 0} sections.
         </Text>
-      </View>
+      </SectionSurface>
 
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+      <SectionSurface
+        palette={palette}
+        label="Custom fields"
+        title="Add extra schema inputs"
       >
-        <Text style={styles.sectionTitle}>Add custom fields</Text>
         <Text style={[styles.helperCopy, { color: palette.muted }]}>
           Start from a preset or define a field manually. Duplicate labels are
           blocked to keep saved schemas clean.
         </Text>
         <View style={styles.chipRow}>
           {customSchemaFieldPresets.map((preset) => (
-            <Pressable
+            <Chip
               key={preset.id}
               onPress={() => handleAddPresetField(preset.draft)}
-              style={[styles.chip, { borderColor: palette.border }]}
+              style={styles.chip}
+              textStyle={styles.chipLabel}
             >
-              <Text style={styles.chipLabel}>+ {preset.label}</Text>
-            </Pressable>
+              + {preset.label}
+            </Chip>
           ))}
         </View>
         <TextInput
@@ -285,7 +267,7 @@ export default function SchemaBuilderScreen() {
           {customSchemaFieldTypes.map((type) => {
             const isActive = fieldDraft.type === type;
             return (
-              <Pressable
+              <Chip
                 key={type}
                 onPress={() =>
                   setFieldDraft((current) => ({
@@ -294,25 +276,16 @@ export default function SchemaBuilderScreen() {
                     source: undefined,
                   }))
                 }
-                style={[
-                  styles.chip,
-                  {
-                    borderColor: isActive ? palette.tint : palette.border,
-                    backgroundColor: isActive
-                      ? `${palette.tint}22`
-                      : palette.card,
-                  },
+                selected={isActive}
+                showSelectedCheck={false}
+                style={styles.chip}
+                textStyle={[
+                  styles.chipLabel,
+                  { color: isActive ? palette.tint : palette.text },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.chipLabel,
-                    { color: isActive ? palette.tint : palette.text },
-                  ]}
-                >
-                  {getBuilderFieldTypeLabel(type)}
-                </Text>
-              </Pressable>
+                {getBuilderFieldTypeLabel(type)}
+              </Chip>
             );
           })}
         </View>
@@ -323,30 +296,21 @@ export default function SchemaBuilderScreen() {
             {customSchemaSourceOptions.map((source) => {
               const isActive = fieldDraft.source === source;
               return (
-                <Pressable
+                <Chip
                   key={source}
                   onPress={() =>
                     setFieldDraft((current) => ({ ...current, source }))
                   }
-                  style={[
-                    styles.chip,
-                    {
-                      borderColor: isActive ? palette.tint : palette.border,
-                      backgroundColor: isActive
-                        ? `${palette.tint}22`
-                        : palette.card,
-                    },
+                  selected={isActive}
+                  showSelectedCheck={false}
+                  style={styles.chip}
+                  textStyle={[
+                    styles.chipLabel,
+                    { color: isActive ? palette.tint : palette.text },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.chipLabel,
-                      { color: isActive ? palette.tint : palette.text },
-                    ]}
-                  >
-                    Source: {source}
-                  </Text>
-                </Pressable>
+                  Source: {source}
+                </Chip>
               );
             })}
           </View>
@@ -368,9 +332,10 @@ export default function SchemaBuilderScreen() {
         {extraFields.length > 0 ? (
           <View style={styles.fieldList}>
             {extraFields.map((field, index) => (
-              <View
+              <Surface
                 key={`${field.label}-${index}`}
                 style={[styles.fieldRow, { borderColor: palette.border }]}
+                elevation={0}
               >
                 <View style={styles.fieldCopy}>
                   <Text style={styles.fieldTitle}>{field.label}</Text>
@@ -379,7 +344,8 @@ export default function SchemaBuilderScreen() {
                     {field.source ? ` • ${field.source}` : ""}
                   </Text>
                 </View>
-                <Pressable
+                <Button
+                  mode="text"
                   onPress={() =>
                     setExtraFields((current) =>
                       current.filter(
@@ -387,24 +353,22 @@ export default function SchemaBuilderScreen() {
                       ),
                     )
                   }
+                  compact
+                  labelStyle={styles.removeLabel}
                 >
-                  <Text style={[styles.removeLabel, { color: palette.tint }]}>
-                    Remove
-                  </Text>
-                </Pressable>
-              </View>
+                  Remove
+                </Button>
+              </Surface>
             ))}
           </View>
         ) : null}
-      </View>
+      </SectionSurface>
 
-      <View
-        style={[
-          styles.card,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+      <SectionSurface
+        palette={palette}
+        label="Preview"
+        title="Review the generated form"
       >
-        <Text style={styles.sectionTitle}>Preview</Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
           This is the actual dynamic form that will be saved with the template.
         </Text>
@@ -414,22 +378,22 @@ export default function SchemaBuilderScreen() {
             workspace={workspace}
             values={previewValues}
             errors={previewErrors}
-            onValueChange={handlePreviewValueChange}
+            palette={palette}
+            onChange={handlePreviewValueChange}
           />
         ) : null}
-      </View>
+      </SectionSurface>
 
       {statusMessage ? (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: palette.card, borderColor: palette.border },
-          ]}
+        <SectionSurface
+          palette={palette}
+          label="Status"
+          title="Template builder update"
         >
           <Text style={[styles.subtitle, { color: palette.tint }]}>
             {statusMessage}
           </Text>
-        </View>
+        </SectionSurface>
       ) : null}
 
       <View style={styles.buttonRow}>
@@ -455,20 +419,13 @@ export default function SchemaBuilderScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 20, paddingBottom: 32 },
-  hero: { marginBottom: 18 },
-  eyebrow: { fontSize: 13, fontWeight: "700", marginBottom: 8 },
-  title: { fontSize: 30, fontWeight: "bold", lineHeight: 38 },
   subtitle: { fontSize: 14, lineHeight: 20, marginTop: 8 },
-  card: { borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
   helperCopy: { fontSize: 13, lineHeight: 18, marginTop: 10 },
   input: { marginTop: 12 },
+  segmentedButtons: { marginTop: 12 },
   chipRow: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 12 },
   chip: {
-    borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
   },
   chipLabel: { fontSize: 12, fontWeight: "700" },
   switchRow: {

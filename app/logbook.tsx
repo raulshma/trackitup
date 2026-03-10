@@ -1,10 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet } from "react-native";
-import { Button } from "react-native-paper";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { Button, Chip, Surface } from "react-native-paper";
 
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import {
@@ -60,6 +60,42 @@ function formatCurrency(value?: number) {
     style: "currency",
     currency: "USD",
   }).format(value ?? 0);
+}
+
+function formatCustomFieldValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => formatCustomFieldValue(item)).join(" • ");
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    "latitude" in value &&
+    "longitude" in value &&
+    typeof value.latitude === "number" &&
+    typeof value.longitude === "number"
+  ) {
+    return `${value.latitude.toFixed(4)}, ${value.longitude.toFixed(4)}`;
+  }
+
+  if (
+    value &&
+    typeof value === "object" &&
+    "mediaType" in value &&
+    typeof value.mediaType === "string"
+  ) {
+    return value.mediaType;
+  }
+
+  if (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  return value ? "Captured" : "";
 }
 
 export default function LogbookScreen() {
@@ -252,10 +288,33 @@ export default function LogbookScreen() {
     >
       <Stack.Screen options={{ title: screenTitle }} />
 
-      <View style={styles.hero}>
-        <Text style={[styles.eyebrow, { color: palette.tint }]}>
-          TrackItUp logbook
-        </Text>
+      <Surface
+        style={[
+          styles.hero,
+          { backgroundColor: palette.hero, borderColor: palette.heroBorder },
+        ]}
+        elevation={2}
+      >
+        <View style={styles.heroBadgeRow}>
+          <Chip
+            compact
+            style={[styles.heroBadge, { backgroundColor: palette.card }]}
+            textStyle={[styles.heroBadgeText, { color: palette.tint }]}
+          >
+            TrackItUp logbook
+          </Chip>
+          <Chip
+            compact
+            style={[styles.heroBadge, { backgroundColor: palette.accentSoft }]}
+            textStyle={styles.heroBadgeText}
+          >
+            {entry
+              ? "Detail view"
+              : action || selectedTemplate
+                ? "New entry"
+                : "Workspace overview"}
+          </Chip>
+        </View>
         <Text style={styles.title}>{screenTitle}</Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
           {entry
@@ -266,26 +325,30 @@ export default function LogbookScreen() {
                 ? "Run a saved custom schema and capture the extra fields directly into the workspace logbook."
                 : "Choose a quick action or timeline item to start this flow."}
         </Text>
-      </View>
+      </Surface>
 
-      <View
+      <Surface
         style={[
           styles.statusCard,
           { backgroundColor: palette.card, borderColor: palette.border },
         ]}
+        elevation={1}
       >
         <View style={styles.statusHeader}>
           <Text style={styles.sectionTitle}>Workspace persistence</Text>
-          <View
+          <Chip
+            compact
             style={[
               styles.statusBadge,
-              { backgroundColor: `${palette.tint}22` },
+              { backgroundColor: palette.primaryContainer },
+            ]}
+            textStyle={[
+              styles.statusBadgeText,
+              { color: palette.onPrimaryContainer },
             ]}
           >
-            <Text style={[styles.statusBadgeText, { color: palette.tint }]}>
-              {isHydrated ? persistenceLabel : "Hydrating snapshot"}
-            </Text>
-          </View>
+            {isHydrated ? persistenceLabel : "Hydrating snapshot"}
+          </Chip>
         </View>
         <Text style={[styles.listCopy, { color: palette.muted }]}>
           {logEntries.length} logs and {workspace.spaces.length} spaces are
@@ -316,15 +379,19 @@ export default function LogbookScreen() {
             Clear workspace data
           </Button>
         </View>
-      </View>
+      </Surface>
 
       {activeTemplate ? (
-        <View
+        <Surface
           style={[
             styles.sectionCard,
             { backgroundColor: palette.card, borderColor: palette.border },
           ]}
+          elevation={1}
         >
+          <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+            Form
+          </Text>
           <Text style={styles.sectionTitle}>{activeTemplate.title}</Text>
           <Text style={[styles.templateIntro, { color: palette.muted }]}>
             {activeTemplate.description}
@@ -340,12 +407,12 @@ export default function LogbookScreen() {
             entry={entry}
             onChange={handleFormValueChange}
           />
-        </View>
+        </Surface>
       ) : null}
 
       {entry && entrySpace ? (
         <>
-          <View
+          <Surface
             style={[
               styles.heroCard,
               {
@@ -353,18 +420,19 @@ export default function LogbookScreen() {
                 borderColor: entrySpace.themeColor,
               },
             ]}
+            elevation={1}
           >
             <View style={styles.cardHeader}>
-              <View
+              <Chip
+                compact
                 style={[
                   styles.badge,
                   { backgroundColor: entrySpace.themeColor },
                 ]}
+                textStyle={styles.badgeText}
               >
-                <Text style={styles.badgeText}>
-                  {logTypeLabels[entry.kind]}
-                </Text>
-              </View>
+                {logTypeLabels[entry.kind]}
+              </Chip>
               <Text style={[styles.metaText, { color: palette.muted }]}>
                 {formatDateTime(entry.occurredAt)}
               </Text>
@@ -377,19 +445,32 @@ export default function LogbookScreen() {
               {entrySpace.name}
             </Text>
             {entry.tags?.length ? (
-              <Text style={[styles.metaText, { color: palette.muted }]}>
-                Tags: {entry.tags.join(" • ")}
-              </Text>
+              <View style={styles.heroBadgeRow}>
+                {entry.tags.map((tag) => (
+                  <Chip
+                    key={tag}
+                    compact
+                    style={styles.heroBadge}
+                    textStyle={styles.heroBadgeText}
+                  >
+                    {tag}
+                  </Chip>
+                ))}
+              </View>
             ) : null}
-          </View>
+          </Surface>
 
           {relatedMetrics.length > 0 ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Metrics
+              </Text>
               <Text style={styles.sectionTitle}>Metric readings</Text>
               {relatedMetrics.map(({ reading, definition }) => (
                 <View key={reading.metricId} style={styles.listItem}>
@@ -404,16 +485,20 @@ export default function LogbookScreen() {
                   </Text>
                 </View>
               ))}
-            </View>
+            </Surface>
           ) : null}
 
           {relatedAssets.length > 0 ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Assets
+              </Text>
               <Text style={styles.sectionTitle}>Related assets</Text>
               {relatedAssets.map((asset) => (
                 <View key={asset.id} style={styles.listItem}>
@@ -423,16 +508,20 @@ export default function LogbookScreen() {
                   </Text>
                 </View>
               ))}
-            </View>
+            </Surface>
           ) : null}
 
           {relatedRoutine || relatedReminder ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Workflow
+              </Text>
               <Text style={styles.sectionTitle}>Linked workflow</Text>
               {relatedRoutine ? (
                 <View style={styles.listItem}>
@@ -450,16 +539,20 @@ export default function LogbookScreen() {
                   </Text>
                 </View>
               ) : null}
-            </View>
+            </Surface>
           ) : null}
 
           {parentEntry || childEntries.length > 0 ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Navigation
+              </Text>
               <Text style={styles.sectionTitle}>Macro-linked logs</Text>
               {parentEntry ? (
                 <Button
@@ -498,16 +591,20 @@ export default function LogbookScreen() {
                   </Button>
                 </View>
               ))}
-            </View>
+            </Surface>
           ) : null}
 
           {entry.attachmentsCount || entry.locationLabel || entry.cost ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Context
+              </Text>
               <Text style={styles.sectionTitle}>Extended context</Text>
               {entry.attachmentsCount ? (
                 <Text style={[styles.listCopy, { color: palette.muted }]}>
@@ -536,46 +633,34 @@ export default function LogbookScreen() {
                   Linked cost: {formatCurrency(entry.cost)}
                 </Text>
               ) : null}
-            </View>
+            </Surface>
           ) : null}
           {entry.customFieldValues ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Custom fields
+              </Text>
               <Text style={styles.sectionTitle}>Custom schema fields</Text>
               {Object.entries(entry.customFieldValues).map(([label, value]) => (
                 <View key={label} style={styles.listItem}>
                   <Text style={styles.listTitle}>{label}</Text>
                   <Text style={[styles.listCopy, { color: palette.muted }]}>
-                    {Array.isArray(value)
-                      ? value
-                          .map((item) =>
-                            typeof item === "string"
-                              ? item
-                              : typeof item === "object" && "mediaType" in item
-                                ? item.mediaType
-                                : typeof item === "object" && "latitude" in item
-                                  ? `${item.latitude.toFixed(4)}, ${item.longitude.toFixed(4)}`
-                                  : "Captured",
-                          )
-                          .join(" • ")
-                      : typeof value === "object" &&
-                          value &&
-                          "latitude" in value
-                        ? `${value.latitude.toFixed(4)}, ${value.longitude.toFixed(4)}`
-                        : String(value)}
+                    {formatCustomFieldValue(value)}
                   </Text>
                 </View>
               ))}
-            </View>
+            </Surface>
           ) : null}
         </>
       ) : action || selectedTemplate ? (
         <>
-          <View
+          <Surface
             style={[
               styles.heroCard,
               {
@@ -583,6 +668,7 @@ export default function LogbookScreen() {
                 borderColor: linkedSpace?.themeColor ?? palette.tint,
               },
             ]}
+            elevation={1}
           >
             <Text style={styles.cardTitle}>
               {action?.label ?? selectedTemplate?.name}
@@ -604,14 +690,18 @@ export default function LogbookScreen() {
                   ? `${selectedTemplate.origin} • ${selectedTemplate.category}`
                   : "Available across your active spaces"}
             </Text>
-          </View>
+          </Surface>
 
-          <View
+          <Surface
             style={[
               styles.sectionCard,
               { backgroundColor: palette.card, borderColor: palette.border },
             ]}
+            elevation={1}
           >
+            <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              Suggestions
+            </Text>
             <Text style={styles.sectionTitle}>Suggested spaces</Text>
             {suggestedSpaces.map((space) => (
               <View key={space.id} style={styles.listItem}>
@@ -621,16 +711,20 @@ export default function LogbookScreen() {
                 </Text>
               </View>
             ))}
-          </View>
+          </Surface>
 
           {action?.kind === "metric-entry" ||
           selectedTemplate?.formTemplate?.quickActionKind === "metric-entry" ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Metrics
+              </Text>
               <Text style={styles.sectionTitle}>Ready-to-log metrics</Text>
               {suggestedMetrics.map((metric) => (
                 <View key={metric.id} style={styles.listItem}>
@@ -641,17 +735,21 @@ export default function LogbookScreen() {
                   </Text>
                 </View>
               ))}
-            </View>
+            </Surface>
           ) : null}
 
           {action?.kind === "routine-run" ||
           selectedTemplate?.formTemplate?.quickActionKind === "routine-run" ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Routine
+              </Text>
               <Text style={styles.sectionTitle}>Routine steps</Text>
               {suggestedRoutines.map((routine) => (
                 <View key={routine.id} style={styles.listItem}>
@@ -661,17 +759,21 @@ export default function LogbookScreen() {
                   </Text>
                 </View>
               ))}
-            </View>
+            </Surface>
           ) : null}
 
           {action?.kind === "quick-log" ||
           selectedTemplate?.formTemplate?.quickActionKind === "quick-log" ? (
-            <View
+            <Surface
               style={[
                 styles.sectionCard,
                 { backgroundColor: palette.card, borderColor: palette.border },
               ]}
+              elevation={1}
             >
+              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+                Reminders
+              </Text>
               <Text style={styles.sectionTitle}>Open reminders to capture</Text>
               {suggestedReminders.map((reminder) => (
                 <View key={reminder.id} style={styles.listItem}>
@@ -681,22 +783,26 @@ export default function LogbookScreen() {
                   </Text>
                 </View>
               ))}
-            </View>
+            </Surface>
           ) : null}
         </>
       ) : (
-        <View
+        <Surface
           style={[
             styles.sectionCard,
             { backgroundColor: palette.card, borderColor: palette.border },
           ]}
+          elevation={1}
         >
+          <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+            Empty state
+          </Text>
           <Text style={styles.sectionTitle}>No selection yet</Text>
           <Text style={[styles.listCopy, { color: palette.muted }]}>
             Start from Home quick actions or tap a timeline card to inspect a
             real logbook item.
           </Text>
-        </View>
+        </Surface>
       )}
     </ScrollView>
   );
@@ -705,14 +811,32 @@ export default function LogbookScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: 20, paddingBottom: 32 },
-  hero: { marginBottom: 18 },
+  hero: {
+    borderWidth: 1,
+    borderRadius: 28,
+    padding: 22,
+    marginBottom: 18,
+  },
+  heroBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  heroBadge: {
+    borderRadius: 999,
+  },
+  heroBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
   eyebrow: { fontSize: 13, fontWeight: "700", marginBottom: 8 },
   title: { fontSize: 30, fontWeight: "bold", lineHeight: 38 },
   subtitle: { fontSize: 15, lineHeight: 22, marginTop: 10 },
-  heroCard: { borderWidth: 1, borderRadius: 18, padding: 18, marginBottom: 16 },
+  heroCard: { borderWidth: 1, borderRadius: 24, padding: 18, marginBottom: 16 },
   statusCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 24,
     padding: 18,
     marginBottom: 16,
   },
@@ -723,7 +847,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 12,
   },
-  statusBadge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  statusBadge: { borderRadius: 999 },
   statusBadgeText: { fontSize: 12, fontWeight: "700" },
   statusMessage: { fontSize: 13, lineHeight: 18, marginTop: 10 },
   actionButtonRow: { flexDirection: "row", gap: 10, marginTop: 14 },
@@ -737,16 +861,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
   },
-  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  badge: { borderRadius: 999 },
   badgeText: { color: "#f8fafc", fontSize: 12, fontWeight: "700" },
   cardTitle: { fontSize: 20, fontWeight: "700", marginBottom: 6 },
   cardCopy: { fontSize: 14, lineHeight: 20, marginBottom: 10 },
   metaText: { fontSize: 12, fontWeight: "700" },
   sectionCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 24,
     padding: 18,
     marginBottom: 16,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    marginBottom: 8,
+    textTransform: "uppercase",
   },
   sectionTitle: { fontSize: 17, fontWeight: "700", marginBottom: 12 },
   templateIntro: { fontSize: 14, lineHeight: 20, marginBottom: 12 },

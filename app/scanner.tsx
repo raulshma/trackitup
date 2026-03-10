@@ -1,10 +1,12 @@
 import { CameraView, type BarcodeType } from "expo-camera";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet } from "react-native";
-import { Button } from "react-native-paper";
+import { StyleSheet, View } from "react-native";
+import { Button, Chip, Surface } from "react-native-paper";
 
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
+import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
@@ -73,19 +75,29 @@ export default function ScannerScreen() {
     <View style={[styles.screen, { backgroundColor: palette.background }]}>
       <Stack.Screen options={{ title: "Scanner" }} />
 
-      <View style={styles.header}>
-        <Text style={styles.title}>Barcode & QR scanner</Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
-          Use the live camera feed to identify tagged assets or scan QR-based
-          template links.
-        </Text>
-      </View>
+      <ScreenHero
+        palette={palette}
+        title="Barcode & QR scanner"
+        subtitle="Use the live camera feed to identify tagged assets or scan QR-based template links."
+        badges={[
+          {
+            label: "QR + barcode",
+            backgroundColor: palette.card,
+            textColor: palette.tint,
+          },
+          {
+            label: hasPermission ? "Camera ready" : "Permission needed",
+            backgroundColor: palette.accentSoft,
+          },
+        ]}
+      />
 
-      <View
+      <Surface
         style={[
           styles.cameraCard,
           { backgroundColor: palette.card, borderColor: palette.border },
         ]}
+        elevation={1}
       >
         {hasPermission ? (
           <CameraView
@@ -114,20 +126,33 @@ export default function ScannerScreen() {
             </Button>
           </View>
         )}
-      </View>
+      </Surface>
 
-      <View
-        style={[
-          styles.resultCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+      <SectionSurface
+        palette={palette}
+        label="Scan result"
+        title="Latest capture"
       >
-        <Text style={styles.sectionTitle}>Scan result</Text>
         {lastScan ? (
           <>
-            <Text style={[styles.resultMeta, { color: palette.tint }]}>
-              {lastScan.type.toUpperCase()}
-            </Text>
+            <View style={styles.resultChipRow}>
+              <Chip compact style={styles.resultChip}>
+                {lastScan.type.toUpperCase()}
+              </Chip>
+              {matchedAsset ? (
+                <Chip compact style={styles.resultChip}>
+                  Asset match
+                </Chip>
+              ) : scannedTemplate ? (
+                <Chip compact style={styles.resultChip}>
+                  Template link
+                </Chip>
+              ) : looksLikeUrl ? (
+                <Chip compact style={styles.resultChip}>
+                  External link
+                </Chip>
+              ) : null}
+            </View>
             <Text style={[styles.resultValue, { color: palette.muted }]}>
               {lastScan.data}
             </Text>
@@ -205,19 +230,16 @@ export default function ScannerScreen() {
             Back to inventory
           </Button>
         </View>
-      </View>
+      </SectionSurface>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, padding: 20 },
-  header: { marginBottom: 18 },
-  title: { fontSize: 28, fontWeight: "bold", marginBottom: 8 },
-  subtitle: { fontSize: 15, lineHeight: 22 },
   cameraCard: {
     borderWidth: 1,
-    borderRadius: 22,
+    borderRadius: 24,
     overflow: "hidden",
     marginBottom: 16,
   },
@@ -231,13 +253,15 @@ const styles = StyleSheet.create({
   },
   permissionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
   permissionCopy: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
-  resultCard: {
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 18,
+  resultChipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 10,
   },
-  sectionTitle: { fontSize: 16, fontWeight: "800", marginBottom: 8 },
-  resultMeta: { fontSize: 12, fontWeight: "800", marginBottom: 8 },
+  resultChip: {
+    borderRadius: 999,
+  },
   resultValue: { fontSize: 14, lineHeight: 20, marginBottom: 6 },
   matchTitle: {
     fontSize: 16,
@@ -245,7 +269,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 4,
   },
-  buttonRow: { flexDirection: "row", gap: 10, marginTop: 12 },
+  buttonRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
   inlineButton: { flex: 1 },
   primaryButton: { marginTop: 4 },
 });
