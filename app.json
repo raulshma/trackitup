@@ -56,6 +56,21 @@
         {
           "locationWhenInUsePermission": "Allow TrackItUp to attach locations to logs, finds, and tracked assets."
         }
+      ],
+      [
+        "react-native-bootsplash",
+        {
+          "assetsPath": "assets/bootsplash",
+          "logo": "./assets/bootsplash/logo.png",
+          "android": {
+            "background": "#0F172A",
+            "darkBackground": "#0F172A"
+          },
+          "ios": {
+            "background": "#0F172A",
+            "darkBackground": "#0F172A"
+          }
+        }
       ]
     ],
     "experiments": {

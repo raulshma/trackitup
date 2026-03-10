@@ -1,16 +1,23 @@
 import { ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
-import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { PaperProvider } from "react-native-paper";
+import { StyleSheet, View } from "react-native";
+import { ActivityIndicator, PaperProvider } from "react-native-paper";
 import "react-native-reanimated";
 
+import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
+import { OnboardingExperience } from "@/components/OnboardingExperience";
+import { Text } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
-import { uiTypography } from "@/constants/UiTokens";
+import { uiSpace, uiTypography } from "@/constants/UiTokens";
 import { AuthProvider } from "@/providers/AuthProvider";
+import {
+    OnboardingProvider,
+    useOnboarding,
+} from "@/providers/OnboardingProvider";
 import { ThemePreferenceProvider } from "@/providers/ThemePreferenceProvider";
 import { WorkspacePrivacyModeProvider } from "@/providers/WorkspacePrivacyModeProvider";
 import { WorkspaceProvider } from "@/providers/WorkspaceProvider";
@@ -25,8 +32,8 @@ export const unstable_settings = {
   initialRouteName: "(tabs)",
 };
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
+// The splash screen from BootSplash will remain until BootSplash.hide() is called
+// inside AnimatedSplashScreen when the app is fully ready.
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -38,21 +45,17 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
   if (!loaded) {
     return null;
   }
 
   return (
     <ThemePreferenceProvider>
-      <WorkspacePrivacyModeProvider>
-        <RootLayoutNav />
-      </WorkspacePrivacyModeProvider>
+      <OnboardingProvider>
+        <WorkspacePrivacyModeProvider>
+          <RootLayoutNav />
+        </WorkspacePrivacyModeProvider>
+      </OnboardingProvider>
     </ThemePreferenceProvider>
   );
 }
@@ -61,46 +64,80 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { navigationTheme, paperTheme, palette } = getAppThemes(colorScheme);
   const statusBarStyle = isDarkColorScheme(colorScheme) ? "light" : "dark";
+  const {
+    hasCompletedOnboarding,
+    isLoaded: isOnboardingLoaded,
+    setHasCompletedOnboardingPreference,
+  } = useOnboarding();
 
   return (
-    <AuthProvider>
-      <PaperProvider theme={paperTheme}>
-        <StatusBar style={statusBarStyle} />
-        <WorkspaceProvider>
+    <AnimatedSplashScreen isReady={isOnboardingLoaded}>
+      <AuthProvider>
+        <PaperProvider theme={paperTheme}>
+          <StatusBar style={statusBarStyle} />
           <ThemeProvider value={navigationTheme}>
-            <Stack
-              screenOptions={{
-                contentStyle: { backgroundColor: palette.background },
-                headerStyle: {
-                  backgroundColor: paperTheme.colors.elevation.level2,
-                },
-                headerTintColor: paperTheme.colors.onSurface,
-                headerShadowVisible: false,
-                headerTitleAlign: "left",
-                headerTitleStyle: uiTypography.navTitle,
-              }}
-            >
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="account" options={{ title: "Account" }} />
-              <Stack.Screen name="logbook" options={{ title: "Logbook" }} />
-              <Stack.Screen
-                name="space-create"
-                options={{ title: "Create space" }}
+            {!isOnboardingLoaded ? null : !hasCompletedOnboarding ? (
+              <OnboardingExperience
+                onComplete={() => setHasCompletedOnboardingPreference(true)}
               />
-              <Stack.Screen
-                name="schema-builder"
-                options={{ title: "Schema builder" }}
-              />
-              <Stack.Screen name="scanner" options={{ title: "Scanner" }} />
-              <Stack.Screen
-                name="template-import"
-                options={{ title: "Template import" }}
-              />
-              <Stack.Screen name="modal" options={{ presentation: "modal" }} />
-            </Stack>
+            ) : (
+              <WorkspaceProvider>
+                <Stack
+                  screenOptions={{
+                    contentStyle: { backgroundColor: palette.background },
+                    headerStyle: {
+                      backgroundColor: paperTheme.colors.elevation.level2,
+                    },
+                    headerTintColor: paperTheme.colors.onSurface,
+                    headerShadowVisible: false,
+                    headerTitleAlign: "left",
+                    headerTitleStyle: uiTypography.navTitle,
+                  }}
+                >
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="account" options={{ title: "Account" }} />
+                  <Stack.Screen name="logbook" options={{ title: "Logbook" }} />
+                  <Stack.Screen
+                    name="space-create"
+                    options={{ title: "Create space" }}
+                  />
+                  <Stack.Screen
+                    name="schema-builder"
+                    options={{ title: "Schema builder" }}
+                  />
+                  <Stack.Screen name="scanner" options={{ title: "Scanner" }} />
+                  <Stack.Screen
+                    name="template-import"
+                    options={{ title: "Template import" }}
+                  />
+                  <Stack.Screen
+                    name="modal"
+                    options={{ presentation: "modal" }}
+                  />
+                </Stack>
+              </WorkspaceProvider>
+            )}
           </ThemeProvider>
-        </WorkspaceProvider>
-      </PaperProvider>
-    </AuthProvider>
+        </PaperProvider>
+      </AuthProvider>
+    </AnimatedSplashScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingScreen: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: uiSpace.screen,
+  },
+  loadingTitle: {
+    ...uiTypography.titleXl,
+    marginTop: uiSpace.surface,
+    marginBottom: uiSpace.sm,
+  },
+  loadingCopy: {
+    ...uiTypography.body,
+    textAlign: "center",
+  },
+});
