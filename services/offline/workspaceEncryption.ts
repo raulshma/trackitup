@@ -7,12 +7,6 @@ const WORKSPACE_ENCRYPTION_FORMAT_VERSION = 1;
 const WORKSPACE_ENCRYPTION_KIND = "workspace-snapshot";
 const WORKSPACE_PRODUCT_ID = "trackitup";
 
-type StorageLike = {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
-};
-
 type CloneWorkspaceSnapshot = (
   snapshot: WorkspaceSnapshot,
 ) => WorkspaceSnapshot;
@@ -68,13 +62,6 @@ let workspaceEncryptionAdaptersForTests:
   | null
   | undefined;
 
-function getStorage(): StorageLike | null {
-  const maybeStorage = (
-    globalThis as typeof globalThis & { localStorage?: StorageLike }
-  ).localStorage;
-  return maybeStorage ?? null;
-}
-
 function encodeUtf8(value: string) {
   return new TextEncoder().encode(value);
 }
@@ -104,7 +91,7 @@ async function loadSecureStoreModule() {
       return secureStore;
     }
   } catch {
-    // Fall through to localStorage-backed key storage.
+    // Secure storage is unavailable in this environment.
   }
 
   return null;
@@ -112,29 +99,16 @@ async function loadSecureStoreModule() {
 
 async function resolveWorkspaceKeyStore(): Promise<WorkspaceKeyStore | null> {
   const secureStore = await loadSecureStoreModule();
-  if (secureStore) {
-    const keychainAccessible =
-      secureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY ?? secureStore.WHEN_UNLOCKED;
+  if (!secureStore) return null;
 
-    return {
-      getItem: async (key) => secureStore.getItemAsync(key),
-      setItem: async (key, value) =>
-        secureStore.setItemAsync(key, value, { keychainAccessible }),
-      deleteItem: async (key) => secureStore.deleteItemAsync(key),
-    };
-  }
-
-  const storage = getStorage();
-  if (!storage) return null;
+  const keychainAccessible =
+    secureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY ?? secureStore.WHEN_UNLOCKED;
 
   return {
-    getItem: async (key) => storage.getItem(key),
-    setItem: async (key, value) => {
-      storage.setItem(key, value);
-    },
-    deleteItem: async (key) => {
-      storage.removeItem(key);
-    },
+    getItem: async (key) => secureStore.getItemAsync(key),
+    setItem: async (key, value) =>
+      secureStore.setItemAsync(key, value, { keychainAccessible }),
+    deleteItem: async (key) => secureStore.deleteItemAsync(key),
   };
 }
 

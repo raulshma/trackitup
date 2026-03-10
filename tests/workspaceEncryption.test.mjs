@@ -8,10 +8,10 @@ const {
   decryptWorkspaceSnapshot,
   encryptWorkspaceSnapshot,
   getWorkspaceEncryptionKey,
+  isWorkspaceEncryptionAvailable,
 } = await import("../services/offline/workspaceEncryption.ts");
-const {
-  buildWorkspaceEncryptionKeyAlias,
-} = await import("../services/offline/workspaceOwnership.ts");
+const { buildWorkspaceEncryptionKeyAlias } =
+  await import("../services/offline/workspaceOwnership.ts");
 
 function createEncryptionAdapters() {
   const store = new Map();
@@ -61,10 +61,7 @@ function createEncryptionAdapters() {
           decipher.setAuthTag(tag);
 
           return new Uint8Array(
-            Buffer.concat([
-              decipher.update(ciphertext),
-              decipher.final(),
-            ]),
+            Buffer.concat([decipher.update(ciphertext), decipher.final()]),
           );
         },
       },
@@ -116,7 +113,10 @@ test("workspace encryption reports missing keys and rejects tampered ciphertext"
   __setWorkspaceEncryptionAdaptersForTests(adapters);
 
   const scopeKey = "user:user_456";
-  const encrypted = await encryptWorkspaceSnapshot(trackItUpWorkspace, scopeKey);
+  const encrypted = await encryptWorkspaceSnapshot(
+    trackItUpWorkspace,
+    scopeKey,
+  );
   assert.ok(encrypted);
 
   store.delete(buildWorkspaceEncryptionKeyAlias(scopeKey));
@@ -141,4 +141,24 @@ test("workspace encryption reports missing keys and rejects tampered ciphertext"
   );
 
   assert.equal(tamperedResult.status, "decrypt-failed");
+});
+
+test("workspace encryption availability does not fall back to localStorage-backed keys", async () => {
+  const originalLocalStorage = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  };
+
+  try {
+    __setWorkspaceEncryptionAdaptersForTests(undefined);
+    assert.equal(await isWorkspaceEncryptionAvailable(), false);
+  } finally {
+    if (originalLocalStorage === undefined) {
+      delete globalThis.localStorage;
+    } else {
+      globalThis.localStorage = originalLocalStorage;
+    }
+  }
 });

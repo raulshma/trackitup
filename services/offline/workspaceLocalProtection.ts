@@ -30,6 +30,10 @@ export function getWorkspaceLocalProtectionDescription({
   blockedReason?: BlockedEncryptedWorkspaceReason | null;
 }) {
   if (status === "protected") {
+    if (persistenceMode === "memory") {
+      return "Protected mode is selected for this scope, but secure local persistence is unavailable in this environment, so workspace data stays in memory only on this device.";
+    }
+
     return `This workspace scope uses protected local snapshots on this device. Current storage mode: ${persistenceMode}.`;
   }
 

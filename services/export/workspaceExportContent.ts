@@ -9,7 +9,11 @@ function escapeHtml(value: string) {
 
 function escapeCsv(value: string | number | undefined) {
   const normalized = value === undefined ? "" : String(value);
-  return `"${normalized.replaceAll('"', '""')}"`;
+  const safeValue =
+    /^[=+\-@\t\r]/.test(normalized) || /^[ ]+[=+\-@]/.test(normalized)
+      ? `'${normalized}`
+      : normalized;
+  return `"${safeValue.replaceAll('"', '""')}"`;
 }
 
 function formatCurrency(value: number) {

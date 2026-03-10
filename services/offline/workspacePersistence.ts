@@ -4,33 +4,33 @@ import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
 import {
-  loadWorkspaceSnapshotFromWatermelon,
-  persistWorkspaceSnapshotToWatermelon,
+    loadWorkspaceSnapshotFromWatermelon,
+    persistWorkspaceSnapshotToWatermelon,
 } from "@/services/offline/watermelon/workspaceCodec";
 import {
-  getWorkspaceDatabase,
-  isWatermelonPersistenceAvailable,
+    getWorkspaceDatabase,
+    isWatermelonPersistenceAvailable,
 } from "@/services/offline/watermelon/workspaceDatabase";
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import {
-  clearEncryptedWorkspace,
-  getEncryptedWorkspaceDefaultPersistenceMode,
-  loadEncryptedWorkspace,
-  persistEncryptedWorkspace,
+    clearEncryptedWorkspace,
+    getEncryptedWorkspaceDefaultPersistenceMode,
+    loadEncryptedWorkspace,
+    persistEncryptedWorkspace,
 } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import {
-  ANONYMOUS_WORKSPACE_SCOPE_KEY,
-  buildWorkspaceSnapshotFilename,
-  buildWorkspaceStorageKey,
-  isAnonymousWorkspaceOwnerScopeKey,
-  LEGACY_WORKSPACE_SNAPSHOT_FILENAME,
-  LEGACY_WORKSPACE_STORAGE_KEY,
-  SNAPSHOT_DIRECTORY,
+    ANONYMOUS_WORKSPACE_SCOPE_KEY,
+    buildWorkspaceSnapshotFilename,
+    buildWorkspaceStorageKey,
+    isAnonymousWorkspaceOwnerScopeKey,
+    LEGACY_WORKSPACE_SNAPSHOT_FILENAME,
+    LEGACY_WORKSPACE_STORAGE_KEY,
+    SNAPSHOT_DIRECTORY,
 } from "@/services/offline/workspaceOwnership";
 import {
-  choosePersistenceMode,
-  normalizeWorkspaceSnapshot,
+    choosePersistenceMode,
+    normalizeWorkspaceSnapshot,
 } from "@/services/offline/workspacePersistenceStrategy";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 
@@ -463,6 +463,14 @@ export async function loadPersistedWorkspace(
       };
     }
 
+    if (encryptedPersistResult.status === "unavailable") {
+      return {
+        workspace: plaintextWorkspace.workspace,
+        persistenceMode: "memory",
+        localProtectionStatus: "protected",
+      };
+    }
+
     return {
       ...plaintextWorkspace,
       localProtectionStatus: "standard",
@@ -474,9 +482,8 @@ export async function loadPersistedWorkspace(
     persistenceMode:
       encryptedWorkspace.status === "missing"
         ? getEncryptedWorkspaceDefaultPersistenceMode()
-        : getCompatibilityPersistenceMode(),
-    localProtectionStatus:
-      encryptedWorkspace.status === "missing" ? "protected" : "standard",
+        : "memory",
+    localProtectionStatus: "protected",
   };
 }
 
@@ -505,23 +512,9 @@ export async function persistWorkspace(
       return;
     }
 
-    if (isWatermelonPersistenceAvailable()) {
-      try {
-        const database = await getWorkspaceDatabase(ownerScopeKey);
-        if (database) {
-          await persistWorkspaceSnapshotToWatermelon(database, snapshot);
-          clearLegacyWorkspace(ownerScopeKey);
-          if (isAnonymousWorkspaceOwnerScopeKey(ownerScopeKey)) {
-            clearLegacyWorkspace(ownerScopeKey, { useLegacyName: true });
-          }
-          return;
-        }
-      } catch {
-        // Fall through to legacy persistence.
-      }
+    if (encryptedPersistResult.status === "unavailable") {
+      return;
     }
-
-    persistLegacyWorkspace(snapshot, ownerScopeKey);
   });
 }
 

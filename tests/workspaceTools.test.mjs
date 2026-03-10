@@ -123,6 +123,26 @@ test("workspace CSV import validates required columns", () => {
   assert.match(result.warnings[0], /must include `title`/i);
 });
 
+test("workspace CSV export neutralizes spreadsheet formula cells", () => {
+  const snapshot = createSnapshot({
+    logs: [
+      {
+        id: "log-formula-export",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: '=HYPERLINK("https://example.com")',
+        note: "+cmd|' /C calc'!A0",
+        occurredAt: "2026-03-09T10:00:00.000Z",
+      },
+    ],
+  });
+
+  const csv = buildWorkspaceLogsCsv(snapshot);
+
+  assert.match(csv, /"'=HYPERLINK\(""https:\/\/example.com""\)"/);
+  assert.match(csv, /"'\+cmd\|' \/C calc'!A0"/);
+});
+
 test("workspace CSV import warns and falls back for invalid row values", () => {
   const csv = [
     "title,spaceName,kind,occurredAt,assetIds,tags,cost",
@@ -182,7 +202,9 @@ test("workspace sync helpers can resolve and pull a remote snapshot", async () =
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
     assert.match(String(input), /mode=pull/);
+    assert.doesNotMatch(String(input), /userId=/);
     assert.equal(init?.method, "GET");
+    assert.equal(init?.headers["x-trackitup-user-id"], "user_123");
     return new Response(JSON.stringify({ snapshot: remoteSnapshot }), {
       status: 200,
       headers: { "content-type": "application/json" },

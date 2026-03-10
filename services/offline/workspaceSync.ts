@@ -47,13 +47,10 @@ function cloneWorkspaceSnapshot(
   return JSON.parse(JSON.stringify(snapshot)) as WorkspaceSnapshot;
 }
 
-function buildWorkspacePullUrl(endpoint: string, userId?: string) {
+function buildWorkspacePullUrl(endpoint: string) {
   const url = new URL(endpoint);
   url.searchParams.set("mode", "pull");
   url.searchParams.set("version", SYNC_PROTOCOL_VERSION);
-  if (userId) {
-    url.searchParams.set("userId", userId);
-  }
   return url.toString();
 }
 
@@ -303,15 +300,13 @@ export async function pullWorkspaceSync({
       };
     }
 
-    response = await fetchWithTimeoutAndRetry(
-      buildWorkspacePullUrl(endpoint, userId),
-      {
-        method: "GET",
-        headers: buildSyncHeaders(token, {
-          accept: "application/json",
-        }),
-      },
-    );
+    response = await fetchWithTimeoutAndRetry(buildWorkspacePullUrl(endpoint), {
+      method: "GET",
+      headers: buildSyncHeaders(token, {
+        accept: "application/json",
+        ...(userId ? { "x-trackitup-user-id": userId } : {}),
+      }),
+    });
   } catch (error) {
     return {
       status: "error",

@@ -75,8 +75,10 @@ test("pullWorkspaceSync includes version metadata and rejects incompatible respo
 
     assert.match(String(input), /mode=pull/);
     assert.match(String(input), /version=1/);
+    assert.doesNotMatch(String(input), /userId=/);
     assert.equal(init?.method, "GET");
     assert.equal(headers["x-trackitup-sync-version"], "1");
+    assert.equal(headers["x-trackitup-user-id"], "user_123");
 
     return new Response(
       JSON.stringify({

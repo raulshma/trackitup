@@ -22,6 +22,13 @@ test("workspace local protection descriptions explain blocked recovery", () => {
   );
   assert.match(
     getWorkspaceLocalProtectionDescription({
+      status: "protected",
+      persistenceMode: "memory",
+    }),
+    /memory only on this device/i,
+  );
+  assert.match(
+    getWorkspaceLocalProtectionDescription({
       status: "standard",
       persistenceMode: "watermelondb",
     }),

@@ -411,6 +411,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         setBlockedProtectionReason(reloaded.blockedProtectionReason ?? null);
         setIsHydrated(true);
 
+        if (reloaded.localProtectionStatus === "blocked") {
+          return {
+            status: "error" as const,
+            message:
+              "Protected local storage for this scope could not be recovered on this device. Reset the blocked protected workspace to continue.",
+          };
+        }
+
+        if (nextMode === "protected" && reloaded.persistenceMode === "memory") {
+          return {
+            status: "success" as const,
+            message:
+              "Protected mode is now selected, but secure local persistence is unavailable here, so this workspace will remain in memory only on this device.",
+          };
+        }
+
         return {
           status: "success" as const,
           message:
