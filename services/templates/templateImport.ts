@@ -1,0 +1,253 @@
+import { trackItUpWorkspace } from "../../constants/TrackItUpData.ts";
+import type {
+    FormFieldType,
+    TemplateCatalogItem,
+    TemplateImportMethod,
+    TemplateOrigin,
+    WorkspaceSnapshot,
+} from "../../types/trackitup.ts";
+
+const supportedFieldTypes: FormFieldType[] = [
+  "text",
+  "rich-text",
+  "textarea",
+  "number",
+  "unit",
+  "select",
+  "multi-select",
+  "date-time",
+  "checkbox",
+  "checklist",
+  "slider",
+  "tags",
+  "media",
+  "location",
+  "formula",
+];
+
+const fallbackFieldTypes: FormFieldType[] = [
+  "text",
+  "rich-text",
+  "number",
+  "tags",
+];
+
+export type ParsedTemplateImport = {
+  templateId?: string;
+  name?: string;
+  summary?: string;
+  category?: string;
+  origin?: TemplateOrigin;
+  importMethods: TemplateImportMethod[];
+  supportedFieldTypes: FormFieldType[];
+  importedVia: TemplateImportMethod;
+  sourceUrl: string;
+};
+
+export type TemplateImportResult = {
+  status: "imported" | "existing" | "invalid";
+  message: string;
+  template?: TemplateCatalogItem;
+  workspace: WorkspaceSnapshot;
+};
+
+function splitList(value: string | null) {
+  return (value ?? "")
+    .split(/[|,;]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function uniqueStrings<T extends string>(values: T[]) {
+  return [...new Set(values)];
+}
+
+function toImportMethod(
+  value: string | null | undefined,
+): TemplateImportMethod | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "deep-link") return "deep-link";
+  if (normalized === "qr-code" || normalized === "qr") return "qr-code";
+  if (normalized === "local") return "local";
+  return undefined;
+}
+
+function toOrigin(
+  value: string | null | undefined,
+): TemplateOrigin | undefined {
+  const normalized = value?.trim().toLowerCase();
+  if (normalized === "official") return "official";
+  if (normalized === "community") return "community";
+  return undefined;
+}
+
+function toFieldTypes(value: string | null) {
+  return uniqueStrings(
+    splitList(value).filter((item): item is FormFieldType =>
+      supportedFieldTypes.includes(item as FormFieldType),
+    ),
+  );
+}
+
+function matchesTemplateImportPath(url: URL) {
+  const host = url.host.replace(/^\/+|\/+$/g, "").toLowerCase();
+  const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
+  const combined = [host, path].filter(Boolean).join("/");
+
+  return (
+    combined.includes("template-import") ||
+    combined.includes("templates/import")
+  );
+}
+
+function findCatalogTemplate(
+  templates: TemplateCatalogItem[],
+  parsed: ParsedTemplateImport,
+) {
+  const normalizedId = parsed.templateId?.trim().toLowerCase();
+  const normalizedName = parsed.name?.trim().toLowerCase();
+
+  return templates.find((template) => {
+    if (normalizedId && template.id.trim().toLowerCase() === normalizedId) {
+      return true;
+    }
+
+    return Boolean(
+      normalizedName && template.name.trim().toLowerCase() === normalizedName,
+    );
+  });
+}
+
+function buildImportedTemplate(
+  parsed: ParsedTemplateImport,
+): TemplateCatalogItem {
+  return {
+    id: parsed.templateId?.trim() || `template-import-${Date.now()}`,
+    name: parsed.name?.trim() || "Imported community template",
+    summary:
+      parsed.summary?.trim() ||
+      "Imported from a shared TrackItUp deep link or QR code.",
+    category: parsed.category?.trim() || "Community",
+    origin: parsed.origin ?? "community",
+    importMethods: uniqueStrings([...parsed.importMethods, parsed.importedVia]),
+    supportedFieldTypes:
+      parsed.supportedFieldTypes.length > 0
+        ? parsed.supportedFieldTypes
+        : fallbackFieldTypes,
+  };
+}
+
+export function parseTemplateImportUrl(
+  rawUrl: string,
+  preferredMethod?: TemplateImportMethod,
+): ParsedTemplateImport | null {
+  const trimmedUrl = rawUrl.trim();
+  if (!trimmedUrl) return null;
+
+  let url: URL;
+  try {
+    url = new URL(trimmedUrl);
+  } catch {
+    return null;
+  }
+
+  const params = url.searchParams;
+  const templateId = params.get("templateId") ?? params.get("id") ?? undefined;
+  const name = params.get("name") ?? params.get("title") ?? undefined;
+  const summary =
+    params.get("summary") ?? params.get("description") ?? undefined;
+  const category = params.get("category") ?? undefined;
+  const origin = toOrigin(params.get("origin"));
+  const importMethods = uniqueStrings(
+    [
+      ...splitList(params.get("methods") ?? params.get("importMethods"))
+        .map((item) => toImportMethod(item))
+        .filter((item): item is TemplateImportMethod => Boolean(item)),
+      preferredMethod,
+      toImportMethod(params.get("source") ?? params.get("method")),
+    ].filter((item): item is TemplateImportMethod => Boolean(item)),
+  );
+  const importedVia =
+    preferredMethod ??
+    toImportMethod(params.get("source") ?? params.get("method")) ??
+    "deep-link";
+  const supportedTypes = toFieldTypes(
+    params.get("fields") ??
+      params.get("fieldTypes") ??
+      params.get("supportedFieldTypes"),
+  );
+  const looksLikeTemplateImport =
+    matchesTemplateImportPath(url) ||
+    Boolean(templateId) ||
+    Boolean(name && category) ||
+    params.has("fields") ||
+    params.has("fieldTypes") ||
+    params.has("supportedFieldTypes");
+
+  if (!looksLikeTemplateImport) {
+    return null;
+  }
+
+  return {
+    templateId,
+    name,
+    summary,
+    category,
+    origin,
+    importMethods,
+    supportedFieldTypes: supportedTypes,
+    importedVia,
+    sourceUrl: trimmedUrl,
+  };
+}
+
+export function applyTemplateImportToWorkspace(
+  workspace: WorkspaceSnapshot,
+  rawUrl: string,
+  preferredMethod?: TemplateImportMethod,
+  knownTemplates: TemplateCatalogItem[] = trackItUpWorkspace.templates,
+): TemplateImportResult {
+  const parsed = parseTemplateImportUrl(rawUrl, preferredMethod);
+
+  if (!parsed) {
+    return {
+      status: "invalid",
+      message:
+        "This link does not contain a TrackItUp template import payload.",
+      workspace,
+    };
+  }
+
+  const existingTemplate = findCatalogTemplate(workspace.templates, parsed);
+  if (existingTemplate) {
+    return {
+      status: "existing",
+      message: `${existingTemplate.name} is already available in this workspace catalog.`,
+      template: existingTemplate,
+      workspace,
+    };
+  }
+
+  const knownTemplate = findCatalogTemplate(knownTemplates, parsed);
+  const template = knownTemplate
+    ? {
+        ...knownTemplate,
+        importMethods: uniqueStrings([
+          ...knownTemplate.importMethods,
+          ...parsed.importMethods,
+          parsed.importedVia,
+        ]),
+      }
+    : buildImportedTemplate(parsed);
+
+  return {
+    status: "imported",
+    message: `Imported ${template.name} into the TrackItUp template catalog.`,
+    template,
+    workspace: {
+      ...workspace,
+      generatedAt: new Date().toISOString(),
+      templates: [template, ...workspace.templates],
+    },
+  };
+}
