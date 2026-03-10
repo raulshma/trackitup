@@ -1,12 +1,15 @@
 import { useMemo } from "react";
 
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { FAB, Portal, useTheme, type MD3Theme } from "react-native-paper";
 
 import { uiSpace } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 
+const visibleFabPathnames = new Set(["/", "/two", "/planner", "/inventory"]);
+
 export function RecordEventFab() {
+  const pathname = usePathname();
   const router = useRouter();
   const theme = useTheme<MD3Theme>();
   const { workspace } = useWorkspace();
@@ -17,6 +20,10 @@ export function RecordEventFab() {
       workspace.quickActions[0],
     [workspace.quickActions],
   );
+
+  if (!visibleFabPathnames.has(pathname)) {
+    return null;
+  }
 
   function handlePress() {
     if (workspace.spaces.length === 0) {
