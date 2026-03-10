@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Platform, ScrollView, StyleSheet } from "react-native";
+import { Linking, Platform, ScrollView, StyleSheet } from "react-native";
 import {
     ActivityIndicator,
     Button,
@@ -103,6 +103,14 @@ export default function AccountScreen() {
       workspace.biometricReauthTimeout,
     );
   const isProtectionBlocked = workspace.localProtectionStatus === "blocked";
+  const reminderNotificationLabel =
+    workspace.reminderNotificationPermissionStatus === "granted"
+      ? "Enabled"
+      : workspace.reminderNotificationPermissionStatus === "denied"
+        ? "Blocked"
+        : workspace.reminderNotificationPermissionStatus === "unsupported"
+          ? "Unsupported"
+          : "Not enabled";
 
   async function runAction(
     action: () => Promise<{ status: string; message: string }>,
@@ -145,6 +153,23 @@ export default function AccountScreen() {
     const nextMode = pendingPrivacyModeChange;
     setPendingPrivacyModeChange(null);
     await runAction(() => workspace.setWorkspacePrivacyMode(nextMode));
+  }
+
+  async function handleReminderNotifications() {
+    if (
+      workspace.reminderNotificationPermissionStatus === "denied" &&
+      !workspace.canAskForReminderNotifications
+    ) {
+      setIsSubmitting(true);
+      await Linking.openSettings();
+      setStatusMessage(
+        "Opened device settings so you can re-enable notification access for TrackItUp.",
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    await runAction(() => workspace.requestReminderNotifications());
   }
 
   return (
@@ -226,6 +251,53 @@ export default function AccountScreen() {
           This device keeps anonymous use and each signed-in account in separate
           local workspace storage.
         </Text>
+      </SectionSurface>
+
+      <SectionSurface
+        palette={palette}
+        label="Notifications"
+        title="Reminder alerts"
+      >
+        <ChipRow style={styles.themeChipRow}>
+          <Chip compact style={styles.themeChip} icon="bell-ring-outline">
+            {reminderNotificationLabel}
+          </Chip>
+          <Chip compact style={styles.themeChip}>
+            {Platform.OS === "web" ? "Web preview" : Platform.OS}
+          </Chip>
+        </ChipRow>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
+          TrackItUp can schedule local alerts for upcoming reminders so due work
+          reaches you even when the planner is closed.
+        </Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          Notification taps open the action center, where you can complete,
+          snooze, or skip the matching reminder.
+        </Text>
+        <ActionButtonRow style={styles.buttonRow}>
+          <Button
+            mode="contained"
+            onPress={handleReminderNotifications}
+            loading={isSubmitting}
+            disabled={isSubmitting}
+            style={styles.inlineButton}
+          >
+            {workspace.reminderNotificationPermissionStatus === "granted"
+              ? "Refresh alerts"
+              : workspace.reminderNotificationPermissionStatus === "denied" &&
+                  !workspace.canAskForReminderNotifications
+                ? "Open device settings"
+                : "Enable notifications"}
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={() => router.push("/action-center")}
+            disabled={isSubmitting}
+            style={styles.inlineButton}
+          >
+            Open action center
+          </Button>
+        </ActionButtonRow>
       </SectionSurface>
 
       <SectionSurface

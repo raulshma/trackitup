@@ -1,3 +1,4 @@
+import * as Notifications from "expo-notifications";
 import {
     createContext,
     useCallback,
@@ -8,7 +9,7 @@ import {
     useState,
     type ReactNode,
 } from "react";
-import { AppState, type AppStateStatus } from "react-native";
+import { AppState, Platform, type AppStateStatus } from "react-native";
 
 import { WorkspaceLockScreen } from "@/components/WorkspaceLockScreen";
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
@@ -24,6 +25,7 @@ import type { WorkspaceContextValue } from "@/providers/workspace/types";
 import { useWorkspaceHydration } from "@/providers/workspace/useWorkspaceHydration";
 import { useWorkspaceMutations } from "@/providers/workspace/useWorkspaceMutations";
 import { useWorkspaceSyncActions } from "@/providers/workspace/useWorkspaceSyncActions";
+import { getWorkspaceRecommendations } from "@/services/insights/workspaceRecommendations";
 import {
     authenticateWorkspaceBiometric,
     getWorkspaceBiometricAvailability,
@@ -49,6 +51,15 @@ import {
     loadPersistedWorkspace,
     persistWorkspace,
 } from "@/services/offline/workspacePersistence";
+import { getReminderNotificationResponseIntent } from "@/services/reminders/reminderNotificationIntents";
+import {
+    clearScheduledReminderNotifications,
+    getReminderNotificationPermissionState,
+    requestReminderNotificationPermissions,
+    syncWorkspaceReminderNotifications,
+    type ReminderNotificationPermissionState,
+    type ReminderNotificationPermissionStatus,
+} from "@/services/reminders/reminderNotifications";
 import { useWorkspaceStoreState } from "@/stores/useWorkspaceStore";
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -92,6 +103,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     useState<WorkspaceBiometricReauthTimeout>(
       DEFAULT_WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT,
     );
+  const [
+    reminderNotificationPermissionStatus,
+    setReminderNotificationPermissionStatus,
+  ] = useState<ReminderNotificationPermissionStatus>("undetermined");
+  const [canAskForReminderNotifications, setCanAskForReminderNotifications] =
+    useState(false);
   const [isBiometricSessionUnlocked, setIsBiometricSessionUnlocked] =
     useState(false);
   const [isUnlockingWorkspace, setIsUnlockingWorkspace] = useState(false);
@@ -107,11 +124,23 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isLoaded: isPrivacyModeLoaded,
   } = useWorkspacePrivacyMode();
   const defaultWorkspace = useMemo(() => createEmptyWorkspaceSnapshot(), []);
+  const applyReminderNotificationPermissionState = useCallback(
+    (state: ReminderNotificationPermissionState) => {
+      setReminderNotificationPermissionStatus(state.status);
+      setCanAskForReminderNotifications(state.canAskAgain);
+    },
+    [],
+  );
   const refreshBiometricAvailability = useCallback(async () => {
     const availability = await getWorkspaceBiometricAvailability();
     setBiometricAvailability(availability);
     return availability;
   }, []);
+  const refreshReminderNotificationPermissions = useCallback(async () => {
+    const state = await getReminderNotificationPermissionState();
+    applyReminderNotificationPermissionState(state);
+    return state;
+  }, [applyReminderNotificationPermissionState]);
   const ownerScopeKey = useMemo(
     () => getWorkspaceOwnerScopeKey(auth.isSignedIn ? auth.userId : null),
     [auth.isSignedIn, auth.userId],
@@ -178,6 +207,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     workspacePrivacyMode,
   ]);
 
+  useEffect(() => {
+    void refreshReminderNotificationPermissions();
+  }, [refreshReminderNotificationPermissions]);
+
   const requiresBiometricLock =
     isBiometricPreferenceLoaded &&
     biometricLockEnabled &&
@@ -242,6 +275,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     };
   }, [biometricReauthTimeout, requiresBiometricLock]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void refreshReminderNotificationPermissions();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [refreshReminderNotificationPermissions]);
+
   useWorkspaceHydration({
     canHydrate: canHydrateWorkspace,
     workspace,
@@ -262,6 +307,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setTimelineEntries,
   });
 
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    if (reminderNotificationPermissionStatus !== "granted") {
+      void clearScheduledReminderNotifications();
+      return;
+    }
+
+    void syncWorkspaceReminderNotifications(workspace);
+  }, [
+    isHydrated,
+    reminderNotificationPermissionStatus,
+    workspace.reminders,
+    workspace.spaces,
+  ]);
+
   const {
     saveLogForAction,
     saveLogForTemplate,
@@ -277,6 +338,49 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     createSpace,
     resetWorkspace,
   } = useWorkspaceMutations(setWorkspace, ownerScopeKey);
+
+  const handledReminderNotificationResponseRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    function handleReminderResponse(
+      response: Notifications.NotificationResponse,
+    ) {
+      const key = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      if (handledReminderNotificationResponseRef.current === key) return;
+
+      const intent = getReminderNotificationResponseIntent(response);
+      if (!intent || intent.kind === "default") return;
+
+      handledReminderNotificationResponseRef.current = key;
+
+      if (intent.kind === "complete") {
+        completeReminder(intent.reminderId);
+      } else if (intent.kind === "snooze") {
+        snoozeReminder(intent.reminderId);
+      } else if (intent.kind === "skip") {
+        skipReminder(intent.reminderId, "Skipped from notification action");
+      }
+
+      void Notifications.clearLastNotificationResponseAsync();
+    }
+
+    const lastResponse = Notifications.getLastNotificationResponse();
+    if (lastResponse) {
+      handleReminderResponse(lastResponse);
+    }
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response: Notifications.NotificationResponse) => {
+        handleReminderResponse(response);
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [completeReminder, skipReminder, snoozeReminder]);
 
   const setBiometricLockEnabled = useCallback(
     async (enabled: boolean) => {
@@ -337,6 +441,38 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     },
     [],
   );
+
+  const requestReminderNotifications = useCallback(async () => {
+    const state = await requestReminderNotificationPermissions();
+    applyReminderNotificationPermissionState(state);
+
+    if (state.status === "granted") {
+      if (isHydrated) {
+        await syncWorkspaceReminderNotifications(workspace);
+      }
+
+      return {
+        status: "success" as const,
+        message:
+          "Reminder notifications are enabled on this device. Upcoming planner work will now schedule local alerts.",
+      };
+    }
+
+    if (state.status === "unsupported") {
+      return {
+        status: "error" as const,
+        message:
+          "Reminder notifications are only available on iOS and Android devices.",
+      };
+    }
+
+    return {
+      status: "error" as const,
+      message: state.canAskAgain
+        ? "TrackItUp still needs notification permission to deliver reminder alerts."
+        : "Notification access is currently denied. Open device settings to enable reminder alerts.",
+    };
+  }, [applyReminderNotificationPermissionState, isHydrated, workspace]);
 
   const unlockWorkspace = useCallback(async () => {
     const availability = await refreshBiometricAvailability();
@@ -508,6 +644,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   });
 
   const overviewStats = useMemo(() => getOverviewStats(workspace), [workspace]);
+  const recommendations = useMemo(
+    () => getWorkspaceRecommendations(workspace),
+    [workspace],
+  );
   const quickActionCards = useMemo(
     () => getQuickActionCards(workspace),
     [workspace],
@@ -527,11 +667,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       biometricLockEnabled,
       biometricAvailability,
       biometricReauthTimeout,
+      reminderNotificationPermissionStatus,
+      canAskForReminderNotifications,
       isWorkspaceLocked,
       localProtectionStatus,
       blockedProtectionReason,
       isSyncing,
       overviewStats,
+      recommendations,
       quickActionCards,
       spaceSummaries,
       timelineEntries,
@@ -551,6 +694,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setWorkspacePrivacyMode,
       setBiometricLockEnabled,
       setBiometricReauthTimeout,
+      requestReminderNotifications,
       unlockWorkspace,
       recoverBlockedWorkspace,
       pullWorkspaceFromCloud,
@@ -568,15 +712,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       biometricAvailability,
       biometricLockEnabled,
       biometricReauthTimeout,
+      canAskForReminderNotifications,
       isSyncing,
       isWorkspaceLocked,
       logEntries,
       localProtectionStatus,
       moveDashboardWidget,
       overviewStats,
+      recommendations,
+      reminderNotificationPermissionStatus,
       persistenceMode,
       pullWorkspaceFromCloud,
       quickActionCards,
+      requestReminderNotifications,
       recoverBlockedWorkspace,
       resetWorkspace,
       restoreWorkspaceFromCloud,

@@ -14,6 +14,8 @@ const {
   buildReminderCalendar,
   findAssetByScannedCode,
 } = await import("../services/insights/workspaceInsights.ts");
+const { getWorkspaceRecommendations } =
+  await import("../services/insights/workspaceRecommendations.ts");
 const {
   buildInitialFormValues,
   buildLogEntriesFromActionDraft,
@@ -47,6 +49,14 @@ const { appendDictationTranscript } =
   await import("../services/device/dictation.ts");
 const { applyReminderTriggerRules, getNextReminderDate } =
   await import("../services/reminders/reminderRules.ts");
+const { buildReminderActionCenter } =
+  await import("../services/reminders/reminderActionCenter.ts");
+const {
+  REMINDER_NOTIFICATION_COMPLETE_ACTION_ID,
+  REMINDER_NOTIFICATION_DEFAULT_ACTION_ID,
+  REMINDER_NOTIFICATION_SKIP_ACTION_ID,
+  getReminderNotificationResponseIntent,
+} = await import("../services/reminders/reminderNotificationIntents.ts");
 const {
   buildCustomSchemaTemplate,
   customSchemaFieldPresets,
@@ -378,6 +388,79 @@ test("reminder calendar assigns open reminders to the expected day", () => {
     dueCell.reminders.some(
       (reminder) => reminder.id === "reminder-reef-weekly",
     ),
+  );
+});
+
+test("workspace recommendations prioritize overdue reminders and metric alerts", () => {
+  const recommendations = getWorkspaceRecommendations(trackItUpWorkspace);
+
+  assert.ok(recommendations.length > 0);
+  assert.equal(recommendations[0].type, "overdue-reminder");
+  assert.ok(recommendations.some((item) => item.type === "metric-alert"));
+});
+
+test("action center groups overdue reminders and recent reminder activity", () => {
+  const center = buildReminderActionCenter(trackItUpWorkspace);
+
+  assert.ok(center.overdue.length > 0);
+  assert.ok(center.recentActivity.length > 0);
+  assert.equal(center.summary.overdueCount, center.overdue.length);
+});
+
+test("notification response intent distinguishes default and action buttons", () => {
+  const responseBase = {
+    notification: {
+      request: {
+        content: {
+          data: {
+            source: "trackitup-reminder",
+            route: "action-center",
+            reminderId: "reminder-1",
+            spaceId: "reef",
+          },
+        },
+        identifier: "notification-1",
+      },
+    },
+  };
+
+  assert.deepEqual(
+    getReminderNotificationResponseIntent({
+      ...responseBase,
+      actionIdentifier: REMINDER_NOTIFICATION_DEFAULT_ACTION_ID,
+    }),
+    {
+      kind: "default",
+      reminderId: "reminder-1",
+      route: "action-center",
+      spaceId: "reef",
+    },
+  );
+
+  assert.deepEqual(
+    getReminderNotificationResponseIntent({
+      ...responseBase,
+      actionIdentifier: REMINDER_NOTIFICATION_COMPLETE_ACTION_ID,
+    }),
+    {
+      kind: "complete",
+      reminderId: "reminder-1",
+      route: "action-center",
+      spaceId: "reef",
+    },
+  );
+
+  assert.deepEqual(
+    getReminderNotificationResponseIntent({
+      ...responseBase,
+      actionIdentifier: REMINDER_NOTIFICATION_SKIP_ACTION_ID,
+    }),
+    {
+      kind: "skip",
+      reminderId: "reminder-1",
+      route: "action-center",
+      spaceId: "reef",
+    },
   );
 });
 
@@ -827,7 +910,7 @@ test("workspace snapshot normalization strips legacy seeded data for empty fallb
   assert.deepEqual(normalized.expenses, []);
   assert.deepEqual(normalized.templates, []);
   assert.equal(normalized.quickActions.length, 3);
-  assert.equal(normalized.dashboardWidgets.length, 3);
+  assert.equal(normalized.dashboardWidgets.length, 4);
   assert.equal(normalized.generatedAt, "2026-03-10T12:00:00.000Z");
 });
 

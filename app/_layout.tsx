@@ -1,10 +1,11 @@
 import { getHeaderTitle } from "@react-navigation/elements";
 import { ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import * as Notifications from "expo-notifications";
+import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect } from "react";
-import { StyleSheet } from "react-native";
+import { useEffect, useRef } from "react";
+import { Platform, StyleSheet } from "react-native";
 import { PaperProvider } from "react-native-paper";
 import "react-native-reanimated";
 
@@ -22,6 +23,7 @@ import {
 import { ThemePreferenceProvider } from "@/providers/ThemePreferenceProvider";
 import { WorkspacePrivacyModeProvider } from "@/providers/WorkspacePrivacyModeProvider";
 import { WorkspaceProvider } from "@/providers/WorkspaceProvider";
+import { getReminderNotificationResponseIntent } from "@/services/reminders/reminderNotificationIntents";
 
 export {
     // Catch any errors thrown by the Layout component.
@@ -61,6 +63,46 @@ export default function RootLayout() {
   );
 }
 
+function useNotificationObserver() {
+  const handledResponseRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+
+    function maybeRedirect(response: Notifications.NotificationResponse) {
+      const key = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      if (handledResponseRef.current === key) return;
+
+      const intent = getReminderNotificationResponseIntent(response);
+      if (!intent || intent.kind !== "default") return;
+
+      handledResponseRef.current = key;
+      const route = intent.route;
+
+      if (route === "action-center") {
+        router.push("/action-center");
+      }
+
+      void Notifications.clearLastNotificationResponseAsync();
+    }
+
+    const response = Notifications.getLastNotificationResponse();
+    if (response) {
+      maybeRedirect(response);
+    }
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (nextResponse) => {
+        maybeRedirect(nextResponse);
+      },
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+}
+
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { navigationTheme, paperTheme, palette } = getAppThemes(colorScheme);
@@ -70,6 +112,8 @@ function RootLayoutNav() {
     isLoaded: isOnboardingLoaded,
     setHasCompletedOnboardingPreference,
   } = useOnboarding();
+
+  useNotificationObserver();
 
   return (
     <AnimatedSplashScreen isReady={isOnboardingLoaded}>
@@ -104,6 +148,10 @@ function RootLayoutNav() {
                   <Stack.Screen
                     name="space-create"
                     options={{ title: "Create space" }}
+                  />
+                  <Stack.Screen
+                    name="action-center"
+                    options={{ title: "Action center" }}
                   />
                   <Stack.Screen
                     name="schema-builder"

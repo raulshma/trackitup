@@ -14,6 +14,7 @@ import {
     buildMetricChartPoints,
     getReminderScheduleTimestamp,
 } from "@/services/insights/workspaceInsights";
+import type { WorkspaceRecommendation } from "@/types/trackitup";
 
 export default function TabOneScreen() {
   const colorScheme = useColorScheme();
@@ -26,6 +27,7 @@ export default function TabOneScreen() {
     cycleDashboardWidgetSize,
     moveDashboardWidget,
     overviewStats,
+    recommendations,
     quickActionCards,
     spaceSummaries,
     toggleDashboardWidgetVisibility,
@@ -114,8 +116,8 @@ export default function TabOneScreen() {
     `${workspace.logs.length} logs`,
   ];
   const attentionSummary =
-    attentionItems.length > 0
-      ? `${attentionItems.length} item${attentionItems.length === 1 ? "" : "s"} need review`
+    recommendations.length > 0
+      ? `${recommendations.length} recommendation${recommendations.length === 1 ? "" : "s"} ready`
       : "Everything looks steady";
   const workspaceGuidance = useMemo(() => {
     const items: string[] = [];
@@ -150,6 +152,30 @@ export default function TabOneScreen() {
     workspace.templates.length,
   ]);
 
+  function openRecommendation(recommendation: WorkspaceRecommendation) {
+    if (recommendation.action.kind === "open-inventory") {
+      router.push("/inventory");
+      return;
+    }
+
+    if (recommendation.action.kind === "open-logbook") {
+      router.push({
+        pathname: "/logbook",
+        params: {
+          ...(recommendation.action.actionId
+            ? { actionId: recommendation.action.actionId }
+            : {}),
+          ...(recommendation.spaceId
+            ? { spaceId: recommendation.spaceId }
+            : {}),
+        },
+      });
+      return;
+    }
+
+    router.push("/action-center");
+  }
+
   function renderWidgetBody(
     widget: (typeof workspace.dashboardWidgets)[number],
   ) {
@@ -182,6 +208,57 @@ export default function TabOneScreen() {
           <Text style={styles.widgetShortcutLabel}>{action.label}</Text>
           <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
             {action.target}
+          </Text>
+        </Pressable>
+      ));
+    }
+
+    if (widget.type === "recommendations") {
+      return recommendations.slice(0, itemLimit).map((recommendation) => (
+        <Pressable
+          key={recommendation.id}
+          onPress={() => openRecommendation(recommendation)}
+          style={[styles.widgetShortcut, styles.recommendationCard]}
+        >
+          <View style={styles.widgetRecommendationHeader}>
+            <Text style={styles.widgetShortcutLabel}>
+              {recommendation.title}
+            </Text>
+            <View
+              style={[
+                styles.severityBadge,
+                {
+                  backgroundColor:
+                    recommendation.severity === "high"
+                      ? "#fee2e2"
+                      : recommendation.severity === "medium"
+                        ? "#fef3c7"
+                        : "#dcfce7",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.severityBadgeLabel,
+                  {
+                    color:
+                      recommendation.severity === "high"
+                        ? "#b91c1c"
+                        : recommendation.severity === "medium"
+                          ? "#b45309"
+                          : "#166534",
+                  },
+                ]}
+              >
+                {recommendation.severity}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
+            {recommendation.explanation}
+          </Text>
+          <Text style={[styles.actionCta, { color: palette.tint }]}>
+            {recommendation.action.label}
           </Text>
         </Pressable>
       ));
@@ -354,6 +431,53 @@ export default function TabOneScreen() {
           </Surface>
         ))}
       </View>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Recommended next actions</Text>
+        <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
+          TrackItUp now promotes the most useful next step from reminders,
+          metrics, and asset history.
+        </Text>
+      </View>
+      <Surface
+        style={[
+          styles.focusCard,
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+          },
+        ]}
+        elevation={1}
+      >
+        {recommendations.length === 0 ? (
+          <Text style={[styles.focusText, { color: palette.muted }]}>
+            Recommendations will appear here as your spaces build up reminders,
+            readings, and maintenance history.
+          </Text>
+        ) : (
+          recommendations.slice(0, 3).map((recommendation) => (
+            <Pressable
+              key={recommendation.id}
+              onPress={() => openRecommendation(recommendation)}
+              style={styles.recommendationRow}
+            >
+              <View style={styles.widgetListCopy}>
+                <Text style={styles.widgetListTitle}>
+                  {recommendation.title}
+                </Text>
+                <Text
+                  style={[styles.widgetShortcutMeta, { color: palette.muted }]}
+                >
+                  {recommendation.explanation}
+                </Text>
+              </View>
+              <Text style={[styles.actionCta, { color: palette.tint }]}>
+                {recommendation.action.label}
+              </Text>
+            </Pressable>
+          ))
+        )}
+      </Surface>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Start recording</Text>
@@ -1044,9 +1168,35 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 4,
   },
+  widgetRecommendationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
   widgetShortcutMeta: {
     fontSize: 12,
     lineHeight: 18,
+  },
+  severityBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  severityBadgeLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+  recommendationCard: {
+    gap: 8,
+  },
+  recommendationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    paddingVertical: 10,
   },
   widgetToolbar: {
     flexDirection: "row",

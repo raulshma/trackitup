@@ -29,6 +29,14 @@ export const defaultDashboardWidgets: DashboardWidget[] = [
     size: "large",
   },
   {
+    id: "widget-recommendations",
+    title: "Recommended next actions",
+    type: "recommendations",
+    description:
+      "Turns logs, reminders, and safe ranges into practical next steps.",
+    size: "medium",
+  },
+  {
     id: "widget-reminders",
     title: "Upcoming maintenance",
     type: "reminders",

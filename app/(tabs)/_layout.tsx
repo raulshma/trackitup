@@ -6,23 +6,23 @@ import { StyleSheet, View } from "react-native";
 import { type MD3Theme, useTheme } from "react-native-paper";
 
 import {
-  MaterialCompactTopAppBar,
-  type MaterialCompactTopAppBarAction,
+    MaterialCompactTopAppBar,
+    type MaterialCompactTopAppBarAction,
 } from "@/components/ui/MaterialCompactTopAppBar";
 import { RecordEventFab } from "@/components/ui/RecordEventFab";
 import {
-  TabHeaderScrollProvider,
-  useTabHeaderScrollValue,
+    TabHeaderScrollProvider,
+    useTabHeaderScrollValue,
 } from "@/components/ui/TabHeaderScrollContext";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
 import {
-  uiElevation,
-  uiRadius,
-  uiShadow,
-  uiSpace,
-  uiTypography,
+    uiElevation,
+    uiRadius,
+    uiShadow,
+    uiSpace,
+    uiTypography,
 } from "@/constants/UiTokens";
 
 function TabRouteHeader({
@@ -58,6 +58,15 @@ export default function TabLayout() {
   const inactiveTabColor = theme.colors.onSurfaceVariant;
   const homeHeaderActions = React.useMemo<MaterialCompactTopAppBarAction[]>(
     () => [
+      {
+        icon: {
+          ios: "bell.badge.fill",
+          android: "notifications",
+          web: "notifications",
+        },
+        accessibilityLabel: "Open action center",
+        onPress: () => router.push("/action-center"),
+      },
       {
         icon: {
           ios: "person.crop.circle",

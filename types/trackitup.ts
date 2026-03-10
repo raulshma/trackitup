@@ -260,6 +260,7 @@ export type ExpenseEntry = {
 export type DashboardWidgetType =
   | "chart"
   | "attention"
+  | "recommendations"
   | "quick-actions"
   | "reminders"
   | "timeline";
@@ -273,6 +274,34 @@ export type DashboardWidget = {
   spaceId?: string;
   metricIds?: string[];
   hidden?: boolean;
+};
+
+export type WorkspaceRecommendationSeverity = "high" | "medium" | "low";
+
+export type WorkspaceRecommendationType =
+  | "overdue-reminder"
+  | "metric-alert"
+  | "stale-space"
+  | "warranty-expiring";
+
+export type WorkspaceRecommendationAction = {
+  kind: "open-planner" | "open-logbook" | "open-inventory";
+  label: string;
+  actionId?: string;
+};
+
+export type WorkspaceRecommendation = {
+  id: string;
+  type: WorkspaceRecommendationType;
+  severity: WorkspaceRecommendationSeverity;
+  title: string;
+  explanation: string;
+  createdAt: string;
+  action: WorkspaceRecommendationAction;
+  spaceId?: string;
+  assetId?: string;
+  metricId?: string;
+  reminderId?: string;
 };
 
 export type TemplateOrigin = "official" | "community";

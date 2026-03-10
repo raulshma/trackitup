@@ -10,11 +10,13 @@ import type { WorkspaceBiometricReauthTimeout } from "@/services/offline/workspa
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
+import type { ReminderNotificationPermissionStatus } from "@/services/reminders/reminderNotifications";
 import type { CreateSpaceDraft } from "@/services/spaces/workspaceSpaces";
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type {
     TemplateCatalogItem,
     TemplateImportMethod,
+    WorkspaceRecommendation,
     WorkspaceSnapshot,
 } from "@/types/trackitup";
 
@@ -53,11 +55,14 @@ export type WorkspaceContextValue = {
   biometricLockEnabled: boolean;
   biometricAvailability: WorkspaceBiometricAvailability;
   biometricReauthTimeout: WorkspaceBiometricReauthTimeout;
+  reminderNotificationPermissionStatus: ReminderNotificationPermissionStatus;
+  canAskForReminderNotifications: boolean;
   isWorkspaceLocked: boolean;
   localProtectionStatus: WorkspaceLocalProtectionStatus;
   blockedProtectionReason: BlockedEncryptedWorkspaceReason | null;
   isSyncing: boolean;
   overviewStats: ReturnType<typeof getOverviewStats>;
+  recommendations: WorkspaceRecommendation[];
   quickActionCards: ReturnType<typeof getQuickActionCards>;
   spaceSummaries: ReturnType<typeof getSpaceSummaries>;
   timelineEntries: ReturnType<typeof getTimelineEntries>;
@@ -94,6 +99,10 @@ export type WorkspaceContextValue = {
   setBiometricReauthTimeout: (
     timeout: WorkspaceBiometricReauthTimeout,
   ) => Promise<{ status: string; message: string }>;
+  requestReminderNotifications: () => Promise<{
+    status: string;
+    message: string;
+  }>;
   unlockWorkspace: () => Promise<{ status: string; message: string }>;
   recoverBlockedWorkspace: () => Promise<{ status: string; message: string }>;
   syncWorkspaceNow: () => Promise<SyncActionResult>;
