@@ -21,6 +21,7 @@ import {
     uiSpace,
     uiTypography,
 } from "@/constants/UiTokens";
+import { useAppAuth } from "@/providers/AuthProvider";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import type { ThemePreference } from "@/services/theme/themePreferences";
 
@@ -122,8 +123,11 @@ export function OnboardingExperience({
   const colorScheme = useColorScheme();
   const palette = getAppPalette(colorScheme);
   const insets = useSafeAreaInsets();
+  const auth = useAppAuth();
   const { themePreference, setThemePreference } = useThemePreference();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const progressValue = useRef(new Animated.Value(0)).current;
 
   const slides = useMemo<SlideSpec[]>(
@@ -173,6 +177,17 @@ export function OnboardingExperience({
 
     jumpToSlide(activeIndex + 1);
   }, [activeIndex, isFinalSlide, jumpToSlide, onComplete]);
+
+  const handleGoogleSignIn = useCallback(async () => {
+    setIsSubmitting(true);
+    const result = await auth.signInWithGoogle();
+    setAuthMessage(result.message);
+    setIsSubmitting(false);
+
+    if (result.status === "success") {
+      onComplete();
+    }
+  }, [auth, onComplete]);
 
   useEffect(() => {
     Animated.spring(progressValue, {
@@ -233,7 +248,12 @@ export function OnboardingExperience({
           </Text>
           <Text style={styles.brandTitle}>TrackItUp</Text>
         </View>
-        <Button mode="text" textColor={palette.muted} onPress={onComplete}>
+        <Button
+          mode="text"
+          textColor={palette.muted}
+          onPress={onComplete}
+          disabled={isSubmitting}
+        >
           Skip
         </Button>
       </View>
@@ -400,21 +420,48 @@ export function OnboardingExperience({
           </View>
         </View>
 
-        <View style={styles.actionRow}>
-          <Button
-            mode="text"
-            textColor={palette.muted}
-            onPress={
-              activeIndex === 0
-                ? onComplete
-                : () => jumpToSlide(activeIndex - 1)
-            }
-          >
-            {activeIndex === 0 ? "Maybe later" : "Back"}
-          </Button>
-          <Button mode="contained" onPress={handleAdvance}>
-            {isFinalSlide ? "Enter TrackItUp" : "Next"}
-          </Button>
+        <View style={styles.footerActionStack}>
+          {isFinalSlide &&
+          auth.clerkPublishableKeyConfigured &&
+          !auth.isSignedIn ? (
+            <Button
+              mode="outlined"
+              onPress={handleGoogleSignIn}
+              loading={isSubmitting}
+              disabled={isSubmitting || !auth.isLoaded}
+              style={styles.googleButton}
+            >
+              Sign in with Google
+            </Button>
+          ) : null}
+
+          <View style={styles.actionRow}>
+            <Button
+              mode="text"
+              textColor={palette.muted}
+              onPress={
+                activeIndex === 0
+                  ? onComplete
+                  : () => jumpToSlide(activeIndex - 1)
+              }
+              disabled={isSubmitting}
+            >
+              {activeIndex === 0 ? "Maybe later" : "Back"}
+            </Button>
+            <Button
+              mode="contained"
+              onPress={handleAdvance}
+              disabled={isSubmitting}
+            >
+              {isFinalSlide ? "Enter TrackItUp" : "Next"}
+            </Button>
+          </View>
+
+          {isFinalSlide && authMessage ? (
+            <Text style={[styles.authMessage, { color: palette.muted }]}>
+              {authMessage}
+            </Text>
+          ) : null}
         </View>
       </Surface>
     </View>
@@ -992,4 +1039,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  footerActionStack: {
+    gap: uiSpace.md,
+  },
+  googleButton: {
+    width: "100%",
+  },
+  authMessage: uiTypography.bodySmall,
 });
