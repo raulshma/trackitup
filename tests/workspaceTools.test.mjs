@@ -32,6 +32,8 @@ const { getQuickActionFormTemplate } =
   await import("../constants/TrackItUpFormTemplates.ts");
 const { buildTimelineEntriesFromLogs } =
   await import("../constants/TrackItUpSelectors.ts");
+const { createEmptyWorkspaceSnapshot } =
+  await import("../constants/TrackItUpDefaults.ts");
 const { choosePersistenceMode, normalizeWorkspaceSnapshot } =
   await import("../services/offline/workspacePersistenceStrategy.ts");
 const {
@@ -638,6 +640,27 @@ test("workspace snapshot normalization preserves attachments while filling defau
     "file:///reef-photo.jpg",
   );
   assert.deepEqual(normalized.reminders[0].history, []);
+});
+
+test("workspace snapshot normalization strips legacy seeded data for empty fallbacks", () => {
+  const normalized = normalizeWorkspaceSnapshot(
+    trackItUpWorkspace,
+    createEmptyWorkspaceSnapshot("2026-03-10T12:00:00.000Z"),
+    (snapshot) => structuredClone(snapshot),
+  );
+
+  assert.ok(normalized);
+  assert.deepEqual(normalized.spaces, []);
+  assert.deepEqual(normalized.assets, []);
+  assert.deepEqual(normalized.metricDefinitions, []);
+  assert.deepEqual(normalized.routines, []);
+  assert.deepEqual(normalized.reminders, []);
+  assert.deepEqual(normalized.logs, []);
+  assert.deepEqual(normalized.expenses, []);
+  assert.deepEqual(normalized.templates, []);
+  assert.equal(normalized.quickActions.length, 3);
+  assert.equal(normalized.dashboardWidgets.length, 3);
+  assert.equal(normalized.generatedAt, "2026-03-10T12:00:00.000Z");
 });
 
 test("timeline entries are built in newest-first order with linked space context", () => {

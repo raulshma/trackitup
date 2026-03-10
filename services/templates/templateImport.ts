@@ -1,4 +1,4 @@
-import { trackItUpWorkspace } from "../../constants/TrackItUpData.ts";
+import { knownTemplateCatalog } from "../../constants/TrackItUpDefaults.ts";
 import type {
     FormFieldType,
     TemplateCatalogItem,
@@ -205,7 +205,7 @@ export function applyTemplateImportToWorkspace(
   workspace: WorkspaceSnapshot,
   rawUrl: string,
   preferredMethod?: TemplateImportMethod,
-  knownTemplates: TemplateCatalogItem[] = trackItUpWorkspace.templates,
+  knownTemplates: TemplateCatalogItem[] = knownTemplateCatalog,
 ): TemplateImportResult {
   const parsed = parseTemplateImportUrl(rawUrl, preferredMethod);
 

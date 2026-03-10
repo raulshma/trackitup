@@ -192,7 +192,7 @@ export default function LogbookScreen() {
     setFeedbackMessage(null);
   }
 
-  function handleCreateSampleEntry() {
+  function handleSaveEntry() {
     if ((!action && !selectedTemplate) || !activeTemplate) return;
 
     const nextErrors = validateFormValues(activeTemplate, formValues);
@@ -217,7 +217,7 @@ export default function LogbookScreen() {
     setFeedbackMessage(
       result.createdCount > 1
         ? `Saved ${result.createdCount} log entries from one routine/template run.${result.scheduledReminderCount ? ` Triggered ${result.scheduledReminderCount} reminder(s).` : ""}`
-        : `Log entry saved to the workspace snapshot.${result.scheduledReminderCount ? ` Triggered ${result.scheduledReminderCount} reminder(s).` : ""}`,
+        : `Log entry saved to your workspace.${result.scheduledReminderCount ? ` Triggered ${result.scheduledReminderCount} reminder(s).` : ""}`,
     );
     router.replace({
       pathname: "/logbook",
@@ -227,7 +227,7 @@ export default function LogbookScreen() {
 
   function handleResetWorkspace() {
     resetWorkspace();
-    setFeedbackMessage("Workspace reset to the starter snapshot.");
+    setFeedbackMessage("Local workspace data cleared.");
 
     if (action) {
       router.replace({ pathname: "/logbook", params: { actionId: action.id } });
@@ -299,7 +299,7 @@ export default function LogbookScreen() {
         <View style={styles.actionButtonRow}>
           {action || selectedTemplate ? (
             <Button
-              onPress={handleCreateSampleEntry}
+              onPress={handleSaveEntry}
               mode="contained"
               style={styles.paperActionButton}
               contentStyle={styles.paperActionButtonContent}
@@ -313,7 +313,7 @@ export default function LogbookScreen() {
             style={styles.paperActionButton}
             contentStyle={styles.paperActionButtonContent}
           >
-            Reset workspace
+            Clear workspace data
           </Button>
         </View>
       </View>

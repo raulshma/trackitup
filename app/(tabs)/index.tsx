@@ -19,7 +19,6 @@ export default function TabOneScreen() {
   const [chartMode, setChartMode] = useState<ChartMode>("line");
   const {
     cycleDashboardWidgetSize,
-    focusItems,
     moveDashboardWidget,
     overviewStats,
     quickActionCards,
@@ -104,6 +103,47 @@ export default function TabOneScreen() {
     () => workspace.dashboardWidgets.filter((widget) => widget.hidden),
     [workspace.dashboardWidgets],
   );
+  const workspacePulse = [
+    `${workspace.spaces.length} spaces`,
+    `${workspace.assets.length} assets`,
+    `${workspace.logs.length} logs`,
+  ];
+  const attentionSummary =
+    attentionItems.length > 0
+      ? `${attentionItems.length} item${attentionItems.length === 1 ? "" : "s"} need review`
+      : "Everything looks steady";
+  const workspaceGuidance = useMemo(() => {
+    const items: string[] = [];
+
+    if (workspace.spaces.length === 0) {
+      items.push("Add or sync a space to start tracking real activity.");
+    }
+    if (workspace.logs.length === 0) {
+      items.push(
+        "Use Quick log to capture your first real entry on this device.",
+      );
+    }
+    if (workspace.reminders.length === 0) {
+      items.push("Create routines or reminders to populate the planner.");
+    }
+    if (workspace.templates.length === 0) {
+      items.push("Import or build a template when you want reusable forms.");
+    }
+
+    if (items.length > 0) return items;
+
+    return [
+      `${workspace.logs.length} real logs are available in your unified timeline.`,
+      `${workspace.reminders.length} reminders are currently scheduled across your spaces.`,
+      `${workspace.assets.length} assets are linked to tracked spaces in this workspace.`,
+    ];
+  }, [
+    workspace.assets.length,
+    workspace.logs.length,
+    workspace.reminders.length,
+    workspace.spaces.length,
+    workspace.templates.length,
+  ]);
 
   function renderWidgetBody(
     widget: (typeof workspace.dashboardWidgets)[number],
@@ -245,17 +285,70 @@ export default function TabOneScreen() {
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <View style={styles.hero}>
+      <View
+        style={[
+          styles.hero,
+          {
+            backgroundColor: palette.hero,
+            borderColor: palette.heroBorder,
+            shadowColor: palette.shadow,
+          },
+        ]}
+      >
+        <View style={styles.heroBadgeRow}>
+          <View
+            style={[
+              styles.heroBadge,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.heroBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.heroBadgeLabel, { color: palette.tint }]}>
+              TrackItUp
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.heroBadge,
+              {
+                backgroundColor: palette.accentSoft,
+                borderColor: palette.heroBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.heroBadgeLabel, { color: palette.text }]}>
+              {attentionSummary}
+            </Text>
+          </View>
+        </View>
         <Text style={[styles.eyebrow, { color: palette.tint }]}>
-          Flexible tracking for every hobby
+          Streamlined workspace command center
         </Text>
         <Text style={styles.title}>
-          One workspace for spaces, assets, metrics, logs, and routines.
+          Run every space, routine, and asset from one calm dashboard.
         </Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
-          We have replaced the starter scaffold with the first TrackItUp home
-          shell and sample workspace data.
+          Review what needs attention, jump into quick actions, and keep every
+          hobby organized without losing the bigger picture.
         </Text>
+        <View style={styles.heroStatRow}>
+          {workspacePulse.map((item) => (
+            <View
+              key={item}
+              style={[
+                styles.heroStatPill,
+                {
+                  backgroundColor: palette.card,
+                  borderColor: palette.heroBorder,
+                },
+              ]}
+            >
+              <Text style={styles.heroStatLabel}>{item}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={styles.statRow}>
@@ -264,9 +357,16 @@ export default function TabOneScreen() {
             key={stat.label}
             style={[
               styles.statCard,
-              { backgroundColor: palette.card, borderColor: palette.border },
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+                shadowColor: palette.shadow,
+              },
             ]}
           >
+            <Text style={[styles.statEyebrow, { color: palette.muted }]}>
+              Live
+            </Text>
             <Text style={styles.statValue}>{stat.value}</Text>
             <Text style={[styles.statLabel, { color: palette.muted }]}>
               {stat.label}
@@ -297,13 +397,22 @@ export default function TabOneScreen() {
               {
                 backgroundColor: palette.card,
                 borderColor: action.accent,
+                shadowColor: palette.shadow,
               },
             ]}
           >
             <Text style={styles.actionLabel}>{action.label}</Text>
-            <Text style={[styles.actionMeta, { color: palette.muted }]}>
-              {action.target}
+            <Text style={[styles.actionDescription, { color: palette.muted }]}>
+              {action.description}
             </Text>
+            <View style={styles.actionFooter}>
+              <Text style={[styles.actionMeta, { color: palette.muted }]}>
+                {action.target}
+              </Text>
+              <Text style={[styles.actionCta, { color: action.accent }]}>
+                Open →
+              </Text>
+            </View>
           </Pressable>
         ))}
       </View>
@@ -311,62 +420,83 @@ export default function TabOneScreen() {
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Active spaces</Text>
         <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          Starter cards that mirror the flexible multi-hobby model in the
-          product requirements.
+          Spaces from your real workspace appear here after you sync, import, or
+          start tracking on this device.
         </Text>
       </View>
-      {spaceSummaries.map((space) => (
+      {spaceSummaries.length === 0 ? (
         <View
-          key={space.id}
           style={[
             styles.spaceCard,
             {
               backgroundColor: palette.card,
               borderColor: palette.border,
-              borderLeftColor: space.accent,
+              borderLeftColor: palette.border,
+              shadowColor: palette.shadow,
             },
           ]}
         >
-          <View style={styles.spaceHeader}>
-            <View style={styles.spaceHeadingCopy}>
-              <Text style={styles.spaceName}>{space.name}</Text>
-              <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                {space.category}
-              </Text>
-              {spacesById.get(space.id)?.parentSpaceId ? (
-                <Text style={[styles.nestedMeta, { color: palette.muted }]}>
-                  Nested in{" "}
-                  {
-                    spacesById.get(
-                      spacesById.get(space.id)?.parentSpaceId ?? "",
-                    )?.name
-                  }
-                </Text>
-              ) : null}
-            </View>
-            <View
-              style={[styles.badge, { backgroundColor: `${space.accent}22` }]}
-            >
-              <Text style={[styles.badgeLabel, { color: space.accent }]}>
-                {space.status}
-              </Text>
-            </View>
-          </View>
-
+          <Text style={styles.spaceName}>No tracked spaces yet</Text>
           <Text style={[styles.spaceNote, { color: palette.muted }]}>
-            {space.note}
+            Real spaces will appear here after you connect cloud data, import a
+            workspace, or begin logging on this device.
           </Text>
-
-          <View style={styles.spaceFooter}>
-            <Text style={styles.spaceFooterLabel}>
-              {space.pendingTasks} task(s)
-            </Text>
-            <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-              {space.lastLog}
-            </Text>
-          </View>
         </View>
-      ))}
+      ) : (
+        spaceSummaries.map((space) => (
+          <View
+            key={space.id}
+            style={[
+              styles.spaceCard,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+                borderLeftColor: space.accent,
+                shadowColor: palette.shadow,
+              },
+            ]}
+          >
+            <View style={styles.spaceHeader}>
+              <View style={styles.spaceHeadingCopy}>
+                <Text style={styles.spaceName}>{space.name}</Text>
+                <Text style={[styles.spaceMeta, { color: palette.muted }]}>
+                  {space.category}
+                </Text>
+                {spacesById.get(space.id)?.parentSpaceId ? (
+                  <Text style={[styles.nestedMeta, { color: palette.muted }]}>
+                    Nested in{" "}
+                    {
+                      spacesById.get(
+                        spacesById.get(space.id)?.parentSpaceId ?? "",
+                      )?.name
+                    }
+                  </Text>
+                ) : null}
+              </View>
+              <View
+                style={[styles.badge, { backgroundColor: `${space.accent}22` }]}
+              >
+                <Text style={[styles.badgeLabel, { color: space.accent }]}>
+                  {space.status}
+                </Text>
+              </View>
+            </View>
+
+            <Text style={[styles.spaceNote, { color: palette.muted }]}>
+              {space.note}
+            </Text>
+
+            <View style={styles.spaceFooter}>
+              <Text style={styles.spaceFooterLabel}>
+                {space.pendingTasks} task(s)
+              </Text>
+              <Text style={[styles.spaceMeta, { color: palette.muted }]}>
+                {space.lastLog}
+              </Text>
+            </View>
+          </View>
+        ))
+      )}
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Dashboard widgets</Text>
@@ -384,6 +514,7 @@ export default function TabOneScreen() {
               backgroundColor: palette.card,
               borderColor: palette.border,
               borderLeftColor: palette.tint,
+              shadowColor: palette.shadow,
             },
           ]}
         >
@@ -432,7 +563,11 @@ export default function TabOneScreen() {
         <View
           style={[
             styles.focusCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
+            {
+              backgroundColor: palette.card,
+              borderColor: palette.border,
+              shadowColor: palette.shadow,
+            },
           ]}
         >
           <Text style={styles.sectionTitle}>Hidden widgets</Text>
@@ -467,7 +602,11 @@ export default function TabOneScreen() {
       <View
         style={[
           styles.focusCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            shadowColor: palette.shadow,
+          },
         ]}
       >
         {attentionItems.map((item) => (
@@ -503,70 +642,99 @@ export default function TabOneScreen() {
           <Text style={styles.toolbarButtonLabel}>Import template</Text>
         </Pressable>
       </View>
-      {workspace.templates.map((template) => (
+      {workspace.templates.length === 0 ? (
         <View
-          key={template.id}
           style={[
             styles.spaceCard,
             {
               backgroundColor: palette.card,
               borderColor: palette.border,
-              borderLeftColor: palette.tint,
+              borderLeftColor: palette.border,
+              shadowColor: palette.shadow,
             },
           ]}
         >
-          <View style={styles.spaceHeader}>
-            <View style={styles.spaceHeadingCopy}>
-              <Text style={styles.spaceName}>{template.name}</Text>
-              <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                {template.origin} • {template.category}
-              </Text>
-            </View>
-            <View
-              style={[styles.badge, { backgroundColor: `${palette.tint}22` }]}
-            >
-              <Text style={[styles.badgeLabel, { color: palette.tint }]}>
-                {template.importMethods.join(" • ")}
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.spaceName}>
+            No templates in this workspace yet
+          </Text>
           <Text style={[styles.spaceNote, { color: palette.muted }]}>
-            {template.summary}
+            Import a template or build your own schema to populate this catalog.
           </Text>
-          <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-            Fields: {template.supportedFieldTypes.slice(0, 5).join(", ")}
-          </Text>
-          {template.formTemplate ? (
-            <View style={styles.widgetToolbar}>
-              <Pressable
-                onPress={() =>
-                  router.push({
-                    pathname: "/logbook",
-                    params: { templateId: template.id },
-                  })
-                }
-                style={[styles.toolbarButton, { borderColor: palette.border }]}
-              >
-                <Text style={styles.toolbarButtonLabel}>Open form</Text>
-              </Pressable>
-            </View>
-          ) : null}
         </View>
-      ))}
+      ) : (
+        workspace.templates.map((template) => (
+          <View
+            key={template.id}
+            style={[
+              styles.spaceCard,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.border,
+                borderLeftColor: palette.tint,
+                shadowColor: palette.shadow,
+              },
+            ]}
+          >
+            <View style={styles.spaceHeader}>
+              <View style={styles.spaceHeadingCopy}>
+                <Text style={styles.spaceName}>{template.name}</Text>
+                <Text style={[styles.spaceMeta, { color: palette.muted }]}>
+                  {template.origin} • {template.category}
+                </Text>
+              </View>
+              <View
+                style={[styles.badge, { backgroundColor: `${palette.tint}22` }]}
+              >
+                <Text style={[styles.badgeLabel, { color: palette.tint }]}>
+                  {template.importMethods.join(" • ")}
+                </Text>
+              </View>
+            </View>
+            <Text style={[styles.spaceNote, { color: palette.muted }]}>
+              {template.summary}
+            </Text>
+            <Text style={[styles.spaceMeta, { color: palette.muted }]}>
+              Fields: {template.supportedFieldTypes.slice(0, 5).join(", ")}
+            </Text>
+            {template.formTemplate ? (
+              <View style={styles.widgetToolbar}>
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/logbook",
+                      params: { templateId: template.id },
+                    })
+                  }
+                  style={[
+                    styles.toolbarButton,
+                    { borderColor: palette.border },
+                  ]}
+                >
+                  <Text style={styles.toolbarButtonLabel}>Open form</Text>
+                </Pressable>
+              </View>
+            ) : null}
+          </View>
+        ))
+      )}
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Today&apos;s focus</Text>
+        <Text style={styles.sectionTitle}>Workspace guide</Text>
         <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          The next implementation slices after the shell is in place.
+          Tips here reflect your current real workspace state.
         </Text>
       </View>
       <View
         style={[
           styles.focusCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            shadowColor: palette.shadow,
+          },
         ]}
       >
-        {focusItems.map((item) => (
+        {workspaceGuidance.map((item) => (
           <View key={item} style={styles.focusItem}>
             <View
               style={[styles.focusDot, { backgroundColor: palette.tint }]}
@@ -587,10 +755,33 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 32,
+    paddingBottom: 120,
+    gap: 18,
   },
   hero: {
-    marginBottom: 20,
+    borderWidth: 1,
+    borderRadius: 28,
+    padding: 22,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  heroBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 14,
+  },
+  heroBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  heroBadgeLabel: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   eyebrow: {
     fontSize: 13,
@@ -607,19 +798,47 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginTop: 10,
   },
+  heroStatRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 18,
+  },
+  heroStatPill: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  heroStatLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
   statRow: {
     flexDirection: "row",
     gap: 12,
-    marginBottom: 24,
+    flexWrap: "wrap",
   },
   statCard: {
     flex: 1,
+    minWidth: 100,
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 22,
+    padding: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
+  },
+  statEyebrow: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 10,
   },
   statValue: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "800",
     marginBottom: 4,
   },
@@ -627,7 +846,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   sectionHeader: {
-    marginBottom: 12,
+    marginTop: 4,
+    marginBottom: -4,
   },
   sectionTitle: {
     fontSize: 20,
@@ -640,33 +860,60 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 10,
-    marginBottom: 24,
   },
   actionButton: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    borderRadius: 16,
+    minWidth: 200,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderRadius: 22,
     borderWidth: 1,
     alignItems: "flex-start",
-    minHeight: 84,
+    minHeight: 148,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   actionLabel: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  actionDescription: {
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
+    marginBottom: 14,
+    flex: 1,
+  },
+  actionFooter: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: "auto",
   },
   actionMeta: {
     fontSize: 12,
     lineHeight: 18,
-    marginTop: 6,
+    flex: 1,
+    marginRight: 10,
+  },
+  actionCta: {
+    fontSize: 12,
+    fontWeight: "800",
   },
   spaceCard: {
     borderWidth: 1,
     borderLeftWidth: 5,
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 18,
-    marginBottom: 14,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   spaceHeader: {
     flexDirection: "row",
@@ -715,8 +962,12 @@ const styles = StyleSheet.create({
   },
   focusCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   focusItem: {
     flexDirection: "row",
@@ -746,6 +997,7 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 999,
     borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.02)",
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 10,
@@ -778,7 +1030,7 @@ const styles = StyleSheet.create({
   },
   widgetShortcut: {
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 12,
     marginBottom: 10,
   },
@@ -802,6 +1054,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
+    backgroundColor: "rgba(255,255,255,0.02)",
   },
   toolbarButtonLabel: {
     fontSize: 13,

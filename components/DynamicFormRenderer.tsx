@@ -661,7 +661,7 @@ export const DynamicFormRenderer = memo(function DynamicFormRenderer({
                 )
               }
               disabled={readOnly}
-              placeholder="maintenance, reef, dosing"
+              placeholder="maintenance, weekly, filter-check"
             />
             <View style={styles.optionWrap}>
               {asStringList(value).map((tag) => (

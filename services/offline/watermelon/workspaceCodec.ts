@@ -170,7 +170,7 @@ export async function persistWorkspaceSnapshotToWatermelon(
           name: item.name,
           category: item.category,
           status: item.status,
-          created_at: item.createdAt,
+          space_created_at: item.createdAt,
           parent_space_id: item.parentSpaceId,
           template_name: item.templateName,
         }),

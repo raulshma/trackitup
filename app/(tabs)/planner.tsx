@@ -106,24 +106,84 @@ export default function PlannerScreen() {
       spacesById,
     }));
   }, [workspace.reminders, workspace.spaces]);
+  const plannerHighlights = [
+    `${workspace.reminders.length} reminders tracked`,
+    `${selectedDayReminders.length} on the selected day`,
+    `${plannerGroups.length} upcoming day groups`,
+  ];
 
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: palette.hero,
+            borderColor: palette.heroBorder,
+            shadowColor: palette.shadow,
+          },
+        ]}
+      >
+        <View style={styles.headerBadgeRow}>
+          <View
+            style={[
+              styles.headerBadge,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.heroBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.headerBadgeLabel, { color: palette.tint }]}>
+              Planner
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.headerBadge,
+              {
+                backgroundColor: palette.accentSoft,
+                borderColor: palette.heroBorder,
+              },
+            ]}
+          >
+            <Text style={styles.headerBadgeLabel}>{calendar.monthLabel}</Text>
+          </View>
+        </View>
         <Text style={styles.title}>Planner calendar</Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
-          Recurring schedules, conditional reminders, snooze/skip actions, and
-          reminder history across every space.
+          See recurring work at a glance, focus on one day, and take the next
+          action without bouncing between screens.
         </Text>
+        <View style={styles.highlightRow}>
+          {plannerHighlights.map((item) => (
+            <View
+              key={item}
+              style={[
+                styles.highlightPill,
+                {
+                  backgroundColor: palette.card,
+                  borderColor: palette.heroBorder,
+                },
+              ]}
+            >
+              <Text style={styles.highlightLabel}>{item}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View
         style={[
           styles.calendarCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            shadowColor: palette.shadow,
+          },
         ]}
       >
         <View style={styles.calendarHeader}>
@@ -195,7 +255,11 @@ export default function PlannerScreen() {
       <View
         style={[
           styles.dayAgendaCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            shadowColor: palette.shadow,
+          },
         ]}
       >
         <Text style={styles.sectionTitle}>Selected day agenda</Text>
@@ -225,105 +289,169 @@ export default function PlannerScreen() {
         )}
       </View>
 
-      {plannerGroups.map((group) => (
-        <View key={group.label} style={styles.group}>
-          <Text style={styles.groupTitle}>{group.label}</Text>
-          {group.reminders.map((reminder) => {
-            const space = group.spacesById.get(reminder.spaceId);
-
-            return (
-              <View
-                key={reminder.id}
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: palette.card,
-                    borderColor: palette.border,
-                    borderLeftColor: space?.themeColor ?? palette.tint,
-                  },
-                ]}
-              >
-                <Text style={styles.cardTitle}>{reminder.title}</Text>
-                <View style={styles.metaRow}>
-                  <Text
-                    style={[
-                      styles.meta,
-                      { color: space?.themeColor ?? palette.tint },
-                    ]}
-                  >
-                    {space?.name ?? "Unknown space"}
-                  </Text>
-                  <Chip compact>{reminder.status.toUpperCase()}</Chip>
-                </View>
-                <Text style={[styles.copy, { color: palette.muted }]}>
-                  {reminder.description}
-                </Text>
-                <Text style={[styles.copy, { color: palette.muted }]}>
-                  Due {formatDue(reminder.snoozedUntil ?? reminder.dueAt)}
-                </Text>
-                {reminder.ruleLabel || reminder.triggerCondition ? (
-                  <Text style={[styles.copy, { color: palette.muted }]}>
-                    {reminder.ruleLabel ?? reminder.triggerCondition}
-                  </Text>
-                ) : null}
-                {reminder.skipReason ? (
-                  <Text style={[styles.copy, { color: palette.muted }]}>
-                    Last skip: {reminder.skipReason}
-                  </Text>
-                ) : null}
-
-                <View style={styles.buttonRow}>
-                  <Button
-                    mode="contained"
-                    onPress={() => completeReminder(reminder.id)}
-                    style={styles.button}
-                  >
-                    Complete
-                  </Button>
-                  <Button
-                    mode="outlined"
-                    onPress={() => snoozeReminder(reminder.id)}
-                    style={styles.button}
-                  >
-                    Snooze
-                  </Button>
-                  <Button
-                    mode="outlined"
-                    onPress={() => skipReminder(reminder.id)}
-                    style={styles.button}
-                  >
-                    Skip
-                  </Button>
-                </View>
-
-                {(reminder.history ?? []).slice(0, 2).map((item) => (
-                  <Text
-                    key={item.id}
-                    style={[styles.historyItem, { color: palette.muted }]}
-                  >
-                    • {item.action} — {item.note}
-                  </Text>
-                ))}
-              </View>
-            );
-          })}
+      {plannerGroups.length === 0 ? (
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: palette.card,
+              borderColor: palette.border,
+              borderLeftColor: palette.border,
+              shadowColor: palette.shadow,
+            },
+          ]}
+        >
+          <Text style={styles.cardTitle}>No reminders yet</Text>
+          <Text style={[styles.copy, { color: palette.muted }]}>
+            Upcoming reminders will appear here when real workspace tasks are
+            synced, imported, or created.
+          </Text>
         </View>
-      ))}
+      ) : (
+        plannerGroups.map((group) => (
+          <View key={group.label} style={styles.group}>
+            <Text style={styles.groupTitle}>{group.label}</Text>
+            {group.reminders.map((reminder) => {
+              const space = group.spacesById.get(reminder.spaceId);
+
+              return (
+                <View
+                  key={reminder.id}
+                  style={[
+                    styles.card,
+                    {
+                      backgroundColor: palette.card,
+                      borderColor: palette.border,
+                      borderLeftColor: space?.themeColor ?? palette.tint,
+                      shadowColor: palette.shadow,
+                    },
+                  ]}
+                >
+                  <Text style={styles.cardTitle}>{reminder.title}</Text>
+                  <View style={styles.metaRow}>
+                    <Text
+                      style={[
+                        styles.meta,
+                        { color: space?.themeColor ?? palette.tint },
+                      ]}
+                    >
+                      {space?.name ?? "Unknown space"}
+                    </Text>
+                    <Chip compact>{reminder.status.toUpperCase()}</Chip>
+                  </View>
+                  <Text style={[styles.copy, { color: palette.muted }]}>
+                    {reminder.description}
+                  </Text>
+                  <Text style={[styles.copy, { color: palette.muted }]}>
+                    Due {formatDue(reminder.snoozedUntil ?? reminder.dueAt)}
+                  </Text>
+                  {reminder.ruleLabel || reminder.triggerCondition ? (
+                    <Text style={[styles.copy, { color: palette.muted }]}>
+                      {reminder.ruleLabel ?? reminder.triggerCondition}
+                    </Text>
+                  ) : null}
+                  {reminder.skipReason ? (
+                    <Text style={[styles.copy, { color: palette.muted }]}>
+                      Last skip: {reminder.skipReason}
+                    </Text>
+                  ) : null}
+
+                  <View style={styles.buttonRow}>
+                    <Button
+                      mode="contained"
+                      onPress={() => completeReminder(reminder.id)}
+                      style={styles.button}
+                    >
+                      Complete
+                    </Button>
+                    <Button
+                      mode="outlined"
+                      onPress={() => snoozeReminder(reminder.id)}
+                      style={styles.button}
+                    >
+                      Snooze
+                    </Button>
+                    <Button
+                      mode="outlined"
+                      onPress={() => skipReminder(reminder.id)}
+                      style={styles.button}
+                    >
+                      Skip
+                    </Button>
+                  </View>
+
+                  {(reminder.history ?? []).slice(0, 2).map((item) => (
+                    <Text
+                      key={item.id}
+                      style={[styles.historyItem, { color: palette.muted }]}
+                    >
+                      • {item.action} — {item.note}
+                    </Text>
+                  ))}
+                </View>
+              );
+            })}
+          </View>
+        ))
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 20, paddingBottom: 32 },
-  header: { marginBottom: 18 },
-  title: { fontSize: 28, fontWeight: "bold", marginBottom: 8 },
+  content: { padding: 20, paddingBottom: 120, gap: 16 },
+  header: {
+    borderWidth: 1,
+    borderRadius: 28,
+    padding: 22,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  headerBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 14,
+  },
+  headerBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  headerBadgeLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  title: { fontSize: 30, fontWeight: "bold", marginBottom: 8 },
   subtitle: { fontSize: 15, lineHeight: 22 },
+  highlightRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 18,
+  },
+  highlightPill: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  highlightLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
   calendarCard: {
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 18,
+    borderRadius: 22,
+    padding: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   calendarHeader: {
     flexDirection: "row",
@@ -352,28 +480,35 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 72,
     borderWidth: 1,
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 10,
   },
   calendarDayLabel: { fontSize: 14, fontWeight: "700", marginBottom: 6 },
   calendarDayMeta: { fontSize: 11, lineHeight: 16 },
   dayAgendaCard: {
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 18,
+    borderRadius: 22,
+    padding: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   sectionTitle: { fontSize: 16, fontWeight: "800", marginBottom: 6 },
   selectedDateMeta: { fontSize: 12, fontWeight: "700", marginBottom: 10 },
   dayAgendaItem: { marginBottom: 10 },
-  group: { marginBottom: 18 },
+  group: { marginBottom: 4 },
   groupTitle: { fontSize: 18, fontWeight: "700", marginBottom: 10 },
   card: {
     borderWidth: 1,
     borderLeftWidth: 5,
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 22,
+    padding: 18,
     marginBottom: 12,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   cardTitle: { fontSize: 17, fontWeight: "700", marginBottom: 6 },
   listTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
@@ -385,7 +520,13 @@ const styles = StyleSheet.create({
   },
   meta: { fontSize: 12, fontWeight: "700" },
   copy: { fontSize: 14, lineHeight: 20, marginBottom: 4 },
-  buttonRow: { flexDirection: "row", gap: 8, marginTop: 12, marginBottom: 10 },
+  buttonRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 10,
+  },
   button: { flex: 1 },
   historyItem: { fontSize: 12, lineHeight: 18, marginTop: 2 },
 });

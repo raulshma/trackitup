@@ -863,7 +863,7 @@ export const requirementCoverage: RequirementCoverageSection[] = [
       {
         label: "Nested spaces",
         status: "implemented",
-        note: "Parent-child space relationships are now represented in sample data.",
+        note: "Parent-child space relationships are now represented in the workspace model and selectors.",
       },
       {
         label: "Template-driven schema and form surface",

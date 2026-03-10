@@ -8,11 +8,6 @@ import { Button, TextInput } from "react-native-paper";
 import { Text, View } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
-import {
-    requirementCoverage,
-    roadmapSections,
-} from "@/constants/TrackItUpData";
-import { getFoundationSections } from "@/constants/TrackItUpFoundations";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
     getCameraPermissionStatusAsync,
@@ -26,12 +21,6 @@ import {
     exportWorkspaceLogsCsvAsync,
     exportWorkspaceSummaryPdfAsync,
 } from "@/services/export/workspaceExport";
-
-const statusColors = {
-  implemented: "#16a34a",
-  partial: "#d97706",
-  blocked: "#dc2626",
-} as const;
 
 function formatPermissionSummary(permission: {
   granted?: boolean;
@@ -48,7 +37,6 @@ export default function ModalScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
   const router = useRouter();
-  const foundationSections = getFoundationSections();
   const { importLogsFromCsv, workspace } = useWorkspace();
   const [toolMessage, setToolMessage] = useState<string | null>(null);
   const [csvInput, setCsvInput] = useState("");
@@ -180,9 +168,8 @@ export default function ModalScreen() {
     >
       <Text style={styles.title}>TrackItUp workspace tools</Text>
       <Text style={[styles.subtitle, { color: palette.muted }]}>
-        Export, import, and device capability checks now live alongside the
-        requirement coverage view so this screen can act as a real progress and
-        validation hub.
+        Export, import, and device capability checks for your real workspace
+        data.
       </Text>
 
       <View
@@ -250,9 +237,7 @@ export default function ModalScreen() {
           multiline
           value={csvInput}
           onChangeText={setCsvInput}
-          placeholder={
-            'title,spaceName,kind,occurredAt,note,tags,cost\n"Water change","100G Reef Tank","asset-update","2026-03-09T08:00:00Z","20% change","water;maintenance","12.5"'
-          }
+          placeholder={"title,spaceId,kind,occurredAt,note,tags,cost"}
           style={styles.csvInput}
         />
         <Text style={[styles.helperText, { color: palette.muted }]}>
@@ -292,8 +277,8 @@ export default function ModalScreen() {
           community or official templates into the local catalog.
         </Text>
         <Text style={[styles.helperText, { color: palette.muted }]}>
-          Current catalog: {workspace.templates.length} templates. Example:
-          `trackitup://template-import?name=Foraging%20Log%20Pro&category=Outdoor&origin=community&fields=text,rich-text,tags,media,location,formula`
+          Current catalog: {workspace.templates.length} templates. Paste a full
+          TrackItUp import URL or scan a QR code below.
         </Text>
         <TextInput
           label="Paste template import link"
@@ -301,7 +286,7 @@ export default function ModalScreen() {
           multiline
           value={templateImportUrl}
           onChangeText={setTemplateImportUrl}
-          placeholder="trackitup://template-import?templateId=template-foraging-community"
+          placeholder="trackitup://template-import?..."
           style={styles.csvInput}
         />
         <View style={styles.toolButtonRow}>
@@ -401,117 +386,16 @@ export default function ModalScreen() {
         </View>
       ) : null}
 
-      {requirementCoverage.map((section) => (
-        <View
-          key={section.title}
-          style={[
-            styles.sectionCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
-          ]}
-        >
-          <Text style={styles.sectionTitle}>{section.title.toUpperCase()}</Text>
-          {section.items.map((item) => (
-            <View key={item.label} style={styles.coverageItem}>
-              <View
-                style={[
-                  styles.statusPill,
-                  {
-                    backgroundColor: `${statusColors[item.status]}22`,
-                    borderColor: `${statusColors[item.status]}55`,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusPillLabel,
-                    { color: statusColors[item.status] },
-                  ]}
-                >
-                  {item.status}
-                </Text>
-              </View>
-              <View style={styles.coverageCopy}>
-                <Text style={styles.coverageTitle}>{item.label}</Text>
-                <Text style={[styles.listText, { color: palette.muted }]}>
-                  {item.note}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      ))}
-
-      {foundationSections.map((section) => (
-        <View
-          key={section.title}
-          style={[
-            styles.sectionCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
-          ]}
-        >
-          <Text style={styles.sectionTitle}>{section.title.toUpperCase()}</Text>
-          {section.items.map((item) => (
-            <View key={item.label} style={styles.coverageItem}>
-              <View
-                style={[
-                  styles.statusPill,
-                  {
-                    backgroundColor: `${statusColors[item.status]}22`,
-                    borderColor: `${statusColors[item.status]}55`,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.statusPillLabel,
-                    { color: statusColors[item.status] },
-                  ]}
-                >
-                  {item.status}
-                </Text>
-              </View>
-              <View style={styles.coverageCopy}>
-                <Text style={styles.coverageTitle}>{item.label}</Text>
-                <Text style={[styles.listText, { color: palette.muted }]}>
-                  {item.note}
-                </Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      ))}
-
-      {Object.entries(roadmapSections).map(([section, items]) => (
-        <View
-          key={section}
-          style={[
-            styles.sectionCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
-          ]}
-        >
-          <Text style={styles.sectionTitle}>{section.toUpperCase()}</Text>
-          {items.map((item) => (
-            <View key={item} style={styles.listItem}>
-              <View style={[styles.dot, { backgroundColor: palette.tint }]} />
-              <Text style={[styles.listText, { color: palette.muted }]}>
-                {item}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ))}
-
       <View
         style={[
           styles.footnoteCard,
           { backgroundColor: palette.card, borderColor: palette.border },
         ]}
       >
-        <Text style={styles.footnoteTitle}>Product intent</Text>
+        <Text style={styles.footnoteTitle}>Workspace note</Text>
         <Text style={[styles.footnoteCopy, { color: palette.muted }]}>
-          TrackItUp is being shaped as an offline-friendly workspace where users
-          can define custom schemas, log events quickly, visualize trends, and
-          grow into sync and reporting when needed.
+          This screen only exposes tools and checks for your current workspace,
+          not seeded sample content.
         </Text>
       </View>
 

@@ -9,20 +9,41 @@ import Colors from "@/constants/Colors";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const palette = Colors[colorScheme];
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme].tint,
-        tabBarInactiveTintColor: Colors[colorScheme].tabIconDefault,
+        sceneStyle: {
+          backgroundColor: palette.background,
+        },
+        tabBarActiveTintColor: palette.tint,
+        tabBarInactiveTintColor: palette.tabIconDefault,
         tabBarStyle: {
-          backgroundColor: Colors[colorScheme].card,
-          borderTopColor: Colors[colorScheme].border,
+          backgroundColor: palette.card,
+          borderTopColor: palette.border,
+          borderTopWidth: 1,
+          height: 72,
+          paddingTop: 8,
+          paddingBottom: 10,
+        },
+        tabBarItemStyle: {
+          borderRadius: 16,
+          marginHorizontal: 2,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "700",
         },
         headerStyle: {
-          backgroundColor: Colors[colorScheme].background,
+          backgroundColor: palette.background,
         },
-        headerTintColor: Colors[colorScheme].text,
+        headerTintColor: palette.text,
+        headerShadowVisible: false,
+        headerTitleStyle: {
+          fontSize: 18,
+          fontWeight: "700",
+        },
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
@@ -56,32 +77,58 @@ export default function TabLayout() {
               <Link href="../account" asChild>
                 <Pressable>
                   {({ pressed }) => (
-                    <SymbolView
-                      name={{
-                        ios: "person.crop.circle",
-                        android: "account_circle",
-                        web: "account_circle",
+                    <View
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: palette.cardAlt,
+                        borderWidth: 1,
+                        borderColor: palette.border,
+                        opacity: pressed ? 0.7 : 1,
                       }}
-                      size={25}
-                      tintColor={Colors[colorScheme].text}
-                      style={{ opacity: pressed ? 0.5 : 1 }}
-                    />
+                    >
+                      <SymbolView
+                        name={{
+                          ios: "person.crop.circle",
+                          android: "account_circle",
+                          web: "account_circle",
+                        }}
+                        size={22}
+                        tintColor={palette.text}
+                      />
+                    </View>
                   )}
                 </Pressable>
               </Link>
               <Link href="/modal" asChild>
                 <Pressable>
                   {({ pressed }) => (
-                    <SymbolView
-                      name={{
-                        ios: "checklist",
-                        android: "task_alt",
-                        web: "task_alt",
+                    <View
+                      style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: 19,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        backgroundColor: palette.cardAlt,
+                        borderWidth: 1,
+                        borderColor: palette.border,
+                        opacity: pressed ? 0.7 : 1,
                       }}
-                      size={25}
-                      tintColor={Colors[colorScheme].text}
-                      style={{ opacity: pressed ? 0.5 : 1 }}
-                    />
+                    >
+                      <SymbolView
+                        name={{
+                          ios: "checklist",
+                          android: "task_alt",
+                          web: "task_alt",
+                        }}
+                        size={22}
+                        tintColor={palette.text}
+                      />
+                    </View>
                   )}
                 </Pressable>
               </Link>

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
-import { trackItUpWorkspace } from "@/constants/TrackItUpData";
+import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
 export type PersistenceMode =
@@ -35,7 +35,7 @@ function cloneWorkspaceSnapshot(
 
 export const useWorkspaceStoreState = create<WorkspaceStoreState>()(
   immer((set) => ({
-    workspace: cloneWorkspaceSnapshot(trackItUpWorkspace),
+    workspace: cloneWorkspaceSnapshot(createEmptyWorkspaceSnapshot()),
     isHydrated: false,
     persistenceMode: "memory",
     setWorkspace: (updater) =>

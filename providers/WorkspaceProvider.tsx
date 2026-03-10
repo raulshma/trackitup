@@ -8,11 +8,7 @@ import {
     type ReactNode,
 } from "react";
 
-import {
-    focusItems,
-    roadmapSections,
-    trackItUpWorkspace,
-} from "@/constants/TrackItUpData";
+import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
     getOverviewStats,
     getQuickActionCards,
@@ -34,7 +30,6 @@ import { getWorkspaceDatabase } from "@/services/offline/watermelon/workspaceDat
 import { loadLogReadModelFromWatermelon } from "@/services/offline/watermelon/workspaceQueries";
 import {
     clearPersistedWorkspace,
-    cloneWorkspaceSnapshot,
     loadPersistedWorkspace,
     persistWorkspace,
     waitForWorkspacePersistence,
@@ -77,9 +72,6 @@ type WorkspaceContextValue = {
   quickActionCards: ReturnType<typeof getQuickActionCards>;
   spaceSummaries: ReturnType<typeof getSpaceSummaries>;
   timelineEntries: ReturnType<typeof getTimelineEntries>;
-  focusItems: string[];
-  roadmapSections: typeof roadmapSections;
-  appendSampleLogForAction: (actionId: string) => string | undefined;
   saveLogForAction: (actionId: string, values: FormValueMap) => SaveLogResult;
   saveLogForTemplate: (
     templateId: string,
@@ -115,76 +107,6 @@ type WorkspaceContextValue = {
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
-
-function buildSampleLogEntry(workspace: WorkspaceSnapshot, actionId: string) {
-  const action = workspace.quickActions.find((item) => item.id === actionId);
-  if (!action) return undefined;
-
-  const occurredAt = new Date().toISOString();
-  const spaceId = action.spaceId ?? workspace.spaces[0]?.id;
-  if (!spaceId) return undefined;
-
-  const space = workspace.spaces.find((item) => item.id === spaceId);
-  const asset = workspace.assets.find((item) => item.spaceId === spaceId);
-  const reminder = workspace.reminders.find(
-    (item) =>
-      item.spaceId === spaceId &&
-      (item.status === "due" || item.status === "scheduled"),
-  );
-  const routine =
-    (action.routineId &&
-      workspace.routines.find((item) => item.id === action.routineId)) ||
-    workspace.routines.find((item) => item.spaceId === spaceId);
-  const metric = workspace.metricDefinitions.find(
-    (item) => item.spaceId === spaceId,
-  );
-
-  if (action.kind === "metric-entry") {
-    const safeFloor = metric?.safeMin ?? 1;
-    const safeCeiling = metric?.safeMax ?? safeFloor;
-    const value = Number(
-      ((safeFloor + safeCeiling) / 2).toFixed(
-        metric?.unitLabel === "SG" ? 3 : 1,
-      ),
-    );
-
-    return {
-      id: `log-${action.id}-${Date.now()}`,
-      spaceId,
-      kind: "metric-reading" as const,
-      title: `${metric?.name ?? "Metric"} captured`,
-      note: `${space?.name ?? "Workspace"} • sample reading saved to the local workspace snapshot`,
-      occurredAt,
-      metricReadings: metric
-        ? [{ metricId: metric.id, value, unitLabel: metric.unitLabel }]
-        : undefined,
-    };
-  }
-
-  if (action.kind === "routine-run") {
-    return {
-      id: `log-${action.id}-${Date.now()}`,
-      spaceId,
-      kind: "routine-run" as const,
-      title: `${routine?.name ?? "Routine"} completed`,
-      note: `Sample routine run persisted for ${space?.name ?? "your workspace"}.`,
-      occurredAt,
-      routineId: routine?.id,
-      assetIds: asset ? [asset.id] : undefined,
-    };
-  }
-
-  return {
-    id: `log-${action.id}-${Date.now()}`,
-    spaceId,
-    kind: "asset-update" as const,
-    title: `Quick log captured for ${space?.name ?? "workspace"}`,
-    note: "Starter sample saved locally so the timeline and dashboard can rehydrate from storage.",
-    occurredAt,
-    assetIds: asset ? [asset.id] : undefined,
-    reminderId: reminder?.id,
-  };
-}
 
 function buildReminderActivityLog(
   reminder: WorkspaceSnapshot["reminders"][number],
@@ -311,7 +233,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     void (async () => {
-      const loaded = await loadPersistedWorkspace(trackItUpWorkspace);
+      const loaded = await loadPersistedWorkspace(
+        createEmptyWorkspaceSnapshot(),
+      );
       if (!isMounted) return;
 
       setWorkspace(loaded.workspace);
@@ -369,27 +293,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     snapshotTimelineEntries,
     workspace.generatedAt,
   ]);
-
-  const appendSampleLogForAction = useCallback((actionId: string) => {
-    let createdEntryId: string | undefined;
-
-    setWorkspace((currentWorkspace) => {
-      const nextLog = buildSampleLogEntry(currentWorkspace, actionId);
-      if (!nextLog) return currentWorkspace;
-
-      createdEntryId = nextLog.id;
-      const nextState = applyLogsAndTriggeredReminders(currentWorkspace, [
-        nextLog,
-      ]);
-
-      return enqueueWorkspaceSync(nextState.workspace, {
-        kind: "log-created",
-        summary: `Logged ${actionId}`,
-      });
-    });
-
-    return createdEntryId;
-  }, []);
 
   const saveLogForAction = useCallback(
     (actionId: string, values: FormValueMap) => {
@@ -820,7 +723,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetWorkspace = useCallback(() => {
-    setWorkspace(cloneWorkspaceSnapshot(trackItUpWorkspace));
+    setWorkspace(createEmptyWorkspaceSnapshot());
     void clearPersistedWorkspace();
   }, []);
 
@@ -895,7 +798,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setIsSyncing(true);
     const pullResult = await pullWorkspaceSync({
       endpoint: syncEndpoint!,
-      fallbackSnapshot: trackItUpWorkspace,
+      fallbackSnapshot: createEmptyWorkspaceSnapshot(),
       userId: auth.userId!,
       getToken: auth.getToken,
     });
@@ -952,7 +855,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setIsSyncing(true);
     const pullResult = await pullWorkspaceSync({
       endpoint: syncEndpoint!,
-      fallbackSnapshot: trackItUpWorkspace,
+      fallbackSnapshot: createEmptyWorkspaceSnapshot(),
       userId: auth.userId!,
       getToken: auth.getToken,
     });
@@ -997,9 +900,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       quickActionCards,
       spaceSummaries,
       timelineEntries,
-      focusItems,
-      roadmapSections,
-      appendSampleLogForAction,
       saveLogForAction,
       moveDashboardWidget,
       saveLogForTemplate,
@@ -1017,7 +917,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       syncWorkspaceNow,
     }),
     [
-      appendSampleLogForAction,
       cycleWidgetSize,
       completeReminder,
       importLogsFromCsv,

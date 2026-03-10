@@ -1,11 +1,235 @@
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
+import { trackItUpWorkspace } from "../../constants/TrackItUpData.ts";
+
 export type PersistenceAvailability = {
   hasWatermelon?: boolean;
   hasLocalStorage: boolean;
   hasFileSystem: boolean;
 };
+
+const seededSpaceIds = new Set(
+  trackItUpWorkspace.spaces.map((space) => space.id),
+);
+const seededAssetIds = new Set(
+  trackItUpWorkspace.assets.map((asset) => asset.id),
+);
+const seededMetricIds = new Set(
+  trackItUpWorkspace.metricDefinitions.map((metric) => metric.id),
+);
+const seededRoutineIds = new Set(
+  trackItUpWorkspace.routines.map((routine) => routine.id),
+);
+const seededReminderIds = new Set(
+  trackItUpWorkspace.reminders.map((reminder) => reminder.id),
+);
+const seededLogIds = new Set(trackItUpWorkspace.logs.map((log) => log.id));
+const seededExpenseIds = new Set(
+  trackItUpWorkspace.expenses.map((expense) => expense.id),
+);
+const seededTemplateIds = new Set(
+  trackItUpWorkspace.templates.map((template) => template.id),
+);
+
+function shouldStripLegacySeedData(fallback: WorkspaceSnapshot) {
+  return (
+    fallback.spaces.length === 0 &&
+    fallback.assets.length === 0 &&
+    fallback.metricDefinitions.length === 0 &&
+    fallback.routines.length === 0 &&
+    fallback.reminders.length === 0 &&
+    fallback.logs.length === 0
+  );
+}
+
+function containsLegacySeedData(snapshot: WorkspaceSnapshot) {
+  return (
+    snapshot.spaces.some((space) => seededSpaceIds.has(space.id)) ||
+    snapshot.assets.some((asset) => seededAssetIds.has(asset.id)) ||
+    snapshot.metricDefinitions.some((metric) =>
+      seededMetricIds.has(metric.id),
+    ) ||
+    snapshot.routines.some((routine) => seededRoutineIds.has(routine.id)) ||
+    snapshot.reminders.some((reminder) => seededReminderIds.has(reminder.id)) ||
+    snapshot.logs.some((log) => seededLogIds.has(log.id)) ||
+    snapshot.expenses.some((expense) => seededExpenseIds.has(expense.id))
+  );
+}
+
+function stripLegacySeedData(
+  snapshot: WorkspaceSnapshot,
+  fallback: WorkspaceSnapshot,
+): WorkspaceSnapshot {
+  const spaces = snapshot.spaces.filter(
+    (space) => !seededSpaceIds.has(space.id),
+  );
+  const validSpaceIds = new Set(spaces.map((space) => space.id));
+
+  const assets = snapshot.assets.filter(
+    (asset) =>
+      !seededAssetIds.has(asset.id) && validSpaceIds.has(asset.spaceId),
+  );
+  const validAssetIds = new Set(assets.map((asset) => asset.id));
+
+  const metricDefinitions = snapshot.metricDefinitions.filter(
+    (metric) =>
+      !seededMetricIds.has(metric.id) &&
+      validSpaceIds.has(metric.spaceId) &&
+      (!metric.assetId || validAssetIds.has(metric.assetId)),
+  );
+  const validMetricIds = new Set(metricDefinitions.map((metric) => metric.id));
+
+  const routines = snapshot.routines
+    .filter(
+      (routine) =>
+        !seededRoutineIds.has(routine.id) && validSpaceIds.has(routine.spaceId),
+    )
+    .map((routine) => ({
+      ...routine,
+      steps: routine.steps.filter(
+        (step) =>
+          (!step.assetId || validAssetIds.has(step.assetId)) &&
+          (!step.metricId || validMetricIds.has(step.metricId)),
+      ),
+    }));
+  const validRoutineIds = new Set(routines.map((routine) => routine.id));
+
+  const reminders = snapshot.reminders.filter(
+    (reminder) =>
+      !seededReminderIds.has(reminder.id) &&
+      validSpaceIds.has(reminder.spaceId),
+  );
+  const validReminderIds = new Set(reminders.map((reminder) => reminder.id));
+
+  const initialLogs = snapshot.logs
+    .filter(
+      (log) => !seededLogIds.has(log.id) && validSpaceIds.has(log.spaceId),
+    )
+    .map((log) => {
+      const nextAssetIds = log.assetIds?.filter((assetId) =>
+        validAssetIds.has(assetId),
+      );
+      const nextMetricReadings = log.metricReadings?.filter((reading) =>
+        validMetricIds.has(reading.metricId),
+      );
+
+      return {
+        ...log,
+        assetIds: nextAssetIds?.length ? nextAssetIds : undefined,
+        routineId:
+          log.routineId && validRoutineIds.has(log.routineId)
+            ? log.routineId
+            : undefined,
+        reminderId:
+          log.reminderId && validReminderIds.has(log.reminderId)
+            ? log.reminderId
+            : undefined,
+        metricReadings: nextMetricReadings?.length
+          ? nextMetricReadings
+          : undefined,
+      };
+    });
+  const validLogIds = new Set(initialLogs.map((log) => log.id));
+  const logs = initialLogs.map((log) => ({
+    ...log,
+    parentLogId:
+      log.parentLogId && validLogIds.has(log.parentLogId)
+        ? log.parentLogId
+        : undefined,
+    childLogIds: log.childLogIds?.filter((logId) => validLogIds.has(logId)),
+  }));
+
+  const expenses = snapshot.expenses.filter(
+    (expense) =>
+      !seededExpenseIds.has(expense.id) &&
+      validSpaceIds.has(expense.spaceId) &&
+      (!expense.assetId || validAssetIds.has(expense.assetId)) &&
+      (!expense.logId || validLogIds.has(expense.logId)),
+  );
+
+  const fallbackQuickActionsById = new Map(
+    fallback.quickActions.map((action) => [action.id, action] as const),
+  );
+  const quickActions = snapshot.quickActions.reduce<
+    typeof fallback.quickActions
+  >((actions, action) => {
+    const candidate =
+      (action.spaceId && !validSpaceIds.has(action.spaceId)) ||
+      (action.routineId && !validRoutineIds.has(action.routineId))
+        ? fallbackQuickActionsById.get(action.id)
+        : action;
+
+    if (!candidate || actions.some((item) => item.id === candidate.id)) {
+      return actions;
+    }
+
+    return [...actions, candidate];
+  }, []);
+
+  for (const action of fallback.quickActions) {
+    if (!quickActions.some((item) => item.id === action.id)) {
+      quickActions.push(action);
+    }
+  }
+
+  const dashboardWidgets = snapshot.dashboardWidgets.reduce<
+    typeof fallback.dashboardWidgets
+  >((widgets, widget) => {
+    const hasMissingSpace =
+      widget.spaceId !== undefined && !validSpaceIds.has(widget.spaceId);
+    const hasMissingMetric = (widget.metricIds ?? []).some(
+      (metricId) => !validMetricIds.has(metricId),
+    );
+
+    if (
+      hasMissingSpace ||
+      hasMissingMetric ||
+      widgets.some((item) => item.id === widget.id)
+    ) {
+      return widgets;
+    }
+
+    return [...widgets, widget];
+  }, []);
+
+  for (const widget of fallback.dashboardWidgets) {
+    if (!dashboardWidgets.some((item) => item.id === widget.id)) {
+      dashboardWidgets.push(widget);
+    }
+  }
+
+  const templates = snapshot.templates.filter(
+    (template) => !seededTemplateIds.has(template.id),
+  );
+
+  const hasRemainingWorkspaceData =
+    spaces.length > 0 ||
+    assets.length > 0 ||
+    metricDefinitions.length > 0 ||
+    routines.length > 0 ||
+    reminders.length > 0 ||
+    logs.length > 0 ||
+    expenses.length > 0 ||
+    templates.length > 0;
+
+  return {
+    ...snapshot,
+    generatedAt: hasRemainingWorkspaceData
+      ? snapshot.generatedAt
+      : fallback.generatedAt,
+    spaces,
+    assets,
+    metricDefinitions,
+    routines,
+    reminders,
+    logs,
+    quickActions,
+    expenses,
+    dashboardWidgets,
+    templates,
+  };
+}
 
 export function choosePersistenceMode({
   hasWatermelon,
@@ -47,7 +271,7 @@ export function normalizeWorkspaceSnapshot(
   const candidate = value as Partial<WorkspaceSnapshot>;
   const safeFallback = cloneSnapshot(fallback);
 
-  return {
+  const normalizedSnapshot = {
     generatedAt:
       typeof candidate.generatedAt === "string"
         ? candidate.generatedAt
@@ -102,4 +326,13 @@ export function normalizeWorkspaceSnapshot(
         ? candidate.lastSyncError
         : safeFallback.lastSyncError,
   };
+
+  if (
+    shouldStripLegacySeedData(safeFallback) &&
+    containsLegacySeedData(normalizedSnapshot)
+  ) {
+    return stripLegacySeedData(normalizedSnapshot, safeFallback);
+  }
+
+  return normalizedSnapshot;
 }

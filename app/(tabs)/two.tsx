@@ -157,25 +157,72 @@ export default function TabTwoScreen() {
   ]);
 
   const resultSummary = `${filteredEntries.length} of ${timelineEntries.length} entries shown`;
+  const activeFilterCount = [
+    activeTimeFilter !== "all",
+    activeKindFilter !== "all",
+    activeSpaceId !== "all",
+    activeAssetId !== "all",
+    activeTag !== "all",
+    thresholdMode !== "all",
+    searchQuery.trim().length > 0,
+  ].filter(Boolean).length;
 
   return (
     <ScrollView
       style={[styles.screen, { backgroundColor: palette.background }]}
       contentContainerStyle={styles.content}
     >
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: palette.hero,
+            borderColor: palette.heroBorder,
+            shadowColor: palette.shadow,
+          },
+        ]}
+      >
+        <View style={styles.headerBadgeRow}>
+          <View
+            style={[
+              styles.headerBadge,
+              {
+                backgroundColor: palette.card,
+                borderColor: palette.heroBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.headerBadgeLabel, { color: palette.tint }]}>
+              Smart feed
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.headerBadge,
+              {
+                backgroundColor: palette.accentSoft,
+                borderColor: palette.heroBorder,
+              },
+            ]}
+          >
+            <Text style={styles.headerBadgeLabel}>{resultSummary}</Text>
+          </View>
+        </View>
         <Text style={styles.title}>Unified Timeline</Text>
         <Text style={[styles.subtitle, { color: palette.muted }]}>
-          A single chronological feed for logs, metrics, reminders, and asset
-          events across your spaces. Tap any item to inspect its logbook
-          context.
+          Search, scan, and narrow every log, reminder, metric reading, and
+          asset event from one clean chronological feed.
         </Text>
       </View>
 
       <View
         style={[
           styles.searchCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            shadowColor: palette.shadow,
+          },
         ]}
       >
         <Text style={styles.filterGroupTitle}>Search the logbook</Text>
@@ -186,202 +233,216 @@ export default function TabTwoScreen() {
           style={styles.searchInput}
         />
         <Text style={[styles.resultsMeta, { color: palette.muted }]}>
-          {resultSummary}
+          {resultSummary} • {activeFilterCount} active filter
+          {activeFilterCount === 1 ? "" : "s"}
         </Text>
       </View>
 
-      <View style={styles.filterGroup}>
-        <Text style={styles.filterGroupTitle}>Time</Text>
-        <View style={styles.filterRow}>
-          {timeFilters.map((filter) => {
-            const isActive = activeTimeFilter === filter.id;
+      <View
+        style={[
+          styles.filterPanel,
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            shadowColor: palette.shadow,
+          },
+        ]}
+      >
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupTitle}>Time</Text>
+          <View style={styles.filterRow}>
+            {timeFilters.map((filter) => {
+              const isActive = activeTimeFilter === filter.id;
 
-            return (
-              <Pressable
-                key={filter.id}
-                onPress={() => setActiveTimeFilter(filter.id)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive ? palette.tint : palette.card,
-                    borderColor: isActive ? palette.tint : palette.border,
-                  },
-                ]}
-              >
-                <Text
+              return (
+                <Pressable
+                  key={filter.id}
+                  onPress={() => setActiveTimeFilter(filter.id)}
                   style={[
-                    styles.filterLabel,
-                    { color: isActive ? palette.card : palette.text },
+                    styles.filterChip,
+                    {
+                      backgroundColor: isActive ? palette.tint : palette.card,
+                      borderColor: isActive ? palette.tint : palette.border,
+                    },
                   ]}
                 >
-                  {filter.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? palette.card : palette.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.filterGroup}>
-        <Text style={styles.filterGroupTitle}>Kind</Text>
-        <View style={styles.filterRow}>
-          {kindFilters.map((filter) => {
-            const isActive = activeKindFilter === filter.id;
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupTitle}>Kind</Text>
+          <View style={styles.filterRow}>
+            {kindFilters.map((filter) => {
+              const isActive = activeKindFilter === filter.id;
 
-            return (
-              <Pressable
-                key={filter.id}
-                onPress={() => setActiveKindFilter(filter.id)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive ? palette.tint : palette.card,
-                    borderColor: isActive ? palette.tint : palette.border,
-                  },
-                ]}
-              >
-                <Text
+              return (
+                <Pressable
+                  key={filter.id}
+                  onPress={() => setActiveKindFilter(filter.id)}
                   style={[
-                    styles.filterLabel,
-                    { color: isActive ? palette.card : palette.text },
+                    styles.filterChip,
+                    {
+                      backgroundColor: isActive ? palette.tint : palette.card,
+                      borderColor: isActive ? palette.tint : palette.border,
+                    },
                   ]}
                 >
-                  {filter.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? palette.card : palette.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.filterGroup}>
-        <Text style={styles.filterGroupTitle}>Space</Text>
-        <View style={styles.filterRow}>
-          {spaceFilters.map((filter) => {
-            const isActive = activeSpaceId === filter.id;
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupTitle}>Space</Text>
+          <View style={styles.filterRow}>
+            {spaceFilters.map((filter) => {
+              const isActive = activeSpaceId === filter.id;
 
-            return (
-              <Pressable
-                key={filter.id}
-                onPress={() => setActiveSpaceId(filter.id)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive ? palette.tint : palette.card,
-                    borderColor: isActive ? palette.tint : palette.border,
-                  },
-                ]}
-              >
-                <Text
+              return (
+                <Pressable
+                  key={filter.id}
+                  onPress={() => setActiveSpaceId(filter.id)}
                   style={[
-                    styles.filterLabel,
-                    { color: isActive ? palette.card : palette.text },
+                    styles.filterChip,
+                    {
+                      backgroundColor: isActive ? palette.tint : palette.card,
+                      borderColor: isActive ? palette.tint : palette.border,
+                    },
                   ]}
                 >
-                  {filter.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? palette.card : palette.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.filterGroup}>
-        <Text style={styles.filterGroupTitle}>Asset</Text>
-        <View style={styles.filterRow}>
-          {assetFilters.map((filter) => {
-            const isActive = activeAssetId === filter.id;
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupTitle}>Asset</Text>
+          <View style={styles.filterRow}>
+            {assetFilters.map((filter) => {
+              const isActive = activeAssetId === filter.id;
 
-            return (
-              <Pressable
-                key={filter.id}
-                onPress={() => setActiveAssetId(filter.id)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive ? palette.tint : palette.card,
-                    borderColor: isActive ? palette.tint : palette.border,
-                  },
-                ]}
-              >
-                <Text
+              return (
+                <Pressable
+                  key={filter.id}
+                  onPress={() => setActiveAssetId(filter.id)}
                   style={[
-                    styles.filterLabel,
-                    { color: isActive ? palette.card : palette.text },
+                    styles.filterChip,
+                    {
+                      backgroundColor: isActive ? palette.tint : palette.card,
+                      borderColor: isActive ? palette.tint : palette.border,
+                    },
                   ]}
                 >
-                  {filter.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? palette.card : palette.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.filterGroup}>
-        <Text style={styles.filterGroupTitle}>Tag</Text>
-        <View style={styles.filterRow}>
-          {tagFilters.map((filter) => {
-            const isActive = activeTag === filter.id;
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupTitle}>Tag</Text>
+          <View style={styles.filterRow}>
+            {tagFilters.map((filter) => {
+              const isActive = activeTag === filter.id;
 
-            return (
-              <Pressable
-                key={filter.id}
-                onPress={() => setActiveTag(filter.id)}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive ? palette.tint : palette.card,
-                    borderColor: isActive ? palette.tint : palette.border,
-                  },
-                ]}
-              >
-                <Text
+              return (
+                <Pressable
+                  key={filter.id}
+                  onPress={() => setActiveTag(filter.id)}
                   style={[
-                    styles.filterLabel,
-                    { color: isActive ? palette.card : palette.text },
+                    styles.filterChip,
+                    {
+                      backgroundColor: isActive ? palette.tint : palette.card,
+                      borderColor: isActive ? palette.tint : palette.border,
+                    },
                   ]}
                 >
-                  {filter.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? palette.card : palette.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-      </View>
 
-      <View style={styles.filterGroup}>
-        <Text style={styles.filterGroupTitle}>Metric thresholds</Text>
-        <View style={styles.filterRow}>
-          {[
-            { id: "all", label: "All entries" },
-            { id: "alerts", label: "Safe-zone alerts" },
-          ].map((filter) => {
-            const isActive = thresholdMode === filter.id;
+        <View style={styles.filterGroup}>
+          <Text style={styles.filterGroupTitle}>Metric thresholds</Text>
+          <View style={styles.filterRow}>
+            {[
+              { id: "all", label: "All entries" },
+              { id: "alerts", label: "Safe-zone alerts" },
+            ].map((filter) => {
+              const isActive = thresholdMode === filter.id;
 
-            return (
-              <Pressable
-                key={filter.id}
-                onPress={() => setThresholdMode(filter.id as "all" | "alerts")}
-                style={[
-                  styles.filterChip,
-                  {
-                    backgroundColor: isActive ? palette.tint : palette.card,
-                    borderColor: isActive ? palette.tint : palette.border,
-                  },
-                ]}
-              >
-                <Text
+              return (
+                <Pressable
+                  key={filter.id}
+                  onPress={() =>
+                    setThresholdMode(filter.id as "all" | "alerts")
+                  }
                   style={[
-                    styles.filterLabel,
-                    { color: isActive ? palette.card : palette.text },
+                    styles.filterChip,
+                    {
+                      backgroundColor: isActive ? palette.tint : palette.card,
+                      borderColor: isActive ? palette.tint : palette.border,
+                    },
                   ]}
                 >
-                  {filter.label}
-                </Text>
-              </Pressable>
-            );
-          })}
+                  <Text
+                    style={[
+                      styles.filterLabel,
+                      { color: isActive ? palette.card : palette.text },
+                    ]}
+                  >
+                    {filter.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </View>
 
@@ -389,13 +450,22 @@ export default function TabTwoScreen() {
         <View
           style={[
             styles.emptyCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
+            {
+              backgroundColor: palette.card,
+              borderColor: palette.border,
+              shadowColor: palette.shadow,
+            },
           ]}
         >
-          <Text style={styles.noteTitle}>No entries match these filters</Text>
+          <Text style={styles.noteTitle}>
+            {timelineEntries.length === 0
+              ? "No log entries yet"
+              : "No entries match these filters"}
+          </Text>
           <Text style={[styles.noteCopy, { color: palette.muted }]}>
-            Try clearing the search, switching spaces, or broadening the kind
-            filter.
+            {timelineEntries.length === 0
+              ? "Real log history will appear here after your workspace data is synced, imported, or recorded on this device."
+              : "Try clearing the search, switching spaces, or broadening the kind filter."}
           </Text>
         </View>
       ) : null}
@@ -412,6 +482,7 @@ export default function TabTwoScreen() {
               backgroundColor: palette.card,
               borderColor: palette.border,
               borderLeftColor: entry.accent,
+              shadowColor: palette.shadow,
             },
           ]}
         >
@@ -435,20 +506,27 @@ export default function TabTwoScreen() {
               Tags: {logsById.get(entry.id)?.tags?.join(" • ")}
             </Text>
           ) : null}
+          <Text style={[styles.tapHint, { color: entry.accent }]}>
+            Open logbook →
+          </Text>
         </Pressable>
       ))}
 
       <View
         style={[
           styles.noteCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
+          {
+            backgroundColor: palette.card,
+            borderColor: palette.border,
+            shadowColor: palette.shadow,
+          },
         ]}
       >
-        <Text style={styles.noteTitle}>Next up for this screen</Text>
+        <Text style={styles.noteTitle}>Timeline tips</Text>
         <Text style={[styles.noteCopy, { color: palette.muted }]}>
-          Timeline search and filters now read from the persisted workspace
-          snapshot. The next step is richer reporting built on the same
-          local-first model.
+          {timelineEntries.length === 0
+            ? "Real activity will appear here once logs, reminders, or metric readings are captured in your workspace."
+            : "Use the search and filters above to narrow your real workspace history by time, type, space, asset, tag, or safe-zone alerts."}
         </Text>
       </View>
     </ScrollView>
@@ -461,13 +539,36 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 32,
+    paddingBottom: 120,
+    gap: 16,
   },
   header: {
-    marginBottom: 18,
+    borderWidth: 1,
+    borderRadius: 28,
+    padding: 22,
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 4,
+  },
+  headerBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 14,
+  },
+  headerBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  headerBadgeLabel: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   title: {
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: "bold",
     marginBottom: 8,
   },
@@ -477,9 +578,12 @@ const styles = StyleSheet.create({
   },
   searchCard: {
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 18,
+    borderRadius: 22,
+    padding: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   searchInput: {
     marginTop: 10,
@@ -488,8 +592,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 10,
   },
+  filterPanel: {
+    borderWidth: 1,
+    borderRadius: 22,
+    padding: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
+  },
   filterGroup: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   filterGroupTitle: {
     fontSize: 14,
@@ -502,8 +615,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   filterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
     borderWidth: 1,
     borderRadius: 999,
   },
@@ -514,9 +627,12 @@ const styles = StyleSheet.create({
   timelineCard: {
     borderWidth: 1,
     borderLeftWidth: 5,
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 18,
-    marginBottom: 14,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   timelineHeader: {
     flexDirection: "row",
@@ -556,17 +672,28 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 8,
   },
+  tapHint: {
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: 12,
+  },
   noteCard: {
-    marginTop: 8,
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 18,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   emptyCard: {
     borderWidth: 1,
-    borderRadius: 18,
+    borderRadius: 22,
     padding: 18,
-    marginBottom: 14,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 18,
+    elevation: 3,
   },
   noteTitle: {
     fontSize: 16,

@@ -15,7 +15,11 @@ export const WATERMELON_TABLES = {
 } as const;
 
 const payloadColumn = { name: "payload_json", type: "string" as const };
-const positionColumn = { name: "position", type: "number" as const, isIndexed: true };
+const positionColumn = {
+  name: "position",
+  type: "number" as const,
+  isIndexed: true,
+};
 
 export const workspaceWatermelonSchema = appSchema({
   version: 1,
@@ -35,7 +39,7 @@ export const workspaceWatermelonSchema = appSchema({
         { name: "name", type: "string", isIndexed: true },
         { name: "category", type: "string", isIndexed: true },
         { name: "status", type: "string", isIndexed: true },
-        { name: "created_at", type: "string" },
+        { name: "space_created_at", type: "string" },
         { name: "parent_space_id", type: "string", isOptional: true },
         { name: "template_name", type: "string", isOptional: true },
         payloadColumn,

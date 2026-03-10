@@ -54,20 +54,40 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
-  const navigationTheme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+  const navigationBaseTheme = colorScheme === "dark" ? DarkTheme : DefaultTheme;
   const paperBaseTheme = colorScheme === "dark" ? MD3DarkTheme : MD3LightTheme;
+  const navigationTheme = {
+    ...navigationBaseTheme,
+    colors: {
+      ...navigationBaseTheme.colors,
+      primary: palette.tint,
+      background: palette.background,
+      card: palette.card,
+      text: palette.text,
+      border: palette.border,
+      notification: palette.tint,
+    },
+  };
   const paperTheme = {
     ...paperBaseTheme,
+    roundness: 6,
     colors: {
       ...paperBaseTheme.colors,
       primary: palette.tint,
-      secondary: palette.muted,
+      secondary: palette.tint,
       background: palette.background,
       surface: palette.card,
-      surfaceVariant: palette.card,
+      surfaceVariant: palette.cardAlt,
       outline: palette.border,
+      outlineVariant: palette.border,
       onSurface: palette.text,
       onSurfaceVariant: palette.muted,
+      elevation: {
+        ...paperBaseTheme.colors.elevation,
+        level1: palette.cardAlt,
+        level2: palette.hero,
+        level3: palette.card,
+      },
     },
   };
 
@@ -76,7 +96,18 @@ function RootLayoutNav() {
       <PaperProvider theme={paperTheme}>
         <WorkspaceProvider>
           <ThemeProvider value={navigationTheme}>
-            <Stack>
+            <Stack
+              screenOptions={{
+                contentStyle: { backgroundColor: palette.background },
+                headerStyle: { backgroundColor: palette.background },
+                headerTintColor: palette.text,
+                headerShadowVisible: false,
+                headerTitleStyle: {
+                  fontSize: 18,
+                  fontWeight: "700",
+                },
+              }}
+            >
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="account" options={{ title: "Account" }} />
               <Stack.Screen name="logbook" options={{ title: "Logbook" }} />
