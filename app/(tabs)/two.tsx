@@ -1,9 +1,9 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { Chip, Searchbar, Surface } from "react-native-paper";
 
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
