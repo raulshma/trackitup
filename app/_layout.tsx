@@ -84,6 +84,10 @@ function RootLayoutNav() {
               <Stack.Screen name="account" options={{ title: "Account" }} />
               <Stack.Screen name="logbook" options={{ title: "Logbook" }} />
               <Stack.Screen
+                name="space-create"
+                options={{ title: "Create space" }}
+              />
+              <Stack.Screen
                 name="schema-builder"
                 options={{ title: "Schema builder" }}
               />

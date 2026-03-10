@@ -52,6 +52,10 @@ const {
   customSchemaFieldPresets,
   hasCustomSchemaFieldLabelConflict,
 } = await import("../services/templates/customSchema.ts");
+const { createWorkspaceSpace } =
+  await import("../services/spaces/workspaceSpaces.ts");
+const { getSpaceCreationSuggestion, mapTemplateCategoryToSpaceCategory } =
+  await import("../services/spaces/spaceCreationSuggestions.ts");
 const { getLinkedLogEntries } =
   await import("../services/logs/logRelationships.ts");
 const { applyTemplateImportToWorkspace, parseTemplateImportUrl } =
@@ -536,6 +540,94 @@ test("custom schema helpers block duplicate field labels", () => {
     ),
     false,
   );
+});
+
+test("workspace spaces helper creates a first local space with sensible defaults", () => {
+  const snapshot = createEmptyWorkspaceSnapshot("2026-03-10T12:00:00.000Z");
+  const result = createWorkspaceSpace(
+    snapshot,
+    { name: " Reef Tank ", category: "aquarium" },
+    "2026-03-10T13:00:00.000Z",
+  );
+
+  assert.equal(result.status, "created");
+  assert.equal(result.space?.id, "reef-tank");
+  assert.equal(result.space?.name, "Reef Tank");
+  assert.equal(result.space?.status, "planned");
+  assert.equal(result.space?.themeColor, "#0f766e");
+  assert.equal(
+    result.space?.summary,
+    "Track activity, maintenance, and notes for Reef Tank.",
+  );
+  assert.equal(result.workspace.spaces[0]?.id, "reef-tank");
+  assert.equal(result.workspace.generatedAt, "2026-03-10T13:00:00.000Z");
+});
+
+test("workspace spaces helper validates names and avoids duplicate ids", () => {
+  const snapshot = createSnapshot({
+    spaces: [
+      {
+        id: "reef-tank",
+        name: "Reef Tank",
+        category: "aquarium",
+        status: "stable",
+        themeColor: "#0f766e",
+        summary: "Existing space",
+        createdAt: "2026-03-09T12:00:00.000Z",
+      },
+    ],
+  });
+
+  const invalid = createWorkspaceSpace(snapshot, {
+    name: "   ",
+    category: "aquarium",
+  });
+  assert.equal(invalid.status, "invalid");
+  assert.equal(invalid.workspace.spaces.length, 1);
+
+  const duplicate = createWorkspaceSpace(
+    snapshot,
+    { name: "Reef Tank", category: "aquarium", summary: "Second space" },
+    "2026-03-10T14:00:00.000Z",
+  );
+  assert.equal(duplicate.status, "created");
+  assert.equal(duplicate.space?.id, "reef-tank-2");
+  assert.equal(duplicate.workspace.spaces[0]?.summary, "Second space");
+});
+
+test("space creation suggestions map template categories into workspace categories", () => {
+  assert.equal(mapTemplateCategoryToSpaceCategory("Aquarium"), "aquarium");
+  assert.equal(mapTemplateCategoryToSpaceCategory("Gardening"), "gardening");
+  assert.equal(
+    mapTemplateCategoryToSpaceCategory("Vehicle Maintenance"),
+    "vehicle-maintenance",
+  );
+  assert.equal(mapTemplateCategoryToSpaceCategory("Outdoor"), undefined);
+});
+
+test("space creation suggestions tailor copy for action and template continuation", () => {
+  const templateSuggestion = getSpaceCreationSuggestion(undefined, {
+    id: "template-reef-official",
+    name: "Advanced Reef",
+    summary: "Official aquarium schema",
+    category: "Aquarium",
+    origin: "official",
+    importMethods: ["local"],
+    supportedFieldTypes: ["text"],
+  });
+  assert.equal(templateSuggestion.suggestedCategory, "aquarium");
+  assert.match(templateSuggestion.returnMessage, /Advanced Reef/);
+
+  const actionSuggestion = getSpaceCreationSuggestion(
+    { id: "quick-log", label: "Quick log", kind: "quick-log" },
+    undefined,
+  );
+  assert.equal(actionSuggestion.suggestedCategory, undefined);
+  assert.equal(
+    actionSuggestion.primaryActionLabel,
+    "Create space and continue",
+  );
+  assert.match(actionSuggestion.heroSubtitle, /Quick log/);
 });
 
 test("reminder rules support recurring schedules and log-triggered follow-ups", () => {

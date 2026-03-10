@@ -347,10 +347,10 @@ export default function TabOneScreen() {
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Quick actions</Text>
+        <Text style={styles.sectionTitle}>Start recording</Text>
         <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          Open the first interactive logbook flow powered by the typed workspace
-          data.
+          Choose what happened and TrackItUp will guide you into the right
+          event-entry flow.
         </Text>
       </View>
       <View style={styles.actionRow}>
@@ -389,7 +389,7 @@ export default function TabOneScreen() {
                   {action.target}
                 </Text>
                 <Text style={[styles.actionCta, { color: action.accent }]}>
-                  Open
+                  Record now
                 </Text>
               </View>
             </Surface>
@@ -418,9 +418,20 @@ export default function TabOneScreen() {
         >
           <Text style={styles.spaceName}>No tracked spaces yet</Text>
           <Text style={[styles.spaceNote, { color: palette.muted }]}>
-            Real spaces will appear here after you connect cloud data, import a
-            workspace, or begin logging on this device.
+            Create your first space to give new events, routines, and metrics a
+            home in the workspace.
           </Text>
+          <View style={styles.widgetToolbar}>
+            <Button
+              onPress={() => router.push("/space-create")}
+              mode="contained"
+              style={styles.toolbarButton}
+              contentStyle={styles.toolbarButtonContent}
+              labelStyle={styles.toolbarButtonLabel}
+            >
+              Create first space
+            </Button>
+          </View>
         </Surface>
       ) : (
         spaceSummaries.map((space) => (

@@ -17,6 +17,10 @@ import {
     applyReminderTriggerRules,
     getNextReminderDate,
 } from "@/services/reminders/reminderRules";
+import {
+    createWorkspaceSpace,
+    type CreateSpaceDraft,
+} from "@/services/spaces/workspaceSpaces";
 import { applyTemplateImportToWorkspace } from "@/services/templates/templateImport";
 import type { WorkspaceUpdater } from "@/stores/useWorkspaceStore";
 import type {
@@ -26,6 +30,7 @@ import type {
 } from "@/types/trackitup";
 
 import type {
+    CreateSpaceResult,
     SaveCustomTemplateResult,
     SaveLogResult,
     TemplateImportActionResult,
@@ -580,6 +585,36 @@ export function useWorkspaceMutations(
     [setWorkspace],
   );
 
+  const createSpace = useCallback(
+    (draft: CreateSpaceDraft) => {
+      let result: CreateSpaceResult = {
+        status: "invalid",
+        message: "Name the space before saving it.",
+      };
+
+      setWorkspace((currentWorkspace) => {
+        const nextState = createWorkspaceSpace(currentWorkspace, draft);
+        result = {
+          status: nextState.status,
+          message: nextState.message,
+          spaceId: nextState.space?.id,
+        };
+
+        if (nextState.status !== "created" || !nextState.space) {
+          return currentWorkspace;
+        }
+
+        return enqueueWorkspaceSync(nextState.workspace, {
+          kind: "space-created",
+          summary: `Created space ${nextState.space.name}`,
+        });
+      });
+
+      return result;
+    },
+    [setWorkspace],
+  );
+
   const resetWorkspace = useCallback(() => {
     setWorkspace(createEmptyWorkspaceSnapshot());
     void clearPersistedWorkspace(ownerScopeKey);
@@ -607,6 +642,7 @@ export function useWorkspaceMutations(
     importLogsFromCsv,
     importTemplateFromUrl,
     saveCustomTemplate,
+    createSpace,
     resetWorkspace,
     recoverBlockedWorkspace,
   };

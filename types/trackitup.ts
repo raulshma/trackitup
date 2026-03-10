@@ -292,6 +292,7 @@ export type TemplateCatalogItem = {
 };
 
 export type SyncOperationKind =
+  | "space-created"
   | "log-created"
   | "reminder-updated"
   | "dashboard-reordered"

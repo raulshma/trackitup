@@ -30,6 +30,7 @@ import {
     type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
+import type { QuickActionKind } from "@/types/trackitup";
 
 const actionDescriptions = {
   "quick-log": "Start a flexible event entry using the unified logbook.",
@@ -43,6 +44,30 @@ const logTypeLabels = {
   "asset-update": "Asset",
   reminder: "Reminder",
 };
+
+const actionTitles = {
+  "quick-log": "Record an event",
+  "metric-entry": "Record a metric",
+  "routine-run": "Record a routine",
+} satisfies Record<QuickActionKind, string>;
+
+const actionStepGuidance = {
+  "quick-log": [
+    "Confirm the space so related assets and reminders stay relevant.",
+    "Use a short title that explains what happened at a glance.",
+    "Add notes, photos, or tags only if they help future you.",
+  ],
+  "metric-entry": [
+    "Pick the space first so the metric list narrows automatically.",
+    "Enter the fresh reading and verify the unit before saving.",
+    "Add an observation only when the number needs extra context.",
+  ],
+  "routine-run": [
+    "Choose the routine that matches the work you just finished.",
+    "Check off the completed steps to generate the right linked logs.",
+    "Attach notes only for anything unusual or worth repeating later.",
+  ],
+} satisfies Record<QuickActionKind, string[]>;
 
 function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -129,12 +154,16 @@ export default function LogbookScreen() {
   const [formErrors, setFormErrors] = useState<FormValidationErrors>({});
   const params = useLocalSearchParams<{
     actionId?: string;
+    createdSpaceName?: string;
     entryId?: string;
+    spaceId?: string;
     templateId?: string;
   }>();
 
   const actionId = pickParam(params.actionId);
+  const createdSpaceName = pickParam(params.createdSpaceName);
   const entryId = pickParam(params.entryId);
+  const initialSpaceId = pickParam(params.spaceId);
   const templateId = pickParam(params.templateId);
 
   const action = workspace.quickActions.find((item) => item.id === actionId);
@@ -170,6 +199,8 @@ export default function LogbookScreen() {
   const linkedSpace = action?.spaceId
     ? workspace.spaces.find((space) => space.id === action.spaceId)
     : undefined;
+  const activeQuickActionKind =
+    action?.kind ?? selectedTemplate?.formTemplate?.quickActionKind;
   const suggestedSpaces = linkedSpace
     ? [linkedSpace]
     : workspace.spaces.slice(0, 3);
@@ -191,24 +222,76 @@ export default function LogbookScreen() {
       ? getLogKindFormTemplate(entry.kind)
       : selectedTemplate?.formTemplate;
 
-  const initialFormValues = useMemo(
-    () =>
-      activeTemplate
-        ? buildInitialFormValues(activeTemplate, workspace, { action, entry })
-        : {},
-    [activeTemplate, action, entry, workspace],
-  );
+  const initialFormValues = useMemo(() => {
+    if (!activeTemplate) return {};
+
+    const values = buildInitialFormValues(activeTemplate, workspace, {
+      action,
+      entry,
+    });
+
+    if (
+      !entry &&
+      initialSpaceId &&
+      workspace.spaces.some((space) => space.id === initialSpaceId)
+    ) {
+      return normalizeFormValues(
+        activeTemplate,
+        workspace,
+        { ...values, spaceId: initialSpaceId },
+        { action, entry },
+      );
+    }
+
+    return values;
+  }, [activeTemplate, action, entry, initialSpaceId, workspace]);
 
   useEffect(() => {
     setFormValues(initialFormValues);
     setFormErrors({});
   }, [initialFormValues]);
 
+  useEffect(() => {
+    if (!createdSpaceName || entry) return;
+
+    setFeedbackMessage(
+      `Space created — ready to record in ${createdSpaceName}.`,
+    );
+  }, [createdSpaceName, entry]);
+
   const screenTitle = entry
     ? "Log detail"
     : action
       ? action.label
       : (selectedTemplate?.name ?? "Logbook");
+  const recentEntries = logEntries.slice(0, 3);
+  const featuredTemplates = workspace.templates.slice(0, 3);
+  const hasSpaces = workspace.spaces.length > 0;
+  const selectedSpaceId =
+    typeof formValues.spaceId === "string" ? formValues.spaceId : undefined;
+  const selectedSpace = selectedSpaceId
+    ? workspace.spaces.find((space) => space.id === selectedSpaceId)
+    : linkedSpace;
+  const selectedMetricId =
+    typeof formValues.metricId === "string" ? formValues.metricId : undefined;
+  const selectedMetric = selectedMetricId
+    ? workspace.metricDefinitions.find(
+        (metric) => metric.id === selectedMetricId,
+      )
+    : undefined;
+  const selectedRoutineId =
+    typeof formValues.routineId === "string" ? formValues.routineId : undefined;
+  const selectedRoutine = selectedRoutineId
+    ? workspace.routines.find((routine) => routine.id === selectedRoutineId)
+    : undefined;
+  const activeFlowSteps = activeQuickActionKind
+    ? actionStepGuidance[activeQuickActionKind]
+    : [];
+  const saveButtonLabel = action
+    ? actionTitles[action.kind]
+    : selectedTemplate
+      ? "Save template entry"
+      : "Save log entry";
   const persistenceLabel =
     persistenceMode === "watermelondb"
       ? "WatermelonDB workspace active"
@@ -243,6 +326,10 @@ export default function LogbookScreen() {
 
   function handleSaveEntry() {
     if ((!action && !selectedTemplate) || !activeTemplate) return;
+    if (!hasSpaces) {
+      setFeedbackMessage("Create a space before recording the first event.");
+      return;
+    }
 
     const nextErrors = validateFormValues(activeTemplate, formValues);
     if (Object.keys(nextErrors).length > 0) {
@@ -292,6 +379,16 @@ export default function LogbookScreen() {
     }
 
     router.replace({ pathname: "/logbook" });
+  }
+
+  function openSpaceCreation() {
+    router.push({
+      pathname: "/space-create",
+      params: {
+        ...(actionId ? { actionId } : {}),
+        ...(templateId ? { templateId } : {}),
+      },
+    });
   }
 
   return (
@@ -361,28 +458,83 @@ export default function LogbookScreen() {
           </Text>
         ) : null}
         <ActionButtonRow style={styles.actionButtonRow}>
-          {action || selectedTemplate ? (
+          {(action || selectedTemplate) && hasSpaces ? (
             <Button
               onPress={handleSaveEntry}
               mode="contained"
               style={styles.paperActionButton}
               contentStyle={styles.paperActionButtonContent}
             >
-              Save log entry
+              {saveButtonLabel}
             </Button>
           ) : null}
-          <Button
-            onPress={handleResetWorkspace}
-            mode="outlined"
-            style={styles.paperActionButton}
-            contentStyle={styles.paperActionButtonContent}
-          >
-            Clear workspace data
-          </Button>
         </ActionButtonRow>
       </Surface>
 
-      {activeTemplate ? (
+      {!entry && activeQuickActionKind && hasSpaces ? (
+        <Surface
+          style={[styles.sectionCard, paletteStyles.cardSurface]}
+          elevation={1}
+        >
+          <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+            Recommended path
+          </Text>
+          <Text style={styles.sectionTitle}>Start with the essentials</Text>
+          <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+            TrackItUp fills in space and time whenever it can. Most entries only
+            need the first few fields.
+          </Text>
+          <View style={styles.heroBadgeRow}>
+            {selectedSpace ? (
+              <Chip
+                compact
+                style={[
+                  styles.heroBadge,
+                  { backgroundColor: selectedSpace.themeColor },
+                ]}
+                textStyle={styles.badgeText}
+              >
+                {selectedSpace.name}
+              </Chip>
+            ) : null}
+            {selectedMetric ? (
+              <Chip
+                compact
+                style={[styles.heroBadge, paletteStyles.cardChipSurface]}
+                textStyle={[styles.heroBadgeText, paletteStyles.tintText]}
+              >
+                {selectedMetric.name}
+              </Chip>
+            ) : null}
+            {selectedRoutine ? (
+              <Chip
+                compact
+                style={[styles.heroBadge, paletteStyles.cardChipSurface]}
+                textStyle={[styles.heroBadgeText, paletteStyles.tintText]}
+              >
+                {selectedRoutine.name}
+              </Chip>
+            ) : null}
+          </View>
+          {activeFlowSteps.map((step, index) => (
+            <View key={step} style={styles.guidanceRow}>
+              <View
+                style={[
+                  styles.guidanceStep,
+                  { backgroundColor: linkedSpace?.themeColor ?? palette.tint },
+                ]}
+              >
+                <Text style={styles.guidanceStepText}>{index + 1}</Text>
+              </View>
+              <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                {step}
+              </Text>
+            </View>
+          ))}
+        </Surface>
+      ) : null}
+
+      {activeTemplate && (entry || hasSpaces) ? (
         <Surface
           style={[styles.sectionCard, paletteStyles.cardSurface]}
           elevation={1}
@@ -668,96 +820,314 @@ export default function LogbookScreen() {
             </Text>
           </Surface>
 
+          {!hasSpaces ? (
+            <Surface
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
+              elevation={1}
+            >
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+                First step
+              </Text>
+              <Text style={styles.sectionTitle}>
+                Create a space before recording
+              </Text>
+              <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+                Every event belongs to a space. Create one first and TrackItUp
+                will bring you right back here to finish the record.
+              </Text>
+              <ActionButtonRow style={styles.actionButtonRow}>
+                <Button
+                  mode="contained"
+                  onPress={openSpaceCreation}
+                  style={styles.paperActionButton}
+                  contentStyle={styles.paperActionButtonContent}
+                >
+                  Create first space
+                </Button>
+              </ActionButtonRow>
+            </Surface>
+          ) : (
+            <>
+              <Surface
+                style={[styles.sectionCard, paletteStyles.cardSurface]}
+                elevation={1}
+              >
+                <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+                  Suggestions
+                </Text>
+                <Text style={styles.sectionTitle}>Suggested spaces</Text>
+                {suggestedSpaces.map((space) => (
+                  <View key={space.id} style={styles.listItem}>
+                    <Text style={styles.listTitle}>{space.name}</Text>
+                    <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                      {space.templateName ?? "Custom space"} • {space.summary}
+                    </Text>
+                  </View>
+                ))}
+              </Surface>
+
+              {action?.kind === "metric-entry" ||
+              selectedTemplate?.formTemplate?.quickActionKind ===
+                "metric-entry" ? (
+                <Surface
+                  style={[styles.sectionCard, paletteStyles.cardSurface]}
+                  elevation={1}
+                >
+                  <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+                    Metrics
+                  </Text>
+                  <Text style={styles.sectionTitle}>Ready-to-log metrics</Text>
+                  {suggestedMetrics.map((metric) => (
+                    <View key={metric.id} style={styles.listItem}>
+                      <Text style={styles.listTitle}>{metric.name}</Text>
+                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                        {metric.unitLabel ?? "No unit"} • Safe zone{" "}
+                        {formatSafeZone(metric.safeMin, metric.safeMax)}
+                      </Text>
+                    </View>
+                  ))}
+                </Surface>
+              ) : null}
+
+              {action?.kind === "routine-run" ||
+              selectedTemplate?.formTemplate?.quickActionKind ===
+                "routine-run" ? (
+                <Surface
+                  style={[styles.sectionCard, paletteStyles.cardSurface]}
+                  elevation={1}
+                >
+                  <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+                    Routine
+                  </Text>
+                  <Text style={styles.sectionTitle}>Routine steps</Text>
+                  {suggestedRoutines.map((routine) => (
+                    <View key={routine.id} style={styles.listItem}>
+                      <Text style={styles.listTitle}>{routine.name}</Text>
+                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                        {routine.steps.map((step) => step.label).join(" • ")}
+                      </Text>
+                    </View>
+                  ))}
+                </Surface>
+              ) : null}
+
+              {action?.kind === "quick-log" ||
+              selectedTemplate?.formTemplate?.quickActionKind ===
+                "quick-log" ? (
+                <Surface
+                  style={[styles.sectionCard, paletteStyles.cardSurface]}
+                  elevation={1}
+                >
+                  <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+                    Reminders
+                  </Text>
+                  <Text style={styles.sectionTitle}>
+                    Open reminders to capture
+                  </Text>
+                  {suggestedReminders.map((reminder) => (
+                    <View key={reminder.id} style={styles.listItem}>
+                      <Text style={styles.listTitle}>{reminder.title}</Text>
+                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                        {reminder.description}
+                      </Text>
+                    </View>
+                  ))}
+                </Surface>
+              ) : null}
+            </>
+          )}
+        </>
+      ) : (
+        <>
+          {!hasSpaces ? (
+            <Surface
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
+              elevation={1}
+            >
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+                First step
+              </Text>
+              <Text style={styles.sectionTitle}>Create your first space</Text>
+              <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+                Before you record an event, give it a home. Your first space
+                makes metrics, routines, and reminders much easier to organize.
+              </Text>
+              <ActionButtonRow style={styles.actionButtonRow}>
+                <Button
+                  mode="contained"
+                  onPress={openSpaceCreation}
+                  style={styles.paperActionButton}
+                  contentStyle={styles.paperActionButtonContent}
+                >
+                  Create first space
+                </Button>
+              </ActionButtonRow>
+            </Surface>
+          ) : null}
+
           <Surface
             style={[styles.sectionCard, paletteStyles.cardSurface]}
             elevation={1}
           >
             <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
-              Suggestions
+              Get started
             </Text>
-            <Text style={styles.sectionTitle}>Suggested spaces</Text>
-            {suggestedSpaces.map((space) => (
-              <View key={space.id} style={styles.listItem}>
-                <Text style={styles.listTitle}>{space.name}</Text>
-                <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                  {space.templateName ?? "Custom space"} • {space.summary}
-                </Text>
+            <Text style={styles.sectionTitle}>Record what just happened</Text>
+            <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+              Choose the flow that best matches the event. TrackItUp will guide
+              the rest of the fields from there.
+            </Text>
+            {workspace.quickActions.map((quickAction) => (
+              <View key={quickAction.id} style={styles.linkedLogRow}>
+                <View style={styles.linkedLogCopy}>
+                  <Text style={styles.listTitle}>{quickAction.label}</Text>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                    {actionDescriptions[quickAction.kind]}
+                  </Text>
+                </View>
+                <Button
+                  mode={
+                    quickAction.kind === "quick-log" ? "contained" : "outlined"
+                  }
+                  onPress={() =>
+                    hasSpaces
+                      ? router.push({
+                          pathname: "/logbook",
+                          params: { actionId: quickAction.id },
+                        })
+                      : router.push({
+                          pathname: "/space-create",
+                          params: { actionId: quickAction.id },
+                        })
+                  }
+                  compact
+                >
+                  {hasSpaces ? "Start" : "Create space first"}
+                </Button>
               </View>
             ))}
           </Surface>
 
-          {action?.kind === "metric-entry" ||
-          selectedTemplate?.formTemplate?.quickActionKind === "metric-entry" ? (
+          {featuredTemplates.length > 0 ? (
             <Surface
               style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
               <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
-                Metrics
+                Templates
               </Text>
-              <Text style={styles.sectionTitle}>Ready-to-log metrics</Text>
-              {suggestedMetrics.map((metric) => (
-                <View key={metric.id} style={styles.listItem}>
-                  <Text style={styles.listTitle}>{metric.name}</Text>
-                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                    {metric.unitLabel ?? "No unit"} • Safe zone{" "}
-                    {formatSafeZone(metric.safeMin, metric.safeMax)}
-                  </Text>
+              <Text style={styles.sectionTitle}>Use a saved schema</Text>
+              <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+                If you already know the exact format you want, jump straight
+                into a saved template.
+              </Text>
+              {featuredTemplates.map((template) => (
+                <View key={template.id} style={styles.linkedLogRow}>
+                  <View style={styles.linkedLogCopy}>
+                    <Text style={styles.listTitle}>{template.name}</Text>
+                    <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                      {template.summary}
+                    </Text>
+                  </View>
+                  <Button
+                    mode="outlined"
+                    onPress={() =>
+                      hasSpaces
+                        ? router.push({
+                            pathname: "/logbook",
+                            params: { templateId: template.id },
+                          })
+                        : router.push({
+                            pathname: "/space-create",
+                            params: { templateId: template.id },
+                          })
+                    }
+                    compact
+                  >
+                    {hasSpaces ? "Open" : "Create space first"}
+                  </Button>
                 </View>
               ))}
             </Surface>
           ) : null}
 
-          {action?.kind === "routine-run" ||
-          selectedTemplate?.formTemplate?.quickActionKind === "routine-run" ? (
+          {recentEntries.length > 0 ? (
             <Surface
               style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
               <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
-                Routine
+                Recent activity
               </Text>
-              <Text style={styles.sectionTitle}>Routine steps</Text>
-              {suggestedRoutines.map((routine) => (
-                <View key={routine.id} style={styles.listItem}>
-                  <Text style={styles.listTitle}>{routine.name}</Text>
-                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                    {routine.steps.map((step) => step.label).join(" • ")}
-                  </Text>
+              <Text style={styles.sectionTitle}>Open a recent entry</Text>
+              <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+                Need context before you record? Use a recent entry as your
+                reference point.
+              </Text>
+              {recentEntries.map((recentEntry) => (
+                <View key={recentEntry.id} style={styles.linkedLogRow}>
+                  <View style={styles.linkedLogCopy}>
+                    <Text style={styles.listTitle}>{recentEntry.title}</Text>
+                    <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                      {logTypeLabels[recentEntry.kind]} •{" "}
+                      {formatDateTime(recentEntry.occurredAt)}
+                    </Text>
+                  </View>
+                  <Button
+                    mode="text"
+                    onPress={() =>
+                      router.push({
+                        pathname: "/logbook",
+                        params: { entryId: recentEntry.id },
+                      })
+                    }
+                    compact
+                  >
+                    View
+                  </Button>
                 </View>
               ))}
             </Surface>
           ) : null}
 
-          {action?.kind === "quick-log" ||
-          selectedTemplate?.formTemplate?.quickActionKind === "quick-log" ? (
-            <Surface
-              style={[styles.sectionCard, paletteStyles.cardSurface]}
-              elevation={1}
-            >
-              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
-                Reminders
-              </Text>
-              <Text style={styles.sectionTitle}>Open reminders to capture</Text>
-              {suggestedReminders.map((reminder) => (
-                <View key={reminder.id} style={styles.listItem}>
-                  <Text style={styles.listTitle}>{reminder.title}</Text>
-                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                    {reminder.description}
-                  </Text>
-                </View>
-              ))}
-            </Surface>
-          ) : null}
+          <SectionMessage
+            palette={palette}
+            label="Tip"
+            title={hasSpaces ? "Want the fastest path?" : "No spaces yet?"}
+            message={
+              hasSpaces
+                ? "Start with Quick log for most events. Use Add metric for readings and Run routine when you want linked step-by-step records."
+                : "Create one space first, then TrackItUp can naturally guide you into the right recording flow."
+            }
+          />
         </>
-      ) : (
-        <SectionMessage
-          palette={palette}
-          label="Empty state"
-          title="No selection yet"
-          message="Start from Home quick actions or tap a timeline card to inspect a real logbook item."
-        />
       )}
+
+      {!action && !selectedTemplate ? (
+        <Surface
+          style={[styles.sectionCard, paletteStyles.cardSurface]}
+          elevation={1}
+        >
+          <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+            Workspace tools
+          </Text>
+          <Text style={styles.sectionTitle}>Maintenance</Text>
+          <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+            These tools affect local workspace data, so they stay away from the
+            main recording flow.
+          </Text>
+          <ActionButtonRow style={styles.actionButtonRow}>
+            <Button
+              onPress={handleResetWorkspace}
+              mode="outlined"
+              style={styles.paperActionButton}
+              contentStyle={styles.paperActionButtonContent}
+            >
+              Clear workspace data
+            </Button>
+          </ActionButtonRow>
+        </Surface>
+      ) : null}
     </ScrollView>
   );
 }
@@ -835,6 +1205,24 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { ...uiTypography.titleSection, marginBottom: uiSpace.lg },
   templateIntro: { ...uiTypography.body, marginBottom: uiSpace.lg },
+  guidanceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: uiSpace.md,
+    marginBottom: uiSpace.md,
+  },
+  guidanceStep: {
+    width: 28,
+    height: 28,
+    borderRadius: uiRadius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  guidanceStepText: {
+    color: "#f8fafc",
+    ...uiTypography.chip,
+  },
   templateSection: { marginTop: uiSpace.xs, marginBottom: uiSpace.lg },
   templateSectionTitle: { ...uiTypography.titleSm, marginBottom: uiSpace.xs },
   templateSectionCopy: { ...uiTypography.bodySmall, marginBottom: uiSpace.md },

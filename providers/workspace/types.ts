@@ -10,6 +10,7 @@ import type { WorkspaceBiometricReauthTimeout } from "@/services/offline/workspa
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
+import type { CreateSpaceDraft } from "@/services/spaces/workspaceSpaces";
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type {
     TemplateCatalogItem,
@@ -35,6 +36,12 @@ export type SaveCustomTemplateResult = {
   status: "saved" | "invalid";
   message: string;
   templateId?: string;
+};
+
+export type CreateSpaceResult = {
+  status: "created" | "invalid";
+  message: string;
+  spaceId?: string;
 };
 
 export type WorkspaceContextValue = {
@@ -76,6 +83,7 @@ export type WorkspaceContextValue = {
   saveCustomTemplate: (
     template: TemplateCatalogItem,
   ) => SaveCustomTemplateResult;
+  createSpace: (draft: CreateSpaceDraft) => CreateSpaceResult;
   resetWorkspace: () => void;
   setWorkspacePrivacyMode: (
     mode: WorkspacePrivacyMode,

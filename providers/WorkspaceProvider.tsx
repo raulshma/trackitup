@@ -274,6 +274,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     importLogsFromCsv,
     importTemplateFromUrl,
     saveCustomTemplate,
+    createSpace,
     resetWorkspace,
   } = useWorkspaceMutations(setWorkspace, ownerScopeKey);
 
@@ -545,6 +546,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       importLogsFromCsv,
       importTemplateFromUrl,
       saveCustomTemplate,
+      createSpace,
       resetWorkspace,
       setWorkspacePrivacyMode,
       setBiometricLockEnabled,
@@ -561,6 +563,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       importLogsFromCsv,
       importTemplateFromUrl,
       isHydrated,
+      createSpace,
       blockedProtectionReason,
       biometricAvailability,
       biometricLockEnabled,
