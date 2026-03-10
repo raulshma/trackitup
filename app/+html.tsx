@@ -10,12 +10,28 @@ import {
 // web page during static rendering.
 // The contents of this function only run in Node.js environments and
 // do not have access to the DOM or browser APIs.
+const webContentSecurityPolicy = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+  "form-action 'self'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self' https: ws: wss:",
+].join("; ");
+
 export default function Root({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <meta
+          httpEquiv="Content-Security-Policy"
+          content={webContentSecurityPolicy}
+        />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"

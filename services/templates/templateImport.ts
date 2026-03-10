@@ -32,6 +32,12 @@ const fallbackFieldTypes: FormFieldType[] = [
   "tags",
 ];
 
+const MAX_TEMPLATE_IMPORT_URL_LENGTH = 4096;
+const MAX_TEMPLATE_ID_LENGTH = 120;
+const MAX_TEMPLATE_NAME_LENGTH = 80;
+const MAX_TEMPLATE_SUMMARY_LENGTH = 280;
+const MAX_TEMPLATE_CATEGORY_LENGTH = 60;
+
 export type ParsedTemplateImport = {
   templateId?: string;
   name?: string;
@@ -89,6 +95,15 @@ function toFieldTypes(value: string | null) {
   );
 }
 
+function normalizeImportText(
+  value: string | null | undefined,
+  maxLength: number,
+) {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, maxLength);
+}
+
 function matchesTemplateImportPath(url: URL) {
   const host = url.host.replace(/^\/+|\/+$/g, "").toLowerCase();
   const path = url.pathname.replace(/^\/+|\/+$/g, "").toLowerCase();
@@ -98,6 +113,15 @@ function matchesTemplateImportPath(url: URL) {
     combined.includes("template-import") ||
     combined.includes("templates/import")
   );
+}
+
+function isSupportedTemplateImportUrl(url: URL) {
+  const protocol = url.protocol.replace(/:$/g, "").toLowerCase();
+  if (protocol === "trackitup") {
+    return true;
+  }
+
+  return protocol === "https" && matchesTemplateImportPath(url);
 }
 
 function findCatalogTemplate(
@@ -142,7 +166,9 @@ export function parseTemplateImportUrl(
   preferredMethod?: TemplateImportMethod,
 ): ParsedTemplateImport | null {
   const trimmedUrl = rawUrl.trim();
-  if (!trimmedUrl) return null;
+  if (!trimmedUrl || trimmedUrl.length > MAX_TEMPLATE_IMPORT_URL_LENGTH) {
+    return null;
+  }
 
   let url: URL;
   try {
@@ -151,12 +177,27 @@ export function parseTemplateImportUrl(
     return null;
   }
 
+  if (!isSupportedTemplateImportUrl(url)) {
+    return null;
+  }
+
   const params = url.searchParams;
-  const templateId = params.get("templateId") ?? params.get("id") ?? undefined;
-  const name = params.get("name") ?? params.get("title") ?? undefined;
-  const summary =
-    params.get("summary") ?? params.get("description") ?? undefined;
-  const category = params.get("category") ?? undefined;
+  const templateId = normalizeImportText(
+    params.get("templateId") ?? params.get("id"),
+    MAX_TEMPLATE_ID_LENGTH,
+  );
+  const name = normalizeImportText(
+    params.get("name") ?? params.get("title"),
+    MAX_TEMPLATE_NAME_LENGTH,
+  );
+  const summary = normalizeImportText(
+    params.get("summary") ?? params.get("description"),
+    MAX_TEMPLATE_SUMMARY_LENGTH,
+  );
+  const category = normalizeImportText(
+    params.get("category"),
+    MAX_TEMPLATE_CATEGORY_LENGTH,
+  );
   const origin = toOrigin(params.get("origin"));
   const importMethods = uniqueStrings(
     [
@@ -179,7 +220,8 @@ export function parseTemplateImportUrl(
   const looksLikeTemplateImport =
     matchesTemplateImportPath(url) ||
     Boolean(templateId) ||
-    Boolean(name && category) ||
+    (url.protocol.replace(/:$/g, "").toLowerCase() === "trackitup" &&
+      Boolean(name && category)) ||
     params.has("fields") ||
     params.has("fieldTypes") ||
     params.has("supportedFieldTypes");

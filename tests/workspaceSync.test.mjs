@@ -13,7 +13,7 @@ function createSnapshot(overrides = {}) {
 }
 
 test("trusted sync endpoints require https unless using localhost", () => {
-  assert.equal(isTrustedSyncEndpoint("https://api.trackitup.app/sync"), true);
+  assert.equal(isTrustedSyncEndpoint("https://api.example.com/sync"), true);
   assert.equal(isTrustedSyncEndpoint("http://localhost:3000/sync"), true);
   assert.equal(isTrustedSyncEndpoint("http://127.0.0.1:3000/sync"), true);
   assert.equal(isTrustedSyncEndpoint("http://example.com/sync"), false);

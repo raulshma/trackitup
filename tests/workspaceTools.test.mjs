@@ -253,6 +253,40 @@ test("template import parsing supports deep links and QR payload fields", () => 
   ]);
 });
 
+test("template import parsing only accepts trackitup or dedicated https import routes", () => {
+  const httpsImport = parseTemplateImportUrl(
+    "https://example.com/template-import?name=Trail%20Foraging&category=Outdoor",
+    "deep-link",
+  );
+
+  assert.equal(httpsImport?.name, "Trail Foraging");
+  assert.equal(
+    parseTemplateImportUrl(
+      "https://example.com/?name=Trail%20Foraging&category=Outdoor",
+      "deep-link",
+    ),
+    null,
+  );
+  assert.equal(
+    parseTemplateImportUrl(
+      "http://example.com/template-import?name=Trail%20Foraging&category=Outdoor",
+      "deep-link",
+    ),
+    null,
+  );
+});
+
+test("template import parsing trims oversized text payload fields", () => {
+  const parsed = parseTemplateImportUrl(
+    `trackitup://template-import?name=${"A".repeat(120)}&summary=${"B".repeat(400)}&category=${"C".repeat(90)}`,
+    "deep-link",
+  );
+
+  assert.equal(parsed?.name?.length, 80);
+  assert.equal(parsed?.summary?.length, 280);
+  assert.equal(parsed?.category?.length, 60);
+});
+
 test("template import adds new shared templates and avoids duplicates", () => {
   const imported = applyTemplateImportToWorkspace(
     createSnapshot(),

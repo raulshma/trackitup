@@ -17,6 +17,7 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { parseTemplateImportUrl } from "@/services/templates/templateImport";
 import type { TemplateImportMethod } from "@/types/trackitup";
 
 type ImportParams = {
@@ -102,14 +103,38 @@ export default function TemplateImportScreen() {
     [params.source],
   );
   const importKey = `${preferredMethod ?? "auto"}:${importUrl}`;
+  const parsedImport = useMemo(
+    () => parseTemplateImportUrl(importUrl, preferredMethod),
+    [importUrl, preferredMethod],
+  );
 
   useEffect(() => {
-    if (!importUrl || importKey === lastImportKey) {
-      if (!importUrl) {
-        setStatusMessage(
-          "No TrackItUp template import data was found in this route.",
-        );
-      }
+    setTemplateName(null);
+    setLastImportKey(null);
+
+    if (!importUrl) {
+      setStatusMessage(
+        "No TrackItUp template import data was found in this route.",
+      );
+      return;
+    }
+
+    if (!parsedImport) {
+      setStatusMessage(
+        "This route does not contain a supported TrackItUp template import link.",
+      );
+      return;
+    }
+
+    setStatusMessage(
+      "Review the shared template details below before adding it to your local workspace catalog.",
+    );
+  }, [importKey, importUrl, parsedImport]);
+
+  const isImportDisabled = !parsedImport || lastImportKey === importKey;
+
+  const handleImport = () => {
+    if (!importUrl || !parsedImport || lastImportKey === importKey) {
       return;
     }
 
@@ -117,13 +142,7 @@ export default function TemplateImportScreen() {
     setStatusMessage(result.message);
     setTemplateName(result.templateName ?? null);
     setLastImportKey(importKey);
-  }, [
-    importKey,
-    importTemplateFromUrl,
-    importUrl,
-    lastImportKey,
-    preferredMethod,
-  ]);
+  };
 
   return (
     <View style={[styles.screen, paletteStyles.screenBackground]}>
@@ -136,7 +155,7 @@ export default function TemplateImportScreen() {
         <ScreenHero
           palette={palette}
           title="Template import"
-          subtitle="Import a shared template from a deep link or a scanned QR code into the local workspace catalog."
+          subtitle="Review a shared template from a deep link or scanned QR code before adding it to the local workspace catalog."
           badges={[
             {
               label: "TrackItUp",
@@ -151,6 +170,41 @@ export default function TemplateImportScreen() {
             },
           ]}
         />
+
+        <SectionMessage
+          palette={palette}
+          label="Review required"
+          title={parsedImport?.name ?? "Shared template"}
+          message={
+            parsedImport?.summary ??
+            (importUrl
+              ? "Only TrackItUp deep links and dedicated HTTPS import routes can add templates to this catalog."
+              : "No URL or import payload was provided.")
+          }
+        >
+          <ChipRow style={styles.statusChipRow}>
+            {parsedImport?.category ? (
+              <Chip compact style={styles.statusChip}>
+                Category: {parsedImport.category}
+              </Chip>
+            ) : null}
+            {parsedImport?.origin ? (
+              <Chip compact style={styles.statusChip}>
+                Origin: {parsedImport.origin}
+              </Chip>
+            ) : null}
+            {parsedImport ? (
+              <Chip compact style={styles.statusChip}>
+                Fields: {parsedImport.supportedFieldTypes.length || 0}
+              </Chip>
+            ) : null}
+            {parsedImport?.importMethods.length ? (
+              <Chip compact style={styles.statusChip}>
+                Methods: {parsedImport.importMethods.join(", ")}
+              </Chip>
+            ) : null}
+          </ChipRow>
+        </SectionMessage>
 
         <SectionMessage
           palette={palette}
@@ -214,12 +268,13 @@ export default function TemplateImportScreen() {
           </Button>
           <Button
             mode="contained"
-            onPress={() => router.replace("/(tabs)" as never)}
+            onPress={handleImport}
+            disabled={isImportDisabled}
             style={styles.footerButton}
             contentStyle={styles.footerButtonContent}
             labelStyle={styles.footerButtonLabel}
           >
-            View catalog
+            Import template
           </Button>
         </View>
       </Surface>
