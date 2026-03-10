@@ -7,6 +7,7 @@ import type {
     SpaceStatus,
     WorkspaceSnapshot,
 } from "@/types/trackitup";
+import { trackItUpTemplateCatalog } from "./TrackItUpTemplateCatalog.ts";
 
 export type OverviewStat = {
   label: string;
@@ -87,6 +88,14 @@ const quickActionDetails: Record<
     accent: "#8b5cf6",
   },
 };
+
+function cloneValue<T>(value: T): T {
+  if (typeof structuredClone === "function") {
+    return structuredClone(value);
+  }
+
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
 export const trackItUpWorkspace: WorkspaceSnapshot = {
   generatedAt: "2026-03-09T19:30:00",
@@ -553,62 +562,7 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
       size: "small",
     },
   ],
-  templates: [
-    {
-      id: "template-reef-official",
-      name: "Advanced Reef",
-      summary:
-        "Official multi-metric aquarium schema with routines, thresholds, and inventory.",
-      category: "Aquarium",
-      origin: "official",
-      importMethods: ["local", "deep-link", "qr-code"],
-      supportedFieldTypes: [
-        "text",
-        "rich-text",
-        "number",
-        "unit",
-        "checkbox",
-        "tags",
-        "media",
-        "formula",
-      ],
-    },
-    {
-      id: "template-plants-official",
-      name: "Plant Care Starter",
-      summary:
-        "Official plant template with reminders, notes, and asset lifecycle tracking.",
-      category: "Gardening",
-      origin: "official",
-      importMethods: ["local", "deep-link"],
-      supportedFieldTypes: [
-        "text",
-        "rich-text",
-        "number",
-        "slider",
-        "tags",
-        "media",
-        "location",
-      ],
-    },
-    {
-      id: "template-foraging-community",
-      name: "Foraging Log Pro",
-      summary:
-        "Community template tuned for location-tagged finds, photos, and markdown notes.",
-      category: "Outdoor",
-      origin: "community",
-      importMethods: ["deep-link", "qr-code"],
-      supportedFieldTypes: [
-        "text",
-        "rich-text",
-        "tags",
-        "media",
-        "location",
-        "formula",
-      ],
-    },
-  ],
+  templates: cloneValue(trackItUpTemplateCatalog),
   syncQueue: [],
 };
 

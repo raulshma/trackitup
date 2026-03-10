@@ -10,7 +10,7 @@ export type PersistenceMode =
   | "file-system"
   | "memory";
 
-type WorkspaceUpdater =
+export type WorkspaceUpdater =
   | WorkspaceSnapshot
   | ((current: WorkspaceSnapshot) => WorkspaceSnapshot);
 

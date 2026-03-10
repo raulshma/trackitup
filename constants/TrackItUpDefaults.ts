@@ -4,7 +4,7 @@ import type {
     TemplateCatalogItem,
     WorkspaceSnapshot,
 } from "../types/trackitup.ts";
-import { trackItUpWorkspace } from "./TrackItUpData.ts";
+import { trackItUpTemplateCatalog } from "./TrackItUpTemplateCatalog.ts";
 
 function cloneValue<T>(value: T): T {
   if (typeof structuredClone === "function") {
@@ -45,7 +45,7 @@ export const defaultDashboardWidgets: DashboardWidget[] = [
 ];
 
 export const knownTemplateCatalog: TemplateCatalogItem[] = cloneValue(
-  trackItUpWorkspace.templates,
+  trackItUpTemplateCatalog,
 );
 
 export function createEmptyWorkspaceSnapshot(

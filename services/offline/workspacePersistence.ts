@@ -199,6 +199,7 @@ export async function loadPersistedWorkspace(
           cloneWorkspaceSnapshot,
         );
         if (watermelonWorkspace) {
+          clearLegacyWorkspace();
           return {
             workspace: watermelonWorkspace,
             persistenceMode: choosePersistenceMode({
@@ -214,6 +215,7 @@ export async function loadPersistedWorkspace(
           database,
           legacyWorkspace.workspace,
         );
+        clearLegacyWorkspace();
 
         return {
           workspace: legacyWorkspace.workspace,
@@ -235,6 +237,8 @@ export async function persistWorkspace(snapshot: WorkspaceSnapshot) {
         const database = await getWorkspaceDatabase();
         if (database) {
           await persistWorkspaceSnapshotToWatermelon(database, snapshot);
+          clearLegacyWorkspace();
+          return;
         }
       } catch {
         // Fall through to legacy persistence.

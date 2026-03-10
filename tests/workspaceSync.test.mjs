@@ -1,0 +1,105 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+const { trackItUpWorkspace } = await import("../constants/TrackItUpData.ts");
+const {
+  isTrustedSyncEndpoint,
+  pullWorkspaceSync,
+  pushWorkspaceSync,
+} = await import("../services/offline/workspaceSync.ts");
+
+function createSnapshot(overrides = {}) {
+  return {
+    ...structuredClone(trackItUpWorkspace),
+    ...overrides,
+  };
+}
+
+test("trusted sync endpoints require https unless using localhost", () => {
+  assert.equal(isTrustedSyncEndpoint("https://api.trackitup.app/sync"), true);
+  assert.equal(isTrustedSyncEndpoint("http://localhost:3000/sync"), true);
+  assert.equal(isTrustedSyncEndpoint("http://127.0.0.1:3000/sync"), true);
+  assert.equal(isTrustedSyncEndpoint("http://example.com/sync"), false);
+  assert.equal(isTrustedSyncEndpoint("not-a-url"), false);
+});
+
+test("pushWorkspaceSync retries retryable failures and sends protocol metadata", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestCount = 0;
+
+  globalThis.fetch = async (_input, init) => {
+    requestCount += 1;
+    const headers = init?.headers;
+    const payload = JSON.parse(String(init?.body));
+
+    assert.equal(init?.method, "POST");
+    assert.equal(headers["x-trackitup-sync-version"], "1");
+    assert.equal(payload.protocolVersion, "1");
+
+    if (requestCount === 1) {
+      return new Response("retry", { status: 503 });
+    }
+
+    return new Response(null, {
+      status: 200,
+      headers: { "x-trackitup-sync-version": "1" },
+    });
+  };
+
+  try {
+    const result = await pushWorkspaceSync({
+      endpoint: "https://example.com/api/trackitup-sync",
+      snapshot: createSnapshot({ syncQueue: [{
+        id: "sync-1",
+        kind: "log-created",
+        summary: "Saved reef check",
+        createdAt: "2026-03-10T12:00:00.000Z",
+      }] }),
+      userId: "user_123",
+      getToken: async () => "token-123",
+    });
+
+    assert.equal(requestCount, 2);
+    assert.equal(result.status, "success");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pullWorkspaceSync includes version metadata and rejects incompatible responses", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async (input, init) => {
+    const headers = init?.headers;
+
+    assert.match(String(input), /mode=pull/);
+    assert.match(String(input), /version=1/);
+    assert.equal(init?.method, "GET");
+    assert.equal(headers["x-trackitup-sync-version"], "1");
+
+    return new Response(
+      JSON.stringify({
+        protocolVersion: "2",
+        snapshot: createSnapshot(),
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  };
+
+  try {
+    const result = await pullWorkspaceSync({
+      endpoint: "https://example.com/api/trackitup-sync",
+      fallbackSnapshot: trackItUpWorkspace,
+      userId: "user_123",
+      getToken: async () => "token-123",
+    });
+
+    assert.equal(result.status, "error");
+    assert.match(result.message, /incompatible sync protocol version/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

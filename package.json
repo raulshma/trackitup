@@ -3,14 +3,17 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "android:start": "expo start --android",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
+    "start": "bun expo start",
+    "android": "bun expo run:android",
+    "android:start": "bun expo start --android",
+    "ios": "bun expo run:ios",
+    "web": "bun expo start --web",
     "clean:prebuild": "npx expo prebuild --clean --platform android",
     "build:apk": "cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a",
-    "test:workspace-tools": "node --test tests/workspaceTools.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "test:workspace-tools": "node --test tests/workspaceTools.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test"
   },
   "dependencies": {
     "@clerk/clerk-expo": "^2.19.30",

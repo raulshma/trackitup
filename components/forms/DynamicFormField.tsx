@@ -1,0 +1,465 @@
+import { CameraView, type CameraMode, type CameraViewRef } from "expo-camera";
+import { memo, type ComponentRef } from "react";
+import { Image } from "react-native";
+import {
+    Button,
+    Checkbox,
+    Chip,
+    HelperText,
+    SegmentedButtons,
+    Switch,
+    TextInput,
+} from "react-native-paper";
+
+import { Text, View } from "@/components/Themed";
+import {
+    getFieldOptions,
+    getFormulaValue,
+} from "@/services/forms/workspaceForm";
+
+import { dynamicFormStyles as styles } from "./dynamicFormStyles";
+import type { DynamicFormFieldProps } from "./dynamicFormTypes";
+import {
+    asStringList,
+    describeLocationValue,
+    getTagValue,
+    isDictationField,
+    isMediaAttachmentArray,
+} from "./dynamicFormUtils";
+
+export const DynamicFormField = memo(function DynamicFormField({
+  action,
+  depth = 0,
+  entry,
+  errors,
+  field,
+  onChange,
+  palette,
+  readOnly = false,
+  tools,
+  values,
+  workspace,
+}: DynamicFormFieldProps) {
+  const options = getFieldOptions(field, workspace, values, {
+    action,
+    entry,
+  });
+  const value = values[field.id];
+  const error = errors[field.id];
+
+  let control: React.ReactNode;
+
+  switch (field.type) {
+    case "text":
+    case "rich-text":
+    case "textarea":
+    case "unit":
+    case "date-time":
+      control = (
+        <>
+          <TextInput
+            ref={(ref: ComponentRef<typeof TextInput> | null) =>
+              tools.setTextFieldRef(field.id, ref)
+            }
+            mode="outlined"
+            label={field.label}
+            value={typeof value === "string" ? value : ""}
+            onChangeText={(nextValue) => onChange(field.id, nextValue)}
+            disabled={readOnly}
+            multiline={field.type === "rich-text" || field.type === "textarea"}
+            placeholder={field.placeholder}
+          />
+          {isDictationField(field) ? (
+            <View style={styles.inlineToolRow}>
+              <Button
+                mode="contained-tonal"
+                onPress={() => void tools.handleDictation(field.id)}
+                loading={tools.busyFieldId === field.id}
+                disabled={readOnly}
+                style={styles.inlineToolButton}
+              >
+                Dictate
+              </Button>
+            </View>
+          ) : null}
+        </>
+      );
+      break;
+    case "number":
+      control = (
+        <TextInput
+          mode="outlined"
+          label={field.label}
+          value={value === null || value === undefined ? "" : String(value)}
+          onChangeText={(nextValue) => onChange(field.id, nextValue)}
+          disabled={readOnly}
+          keyboardType="decimal-pad"
+          placeholder={field.placeholder}
+        />
+      );
+      break;
+    case "location":
+      control = (
+        <View>
+          <TextInput
+            mode="outlined"
+            label={field.label}
+            value={describeLocationValue(value)}
+            disabled
+            multiline
+          />
+          <View style={styles.toolButtonRow}>
+            <Button
+              mode="contained-tonal"
+              onPress={() =>
+                void tools.handleCaptureLocation(field.id, "current")
+              }
+              loading={tools.busyFieldId === field.id}
+              disabled={readOnly}
+              style={styles.toolButton}
+            >
+              Use current GPS
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() =>
+                void tools.handleCaptureLocation(field.id, "last-known")
+              }
+              disabled={readOnly || tools.busyFieldId === field.id}
+              style={styles.toolButton}
+            >
+              Last known
+            </Button>
+            <Button
+              mode="text"
+              onPress={() => onChange(field.id, null)}
+              disabled={readOnly || tools.busyFieldId === field.id}
+              style={styles.toolButton}
+            >
+              Clear
+            </Button>
+          </View>
+        </View>
+      );
+      break;
+    case "media": {
+      const attachments = isMediaAttachmentArray(value) ? value : [];
+      const isActiveField = tools.activeMediaFieldId === field.id;
+
+      control = (
+        <View>
+          <View style={styles.toolButtonRow}>
+            <Button
+              mode="contained-tonal"
+              onPress={() => void tools.handleOpenCamera(field.id)}
+              loading={tools.busyFieldId === field.id && !tools.isRecording}
+              disabled={readOnly}
+              style={styles.toolButton}
+            >
+              {isActiveField ? "Camera open" : "Open camera"}
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() => void tools.handlePickFile(field.id)}
+              disabled={readOnly || tools.busyFieldId === field.id}
+              style={styles.toolButton}
+            >
+              Pick file
+            </Button>
+            <Button
+              mode="text"
+              onPress={() => onChange(field.id, [])}
+              disabled={readOnly || attachments.length === 0}
+              style={styles.toolButton}
+            >
+              Clear
+            </Button>
+          </View>
+
+          {isActiveField ? (
+            <View style={styles.capturePanel}>
+              <SegmentedButtons
+                value={tools.cameraMode}
+                onValueChange={(nextValue) =>
+                  tools.setCameraMode(nextValue as CameraMode)
+                }
+                buttons={[
+                  {
+                    value: "picture",
+                    label: "Photo",
+                    disabled: readOnly || tools.isRecording,
+                  },
+                  {
+                    value: "video",
+                    label: "Video",
+                    disabled: readOnly || tools.isRecording,
+                  },
+                ]}
+                density="small"
+              />
+              <CameraView
+                ref={(ref) => {
+                  tools.cameraRef.current = ref as CameraViewRef | null;
+                }}
+                style={styles.cameraPreview}
+                mode={tools.cameraMode}
+                mute
+              />
+              <View style={styles.toolButtonRow}>
+                {tools.cameraMode === "video" && tools.isRecording ? (
+                  <Button
+                    mode="contained"
+                    onPress={() => void tools.handleStopRecording(field.id)}
+                    style={styles.toolButton}
+                  >
+                    Stop recording
+                  </Button>
+                ) : (
+                  <Button
+                    mode="contained"
+                    onPress={() => void tools.handleCaptureMedia(field.id)}
+                    loading={
+                      tools.busyFieldId === field.id && !tools.isRecording
+                    }
+                    disabled={readOnly}
+                    style={styles.toolButton}
+                  >
+                    {tools.cameraMode === "picture"
+                      ? "Capture photo"
+                      : "Record clip"}
+                  </Button>
+                )}
+                <Button
+                  mode="outlined"
+                  onPress={tools.closeCamera}
+                  disabled={tools.isRecording}
+                  style={styles.toolButton}
+                >
+                  Close camera
+                </Button>
+              </View>
+            </View>
+          ) : null}
+
+          {attachments.length > 0 ? (
+            <View style={styles.attachmentList}>
+              {attachments.map((attachment) => (
+                <View
+                  key={attachment.id}
+                  style={[
+                    styles.attachmentCard,
+                    { borderColor: palette.border },
+                  ]}
+                >
+                  {attachment.mediaType === "photo" ? (
+                    <Image
+                      source={{ uri: attachment.uri }}
+                      style={styles.attachmentPreview}
+                    />
+                  ) : null}
+                  <Text style={styles.attachmentTitle}>
+                    {attachment.mediaType.toUpperCase()}
+                  </Text>
+                  <Text
+                    style={[styles.attachmentMeta, { color: palette.muted }]}
+                  >
+                    {attachment.uri}
+                  </Text>
+                  <Button
+                    mode="text"
+                    compact
+                    onPress={() =>
+                      onChange(
+                        field.id,
+                        attachments.filter((item) => item.id !== attachment.id),
+                      )
+                    }
+                    disabled={readOnly}
+                  >
+                    Remove
+                  </Button>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.emptyState, { color: palette.muted }]}>
+              No media attached yet.
+            </Text>
+          )}
+        </View>
+      );
+      break;
+    }
+    case "checkbox":
+      control = (
+        <View style={styles.switchRow}>
+          <Text style={styles.switchLabel}>{field.label}</Text>
+          <Switch
+            value={Boolean(value)}
+            onValueChange={(nextValue) => onChange(field.id, nextValue)}
+            disabled={readOnly}
+          />
+        </View>
+      );
+      break;
+    case "slider":
+      control = (
+        <SegmentedButtons
+          value={String(value ?? "75")}
+          onValueChange={(nextValue) => onChange(field.id, Number(nextValue))}
+          buttons={["25", "50", "75", "100"].map((option) => ({
+            value: option,
+            label: option,
+            disabled: readOnly,
+          }))}
+          density="small"
+        />
+      );
+      break;
+    case "select":
+      control = (
+        <View style={styles.optionWrap}>
+          {options.map((option) => (
+            <Chip
+              key={option.value}
+              selected={value === option.value}
+              onPress={() => onChange(field.id, option.value)}
+              disabled={readOnly}
+              style={styles.chip}
+            >
+              {option.label}
+            </Chip>
+          ))}
+        </View>
+      );
+      break;
+    case "multi-select":
+    case "checklist": {
+      const selectedValues = asStringList(value);
+      control = (
+        <View>
+          {options.map((option) => {
+            const isChecked = selectedValues.includes(option.value);
+            return (
+              <Checkbox.Item
+                key={option.value}
+                label={option.label}
+                status={isChecked ? "checked" : "unchecked"}
+                onPress={() =>
+                  onChange(
+                    field.id,
+                    isChecked
+                      ? selectedValues.filter((item) => item !== option.value)
+                      : [...selectedValues, option.value],
+                  )
+                }
+                disabled={readOnly}
+                style={styles.checkboxItem}
+              />
+            );
+          })}
+        </View>
+      );
+      break;
+    }
+    case "tags":
+      control = (
+        <>
+          <TextInput
+            mode="outlined"
+            label={field.label}
+            value={getTagValue(value)}
+            onChangeText={(nextValue) =>
+              onChange(
+                field.id,
+                nextValue
+                  .split(",")
+                  .map((item) => item.trim())
+                  .filter(Boolean),
+              )
+            }
+            disabled={readOnly}
+            placeholder="maintenance, weekly, filter-check"
+          />
+          <View style={styles.optionWrap}>
+            {asStringList(value).map((tag) => (
+              <Chip key={tag} compact style={styles.chip}>
+                {tag}
+              </Chip>
+            ))}
+          </View>
+        </>
+      );
+      break;
+    case "formula":
+      control = (
+        <TextInput
+          mode="outlined"
+          label={field.label}
+          value={getFormulaValue(field.id, workspace, values)}
+          disabled
+          right={<TextInput.Affix text="USD" />}
+        />
+      );
+      break;
+    default:
+      control = null;
+  }
+
+  return (
+    <View
+      style={[
+        styles.fieldCard,
+        {
+          backgroundColor: palette.background,
+          borderColor: error ? "#dc2626" : palette.border,
+          marginLeft: depth * 10,
+        },
+      ]}
+    >
+      {field.type !== "checkbox" ? (
+        <View style={styles.fieldHeader}>
+          <Text style={styles.fieldLabel}>{field.label}</Text>
+          {field.required ? (
+            <Text style={[styles.required, { color: palette.tint }]}>
+              Required
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+      {field.description ? (
+        <Text style={[styles.fieldDescription, { color: palette.muted }]}>
+          {field.description}
+        </Text>
+      ) : null}
+      {control}
+
+      <HelperText
+        type={error ? "error" : "info"}
+        visible={
+          Boolean(error) ||
+          Boolean(field.placeholder) ||
+          Boolean(tools.fieldMessages[field.id])
+        }
+      >
+        {error ?? tools.fieldMessages[field.id] ?? field.placeholder ?? ""}
+      </HelperText>
+      {(field.children ?? []).map((child) => (
+        <DynamicFormField
+          key={child.id}
+          action={action}
+          depth={depth + 1}
+          entry={entry}
+          errors={errors}
+          field={child}
+          onChange={onChange}
+          palette={palette}
+          readOnly={readOnly}
+          tools={tools}
+          values={values}
+          workspace={workspace}
+        />
+      ))}
+    </View>
+  );
+});

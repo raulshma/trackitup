@@ -1,7 +1,7 @@
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
-import { trackItUpWorkspace } from "../../constants/TrackItUpData.ts";
+import { trackItUpSeedIdSets } from "../../constants/TrackItUpSeedIds.ts";
 
 export type PersistenceAvailability = {
   hasWatermelon?: boolean;
@@ -9,28 +9,14 @@ export type PersistenceAvailability = {
   hasFileSystem: boolean;
 };
 
-const seededSpaceIds = new Set(
-  trackItUpWorkspace.spaces.map((space) => space.id),
-);
-const seededAssetIds = new Set(
-  trackItUpWorkspace.assets.map((asset) => asset.id),
-);
-const seededMetricIds = new Set(
-  trackItUpWorkspace.metricDefinitions.map((metric) => metric.id),
-);
-const seededRoutineIds = new Set(
-  trackItUpWorkspace.routines.map((routine) => routine.id),
-);
-const seededReminderIds = new Set(
-  trackItUpWorkspace.reminders.map((reminder) => reminder.id),
-);
-const seededLogIds = new Set(trackItUpWorkspace.logs.map((log) => log.id));
-const seededExpenseIds = new Set(
-  trackItUpWorkspace.expenses.map((expense) => expense.id),
-);
-const seededTemplateIds = new Set(
-  trackItUpWorkspace.templates.map((template) => template.id),
-);
+const seededSpaceIds = trackItUpSeedIdSets.spaces;
+const seededAssetIds = trackItUpSeedIdSets.assets;
+const seededMetricIds = trackItUpSeedIdSets.metricDefinitions;
+const seededRoutineIds = trackItUpSeedIdSets.routines;
+const seededReminderIds = trackItUpSeedIdSets.reminders;
+const seededLogIds = trackItUpSeedIdSets.logs;
+const seededExpenseIds = trackItUpSeedIdSets.expenses;
+const seededTemplateIds = trackItUpSeedIdSets.templates;
 
 function shouldStripLegacySeedData(fallback: WorkspaceSnapshot) {
   return (
