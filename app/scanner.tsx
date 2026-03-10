@@ -1,11 +1,11 @@
 import { CameraView, type BarcodeType } from "expo-camera";
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
-import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
@@ -46,6 +46,7 @@ const supportedBarcodeTypes: BarcodeType[] = [
 export default function ScannerScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const insets = useSafeAreaInsets();
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
@@ -89,128 +90,157 @@ export default function ScannerScreen() {
     <View style={[styles.screen, paletteStyles.screenBackground]}>
       <Stack.Screen options={{ title: "Scanner" }} />
 
-      <ScreenHero
-        palette={palette}
-        title="Barcode & QR scanner"
-        subtitle="Use the live camera feed to identify tagged assets or scan QR-based template links."
-        badges={[
-          {
-            label: "QR + barcode",
-            backgroundColor: palette.card,
-            textColor: palette.tint,
-          },
-          {
-            label: hasPermission ? "Camera ready" : "Permission needed",
-            backgroundColor: palette.accentSoft,
-          },
-        ]}
-      />
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+      >
+        <ScreenHero
+          palette={palette}
+          title="Barcode & QR scanner"
+          subtitle="Use the live camera feed to identify tagged assets or scan QR-based template links."
+          badges={[
+            {
+              label: "QR + barcode",
+              backgroundColor: palette.card,
+              textColor: palette.tint,
+            },
+            {
+              label: hasPermission ? "Camera ready" : "Permission needed",
+              backgroundColor: palette.accentSoft,
+            },
+          ]}
+        />
+
+        <Surface
+          style={[styles.cameraCard, paletteStyles.cardSurface]}
+          elevation={1}
+        >
+          {hasPermission ? (
+            <CameraView
+              style={styles.camera}
+              barcodeScannerSettings={{ barcodeTypes: supportedBarcodeTypes }}
+              onBarcodeScanned={
+                lastScan
+                  ? undefined
+                  : (result) =>
+                      setLastScan({
+                        type: result.type,
+                        data: result.data.trim(),
+                      })
+              }
+            />
+          ) : (
+            <View style={styles.permissionState}>
+              <Text style={styles.permissionTitle}>Camera access required</Text>
+              <Text style={[styles.permissionCopy, paletteStyles.mutedText]}>
+                Grant permission to scan product barcodes, printed QR labels,
+                and shared template links.
+              </Text>
+              <Button
+                mode="contained"
+                onPress={handleRequestPermission}
+                style={styles.primaryButton}
+              >
+                Allow camera access
+              </Button>
+            </View>
+          )}
+        </Surface>
+
+        <SectionSurface
+          palette={palette}
+          label="Scan result"
+          title="Latest capture"
+        >
+          {lastScan ? (
+            <>
+              <ChipRow style={styles.resultChipRow}>
+                <Chip compact style={styles.resultChip}>
+                  {lastScan.type.toUpperCase()}
+                </Chip>
+                {matchedAsset ? (
+                  <Chip compact style={styles.resultChip}>
+                    Asset match
+                  </Chip>
+                ) : scannedTemplate ? (
+                  <Chip compact style={styles.resultChip}>
+                    Template link
+                  </Chip>
+                ) : looksLikeUrl ? (
+                  <Chip compact style={styles.resultChip}>
+                    External link
+                  </Chip>
+                ) : null}
+              </ChipRow>
+              <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                {lastScan.data}
+              </Text>
+              {matchedAsset ? (
+                <>
+                  <Text style={styles.matchTitle}>
+                    Matched asset: {matchedAsset.name}
+                  </Text>
+                  <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                    {matchedAsset.category} •{" "}
+                    {matchedAsset.status.toUpperCase()}
+                  </Text>
+                  <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                    {matchedAsset.note}
+                  </Text>
+                </>
+              ) : scannedTemplate ? (
+                <>
+                  <Text style={styles.matchTitle}>
+                    Template import detected:{" "}
+                    {scannedTemplate.name ??
+                      scannedTemplate.templateId ??
+                      "shared template"}
+                  </Text>
+                  <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                    This QR code contains a TrackItUp template import payload
+                    and can be added to the local catalog right now.
+                  </Text>
+                </>
+              ) : looksLikeUrl ? (
+                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                  This scan looks like a link, but it does not match the
+                  TrackItUp template import format.
+                </Text>
+              ) : (
+                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                  No asset currently uses this barcode or QR code in the local
+                  workspace.
+                </Text>
+              )}
+            </>
+          ) : (
+            <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+              Point the camera at a barcode or QR code to start matching assets.
+            </Text>
+          )}
+        </SectionSurface>
+      </ScrollView>
 
       <Surface
-        style={[styles.cameraCard, paletteStyles.cardSurface]}
-        elevation={1}
+        style={[
+          styles.footer,
+          {
+            backgroundColor: palette.surface1,
+            borderColor: palette.border,
+            paddingBottom: uiSpace.lg + insets.bottom,
+          },
+        ]}
+        elevation={2}
       >
-        {hasPermission ? (
-          <CameraView
-            style={styles.camera}
-            barcodeScannerSettings={{ barcodeTypes: supportedBarcodeTypes }}
-            onBarcodeScanned={
-              lastScan
-                ? undefined
-                : (result) =>
-                    setLastScan({ type: result.type, data: result.data.trim() })
-            }
-          />
-        ) : (
-          <View style={styles.permissionState}>
-            <Text style={styles.permissionTitle}>Camera access required</Text>
-            <Text style={[styles.permissionCopy, paletteStyles.mutedText]}>
-              Grant permission to scan product barcodes, printed QR labels, and
-              shared template links.
-            </Text>
-            <Button
-              mode="contained"
-              onPress={handleRequestPermission}
-              style={styles.primaryButton}
-            >
-              Allow camera access
-            </Button>
-          </View>
-        )}
-      </Surface>
-
-      <SectionSurface
-        palette={palette}
-        label="Scan result"
-        title="Latest capture"
-      >
-        {lastScan ? (
-          <>
-            <ChipRow style={styles.resultChipRow}>
-              <Chip compact style={styles.resultChip}>
-                {lastScan.type.toUpperCase()}
-              </Chip>
-              {matchedAsset ? (
-                <Chip compact style={styles.resultChip}>
-                  Asset match
-                </Chip>
-              ) : scannedTemplate ? (
-                <Chip compact style={styles.resultChip}>
-                  Template link
-                </Chip>
-              ) : looksLikeUrl ? (
-                <Chip compact style={styles.resultChip}>
-                  External link
-                </Chip>
-              ) : null}
-            </ChipRow>
-            <Text style={[styles.resultValue, paletteStyles.mutedText]}>
-              {lastScan.data}
-            </Text>
-            {matchedAsset ? (
-              <>
-                <Text style={styles.matchTitle}>
-                  Matched asset: {matchedAsset.name}
-                </Text>
-                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
-                  {matchedAsset.category} • {matchedAsset.status.toUpperCase()}
-                </Text>
-                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
-                  {matchedAsset.note}
-                </Text>
-              </>
-            ) : scannedTemplate ? (
-              <>
-                <Text style={styles.matchTitle}>
-                  Template import detected:{" "}
-                  {scannedTemplate.name ??
-                    scannedTemplate.templateId ??
-                    "shared template"}
-                </Text>
-                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
-                  This QR code contains a TrackItUp template import payload and
-                  can be added to the local catalog right now.
-                </Text>
-              </>
-            ) : looksLikeUrl ? (
-              <Text style={[styles.resultValue, paletteStyles.mutedText]}>
-                This scan looks like a link, but it does not match the TrackItUp
-                template import format.
-              </Text>
-            ) : (
-              <Text style={[styles.resultValue, paletteStyles.mutedText]}>
-                No asset currently uses this barcode or QR code in the local
-                workspace.
-              </Text>
-            )}
-          </>
-        ) : (
-          <Text style={[styles.resultValue, paletteStyles.mutedText]}>
-            Point the camera at a barcode or QR code to start matching assets.
-          </Text>
-        )}
-
-        <ActionButtonRow style={styles.buttonRow}>
+        <View style={styles.footerActions}>
+          <Button
+            mode="outlined"
+            onPress={() => router.replace("/(tabs)/inventory")}
+            style={styles.footerButton}
+            contentStyle={styles.footerButtonContent}
+          >
+            Back to inventory
+          </Button>
           {scannedTemplate ? (
             <Button
               mode="contained-tonal"
@@ -220,7 +250,8 @@ export default function ScannerScreen() {
                   params: { url: lastScan?.data ?? "", source: "qr-code" },
                 })
               }
-              style={styles.inlineButton}
+              style={styles.footerButton}
+              contentStyle={styles.footerButtonContent}
             >
               Import template
             </Button>
@@ -229,25 +260,24 @@ export default function ScannerScreen() {
             mode="contained"
             onPress={() => setLastScan(null)}
             disabled={!lastScan}
-            style={styles.inlineButton}
+            style={styles.footerButton}
+            contentStyle={styles.footerButtonContent}
           >
             Scan again
           </Button>
-          <Button
-            mode="outlined"
-            onPress={() => router.replace("/(tabs)/inventory")}
-            style={styles.inlineButton}
-          >
-            Back to inventory
-          </Button>
-        </ActionButtonRow>
-      </SectionSurface>
+        </View>
+      </Surface>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: uiSpace.screen },
+  screen: { flex: 1 },
+  scrollView: { flex: 1 },
+  content: {
+    padding: uiSpace.screen,
+    paddingBottom: uiSpace.screenBottom,
+  },
   cameraCard: {
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.xl,
@@ -276,7 +306,16 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: uiSpace.xs,
   },
-  buttonRow: { marginTop: uiSpace.lg },
-  inlineButton: { flex: 1 },
   primaryButton: { marginTop: uiSpace.xs },
+  footer: {
+    borderTopWidth: uiBorder.standard,
+    paddingHorizontal: uiSpace.screen,
+    paddingTop: uiSpace.lg,
+  },
+  footerActions: {
+    flexDirection: "row",
+    gap: uiSpace.md,
+  },
+  footerButton: { flex: 1 },
+  footerButtonContent: { minHeight: 40 },
 });

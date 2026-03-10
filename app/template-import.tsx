@@ -1,16 +1,21 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet } from "react-native";
-import { Button, Chip } from "react-native-paper";
+import { ScrollView, StyleSheet, View } from "react-native";
+import { Button, Chip, Surface } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
-import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import type { TemplateImportMethod } from "@/types/trackitup";
 
@@ -77,6 +82,7 @@ function buildImportUrlFromParams(params: ImportParams) {
 export default function TemplateImportScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const insets = useSafeAreaInsets();
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
@@ -120,93 +126,128 @@ export default function TemplateImportScreen() {
   ]);
 
   return (
-    <ScrollView
-      style={[styles.screen, paletteStyles.screenBackground]}
-      contentContainerStyle={styles.content}
-    >
-      <Stack.Screen options={{ title: "Template import" }} />
+    <View style={[styles.screen, paletteStyles.screenBackground]}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+      >
+        <Stack.Screen options={{ title: "Template import" }} />
 
-      <ScreenHero
-        palette={palette}
-        title="Template import"
-        subtitle="Import a shared template from a deep link or a scanned QR code into the local workspace catalog."
-        badges={[
+        <ScreenHero
+          palette={palette}
+          title="Template import"
+          subtitle="Import a shared template from a deep link or a scanned QR code into the local workspace catalog."
+          badges={[
+            {
+              label: "TrackItUp",
+              backgroundColor: palette.card,
+              textColor: palette.tint,
+            },
+            {
+              label: preferredMethod
+                ? `Source: ${preferredMethod}`
+                : "Source: auto",
+              backgroundColor: palette.accentSoft,
+            },
+          ]}
+        />
+
+        <SectionMessage
+          palette={palette}
+          label="Import status"
+          title={
+            templateName
+              ? `Imported ${templateName}`
+              : "Workspace catalog update"
+          }
+          message={statusMessage}
+        >
+          <ChipRow style={styles.statusChipRow}>
+            {templateName ? (
+              <Chip compact style={styles.statusChip}>
+                Template: {templateName}
+              </Chip>
+            ) : null}
+            <Chip compact style={styles.statusChip}>
+              Catalog: {workspace.templates.length} templates
+            </Chip>
+          </ChipRow>
+        </SectionMessage>
+
+        <SectionMessage
+          palette={palette}
+          label="Import payload"
+          title="Detected import link"
+          message={importUrl || "No URL or import payload was provided."}
+        />
+      </ScrollView>
+
+      <Surface
+        style={[
+          styles.footer,
           {
-            label: "TrackItUp",
-            backgroundColor: palette.card,
-            textColor: palette.tint,
-          },
-          {
-            label: preferredMethod
-              ? `Source: ${preferredMethod}`
-              : "Source: auto",
-            backgroundColor: palette.accentSoft,
+            backgroundColor: palette.surface1,
+            borderColor: palette.border,
+            paddingBottom: uiSpace.lg + insets.bottom,
           },
         ]}
-      />
-
-      <SectionMessage
-        palette={palette}
-        label="Import status"
-        title={
-          templateName ? `Imported ${templateName}` : "Workspace catalog update"
-        }
-        message={statusMessage}
+        elevation={2}
       >
-        <ChipRow style={styles.statusChipRow}>
-          {templateName ? (
-            <Chip compact style={styles.statusChip}>
-              Template: {templateName}
-            </Chip>
-          ) : null}
-          <Chip compact style={styles.statusChip}>
-            Catalog: {workspace.templates.length} templates
-          </Chip>
-        </ChipRow>
-      </SectionMessage>
-
-      <SectionMessage
-        palette={palette}
-        label="Import payload"
-        title="Detected import link"
-        message={importUrl || "No URL or import payload was provided."}
-      />
-
-      <ActionButtonRow style={styles.buttonRow}>
-        <Button
-          mode="contained"
-          onPress={() => router.replace("/(tabs)" as never)}
-          style={styles.button}
-        >
-          View catalog
-        </Button>
-        <Button
-          mode="contained-tonal"
-          onPress={() => router.replace("/modal" as never)}
-          style={styles.button}
-        >
-          Open tools
-        </Button>
-        <Button
-          mode="outlined"
-          onPress={() => router.replace("/scanner" as never)}
-          style={styles.button}
-        >
-          Scan again
-        </Button>
-      </ActionButtonRow>
-    </ScrollView>
+        <View style={styles.footerActions}>
+          <Button
+            mode="outlined"
+            onPress={() => router.replace("/scanner" as never)}
+            style={styles.footerButton}
+            contentStyle={styles.footerButtonContent}
+            labelStyle={styles.footerButtonLabel}
+          >
+            Scan again
+          </Button>
+          <Button
+            mode="contained-tonal"
+            onPress={() => router.replace("/modal" as never)}
+            style={styles.footerButton}
+            contentStyle={styles.footerButtonContent}
+            labelStyle={styles.footerButtonLabel}
+          >
+            Open tools
+          </Button>
+          <Button
+            mode="contained"
+            onPress={() => router.replace("/(tabs)" as never)}
+            style={styles.footerButton}
+            contentStyle={styles.footerButtonContent}
+            labelStyle={styles.footerButtonLabel}
+          >
+            View catalog
+          </Button>
+        </View>
+      </Surface>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  scrollView: { flex: 1 },
   content: { padding: uiSpace.screen, paddingBottom: uiSpace.screenBottom },
   body: uiTypography.body,
   statusChipRow: {
     marginBottom: uiSpace.md,
   },
   statusChip: { borderRadius: uiRadius.pill },
-  buttonRow: { gap: uiSpace.md, marginTop: uiSpace.xxs },
-  button: { flexGrow: 1 },
+  footer: {
+    borderTopWidth: uiBorder.standard,
+    paddingHorizontal: uiSpace.screen,
+    paddingTop: uiSpace.lg,
+  },
+  footerActions: {
+    flexDirection: "row",
+    gap: uiSpace.md,
+  },
+  footerButton: { flex: 1 },
+  footerButtonContent: { minHeight: 40 },
+  footerButtonLabel: {
+    textAlign: "center",
+  },
 });
