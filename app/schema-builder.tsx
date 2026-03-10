@@ -12,10 +12,20 @@ import {
 
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
 import { Text } from "@/components/Themed";
+import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { ChipRow } from "@/components/ui/ChipRow";
 import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
     buildInitialFormValues,
@@ -43,6 +53,10 @@ const quickActionKinds = Object.keys(
 export default function SchemaBuilderScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const { saveCustomTemplate, workspace } = useWorkspace();
   const [name, setName] = useState("Custom hobby schema");
@@ -160,7 +174,7 @@ export default function SchemaBuilderScreen() {
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
+      style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
     >
       <Stack.Screen options={{ title: "Schema builder" }} />
@@ -209,7 +223,7 @@ export default function SchemaBuilderScreen() {
             label: customSchemaQuickActionLabels[kind],
           }))}
         />
-        <Text style={[styles.helperCopy, { color: palette.muted }]}>
+        <Text style={[styles.helperCopy, paletteStyles.mutedText]}>
           Previewing {totalFieldCount} total form fields across{" "}
           {builtTemplate.formTemplate?.sections.length ?? 0} sections.
         </Text>
@@ -220,11 +234,11 @@ export default function SchemaBuilderScreen() {
         label="Custom fields"
         title="Add extra schema inputs"
       >
-        <Text style={[styles.helperCopy, { color: palette.muted }]}>
+        <Text style={[styles.helperCopy, paletteStyles.mutedText]}>
           Start from a preset or define a field manually. Duplicate labels are
           blocked to keep saved schemas clean.
         </Text>
-        <View style={styles.chipRow}>
+        <ChipRow style={styles.chipRow}>
           {customSchemaFieldPresets.map((preset) => (
             <Chip
               key={preset.id}
@@ -235,7 +249,7 @@ export default function SchemaBuilderScreen() {
               + {preset.label}
             </Chip>
           ))}
-        </View>
+        </ChipRow>
         <TextInput
           mode="outlined"
           label="Field label"
@@ -263,7 +277,7 @@ export default function SchemaBuilderScreen() {
           }
           style={styles.input}
         />
-        <View style={styles.chipRow}>
+        <ChipRow style={styles.chipRow}>
           {customSchemaFieldTypes.map((type) => {
             const isActive = fieldDraft.type === type;
             return (
@@ -288,11 +302,11 @@ export default function SchemaBuilderScreen() {
               </Chip>
             );
           })}
-        </View>
+        </ChipRow>
         {fieldDraft.type === "select" ||
         fieldDraft.type === "multi-select" ||
         fieldDraft.type === "checklist" ? (
-          <View style={styles.chipRow}>
+          <ChipRow style={styles.chipRow}>
             {customSchemaSourceOptions.map((source) => {
               const isActive = fieldDraft.source === source;
               return (
@@ -313,10 +327,10 @@ export default function SchemaBuilderScreen() {
                 </Chip>
               );
             })}
-          </View>
+          </ChipRow>
         ) : null}
         <View style={styles.switchRow}>
-          <Text style={[styles.switchCopy, { color: palette.muted }]}>
+          <Text style={[styles.switchCopy, paletteStyles.mutedText]}>
             Required field
           </Text>
           <Switch
@@ -334,12 +348,12 @@ export default function SchemaBuilderScreen() {
             {extraFields.map((field, index) => (
               <Surface
                 key={`${field.label}-${index}`}
-                style={[styles.fieldRow, { borderColor: palette.border }]}
+                style={[styles.fieldRow, paletteStyles.cardSurface]}
                 elevation={0}
               >
                 <View style={styles.fieldCopy}>
                   <Text style={styles.fieldTitle}>{field.label}</Text>
-                  <Text style={[styles.fieldMeta, { color: palette.muted }]}>
+                  <Text style={[styles.fieldMeta, paletteStyles.mutedText]}>
                     {getBuilderFieldTypeLabel(field.type)}
                     {field.source ? ` • ${field.source}` : ""}
                   </Text>
@@ -369,7 +383,7 @@ export default function SchemaBuilderScreen() {
         label="Preview"
         title="Review the generated form"
       >
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
+        <Text style={[styles.subtitle, paletteStyles.mutedText]}>
           This is the actual dynamic form that will be saved with the template.
         </Text>
         {builtTemplate.formTemplate ? (
@@ -385,18 +399,17 @@ export default function SchemaBuilderScreen() {
       </SectionSurface>
 
       {statusMessage ? (
-        <SectionSurface
+        <SectionMessage
           palette={palette}
           label="Status"
           title="Template builder update"
-        >
-          <Text style={[styles.subtitle, { color: palette.tint }]}>
-            {statusMessage}
-          </Text>
-        </SectionSurface>
+          message={statusMessage}
+          messageColor={palette.tint}
+          messageStyle={styles.subtitle}
+        />
       ) : null}
 
-      <View style={styles.buttonRow}>
+      <ActionButtonRow style={styles.buttonRow}>
         <Button
           mode="contained"
           onPress={handleSaveTemplate}
@@ -411,43 +424,43 @@ export default function SchemaBuilderScreen() {
         >
           Cancel
         </Button>
-      </View>
+      </ActionButtonRow>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 20, paddingBottom: 32 },
-  subtitle: { fontSize: 14, lineHeight: 20, marginTop: 8 },
-  helperCopy: { fontSize: 13, lineHeight: 18, marginTop: 10 },
-  input: { marginTop: 12 },
-  segmentedButtons: { marginTop: 12 },
-  chipRow: { flexDirection: "row", gap: 10, flexWrap: "wrap", marginTop: 12 },
+  content: { padding: uiSpace.screen, paddingBottom: uiSpace.screenBottom },
+  subtitle: { ...uiTypography.body, marginTop: uiSpace.sm },
+  helperCopy: { ...uiTypography.bodySmall, marginTop: uiSpace.md },
+  input: { marginTop: uiSpace.lg },
+  segmentedButtons: { marginTop: uiSpace.lg },
+  chipRow: { marginTop: uiSpace.lg },
   chip: {
-    borderRadius: 999,
+    borderRadius: uiRadius.pill,
   },
-  chipLabel: { fontSize: 12, fontWeight: "700" },
+  chipLabel: uiTypography.chip,
   switchRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginVertical: 14,
+    marginVertical: uiSpace.xl,
   },
-  switchCopy: { fontSize: 14 },
-  fieldList: { marginTop: 16, gap: 10 },
+  switchCopy: uiTypography.body,
+  fieldList: { marginTop: uiSpace.xxl, gap: uiSpace.md },
   fieldRow: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 12,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.sm,
+    padding: uiSpace.lg,
     flexDirection: "row",
-    gap: 12,
+    gap: uiSpace.lg,
     alignItems: "center",
   },
   fieldCopy: { flex: 1 },
-  fieldTitle: { fontSize: 14, fontWeight: "700", marginBottom: 3 },
-  fieldMeta: { fontSize: 12, lineHeight: 18 },
+  fieldTitle: { ...uiTypography.bodyStrong, marginBottom: 3 },
+  fieldMeta: uiTypography.support,
   removeLabel: { fontSize: 13, fontWeight: "700" },
-  buttonRow: { flexDirection: "row", gap: 12 },
+  buttonRow: { gap: uiSpace.lg, marginTop: uiSpace.xxl },
   button: { flex: 1 },
 });

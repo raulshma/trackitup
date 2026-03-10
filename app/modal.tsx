@@ -1,8 +1,8 @@
 import { File } from "expo-file-system";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ScrollView, StyleSheet } from "react-native";
 import {
     Button,
     Chip,
@@ -12,10 +12,21 @@ import {
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { ChipRow } from "@/components/ui/ChipRow";
 import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import {
+    uiBorder,
+    uiRadius,
+    uiSize,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
@@ -52,6 +63,10 @@ function formatPermissionSummary(permission: {
 export default function ModalScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const { themePreference, setThemePreference } = useThemePreference();
   const { importLogsFromCsv, workspace } = useWorkspace();
@@ -180,7 +195,7 @@ export default function ModalScreen() {
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
+      style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
     >
       <ScreenHero
@@ -206,7 +221,7 @@ export default function ModalScreen() {
         title="Choose your default app theme"
         style={styles.sectionCardSpacing}
       >
-        <Text style={[styles.listText, { color: palette.muted }]}>
+        <Text style={[styles.listText, paletteStyles.mutedText]}>
           TrackItUp now defaults to dark mode. Switch between light, dark, and
           OLED whenever you want.
         </Text>
@@ -223,15 +238,15 @@ export default function ModalScreen() {
             }),
           )}
         />
-        <View style={styles.statusChipRow}>
+        <ChipRow style={styles.statusChipRow}>
           <Chip compact style={styles.statusChip} icon="theme-light-dark">
             Active: {themeOptionLabels[themePreference]}
           </Chip>
           <Chip compact style={styles.statusChip}>
             Default: Dark
           </Chip>
-        </View>
-        <Text style={[styles.helperText, { color: palette.muted }]}>
+        </ChipRow>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
           OLED uses pure-black backgrounds for a darker nighttime look and can
           reduce power usage on compatible displays.
         </Text>
@@ -243,17 +258,17 @@ export default function ModalScreen() {
         title="Export or import workspace history"
         style={styles.sectionCardSpacing}
       >
-        <Text style={[styles.listText, { color: palette.muted }]}>
+        <Text style={[styles.listText, paletteStyles.mutedText]}>
           Export the live workspace snapshot as JSON, CSV, or PDF. Paste CSV
           rows below or pick a CSV file to bulk import log history into your
           current local workspace.
         </Text>
-        <Text style={[styles.helperText, { color: palette.muted }]}>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
           Current snapshot: {workspace.spaces.length} spaces •{" "}
           {workspace.logs.length} logs • {workspace.assets.length} assets
         </Text>
 
-        <View style={styles.toolButtonRow}>
+        <ActionButtonRow style={styles.toolButtonRow}>
           <Button
             mode="contained"
             onPress={() =>
@@ -293,7 +308,7 @@ export default function ModalScreen() {
           >
             Export PDF
           </Button>
-        </View>
+        </ActionButtonRow>
 
         <TextInput
           label="Paste CSV log rows"
@@ -304,12 +319,12 @@ export default function ModalScreen() {
           placeholder={"title,spaceId,kind,occurredAt,note,tags,cost"}
           style={styles.csvInput}
         />
-        <Text style={[styles.helperText, { color: palette.muted }]}>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
           Required columns: `title` plus either `spaceId` or `spaceName`.
           Optional columns: `kind`, `occurredAt`, `note`, `tags`, `cost`,
           `locationLabel`, `attachmentsCount`, `assetIds`.
         </Text>
-        <View style={styles.toolButtonRow}>
+        <ActionButtonRow style={styles.toolButtonRow}>
           <Button
             mode="contained"
             onPress={handleImportCsv}
@@ -326,7 +341,7 @@ export default function ModalScreen() {
           >
             Pick CSV file
           </Button>
-        </View>
+        </ActionButtonRow>
       </SectionSurface>
 
       <SectionSurface
@@ -335,11 +350,11 @@ export default function ModalScreen() {
         title="Bring in shared TrackItUp templates"
         style={styles.sectionCardSpacing}
       >
-        <Text style={[styles.listText, { color: palette.muted }]}>
+        <Text style={[styles.listText, paletteStyles.mutedText]}>
           Paste a shared TrackItUp template link or scan a QR code to import
           community or official templates into the local catalog.
         </Text>
-        <Text style={[styles.helperText, { color: palette.muted }]}>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
           Current catalog: {workspace.templates.length} templates. Paste a full
           TrackItUp import URL or scan a QR code below.
         </Text>
@@ -352,7 +367,7 @@ export default function ModalScreen() {
           placeholder="trackitup://template-import?..."
           style={styles.csvInput}
         />
-        <View style={styles.toolButtonRow}>
+        <ActionButtonRow style={styles.toolButtonRow}>
           <Button
             mode="contained"
             onPress={() =>
@@ -374,7 +389,7 @@ export default function ModalScreen() {
           >
             Scan QR code
           </Button>
-        </View>
+        </ActionButtonRow>
       </SectionSurface>
 
       <SectionSurface
@@ -383,30 +398,30 @@ export default function ModalScreen() {
         title="Check camera and location readiness"
         style={styles.sectionCardSpacing}
       >
-        <Text style={[styles.listText, { color: palette.muted }]}>
+        <Text style={[styles.listText, paletteStyles.mutedText]}>
           Validate the camera and location foundations used for barcode
           scanning, media capture, and geotagged logs.
         </Text>
-        <View style={styles.statusChipRow}>
+        <ChipRow style={styles.statusChipRow}>
           <Chip compact style={styles.statusChip} icon="camera-outline">
             {cameraStatus}
           </Chip>
           <Chip compact style={styles.statusChip} icon="map-marker-outline">
             {locationStatus}
           </Chip>
-        </View>
-        <Text style={[styles.helperText, { color: palette.muted }]}>
+        </ChipRow>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
           Camera: {cameraStatus}
         </Text>
-        <Text style={[styles.helperText, { color: palette.muted }]}>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
           Location: {locationStatus}
         </Text>
-        <Text style={[styles.helperText, { color: palette.muted }]}>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
           Last known location:{" "}
           {locationPreview ??
             "Unavailable until permission is granted and the device has a cached fix."}
         </Text>
-        <View style={styles.toolButtonRow}>
+        <ActionButtonRow style={styles.toolButtonRow}>
           <Button
             mode="contained"
             onPress={handleRequestCamera}
@@ -439,31 +454,25 @@ export default function ModalScreen() {
           >
             Open scanner
           </Button>
-        </View>
+        </ActionButtonRow>
       </SectionSurface>
 
       {toolMessage ? (
-        <SectionSurface
+        <SectionMessage
           palette={palette}
           label="Last action"
           title="Latest workspace tool result"
           style={styles.sectionCardSpacing}
-        >
-          <Text style={[styles.listText, { color: palette.muted }]}>
-            {toolMessage}
-          </Text>
-        </SectionSurface>
+          message={toolMessage}
+        />
       ) : null}
 
       <Surface
-        style={[
-          styles.footnoteCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+        style={[styles.footnoteCard, paletteStyles.cardSurface]}
         elevation={1}
       >
         <Text style={styles.footnoteTitle}>Workspace note</Text>
-        <Text style={[styles.footnoteCopy, { color: palette.muted }]}>
+        <Text style={[styles.footnoteCopy, paletteStyles.mutedText]}>
           This screen only exposes tools and checks for your current workspace,
           not seeded sample content.
         </Text>
@@ -479,100 +488,80 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
-    paddingBottom: 32,
+    padding: uiSpace.screen,
+    paddingBottom: uiSpace.screenBottom,
   },
   sectionCardSpacing: {
-    marginBottom: 14,
+    marginBottom: uiSpace.xl,
   },
   listItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    marginBottom: 10,
+    marginBottom: uiSpace.md,
   },
   coverageItem: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 12,
+    gap: uiSpace.lg,
+    marginBottom: uiSpace.lg,
   },
   coverageCopy: {
     flex: 1,
   },
-  coverageTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 4,
-  },
+  coverageTitle: { ...uiTypography.bodyStrong, marginBottom: uiSpace.xs },
   toolButtonRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 10,
-    marginTop: 12,
-    marginBottom: 12,
+    marginTop: uiSpace.lg,
+    marginBottom: uiSpace.lg,
   },
   toolButton: {
     flexGrow: 1,
   },
   themeSelector: {
-    marginTop: 14,
+    marginTop: uiSpace.xl,
   },
   csvInput: {
-    marginTop: 12,
-    marginBottom: 10,
+    marginTop: uiSpace.lg,
+    marginBottom: uiSpace.md,
     minHeight: 136,
   },
   helperText: {
-    fontSize: 12,
-    lineHeight: 18,
-    marginBottom: 8,
+    ...uiTypography.support,
+    marginBottom: uiSpace.sm,
   },
   statusChipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-    marginBottom: 8,
+    marginTop: uiSpace.lg,
+    marginBottom: uiSpace.sm,
   },
   statusChip: {
-    borderRadius: 999,
+    borderRadius: uiRadius.pill,
   },
   statusPill: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.pill,
+    paddingHorizontal: uiSpace.md,
     paddingVertical: 5,
   },
   statusPillLabel: {
-    fontSize: 11,
-    fontWeight: "800",
+    ...uiTypography.microLabel,
     textTransform: "uppercase",
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 999,
+    width: uiSize.statusDot,
+    height: uiSize.statusDot,
+    borderRadius: uiRadius.pill,
     marginTop: 6,
-    marginRight: 12,
+    marginRight: uiSpace.lg,
   },
   listText: {
     flex: 1,
-    fontSize: 14,
-    lineHeight: 20,
+    ...uiTypography.body,
   },
   footnoteCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-    marginTop: 4,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.surface,
+    marginTop: uiSpace.xs,
   },
-  footnoteTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 6,
-  },
-  footnoteCopy: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  footnoteTitle: { ...uiTypography.titleMd, marginBottom: 6 },
+  footnoteCopy: uiTypography.body,
 });

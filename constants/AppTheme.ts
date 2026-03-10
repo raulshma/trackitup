@@ -11,6 +11,7 @@ import {
 } from "react-native-paper";
 
 import Colors from "@/constants/Colors";
+import { uiRadius } from "@/constants/UiTokens";
 
 const { LightTheme: AdaptedNavigationLight, DarkTheme: AdaptedNavigationDark } =
   adaptNavigationTheme({
@@ -45,7 +46,7 @@ export function getAppThemes(colorScheme: AppColorScheme): {
 
   const paperTheme: MD3Theme = {
     ...paperBaseTheme,
-    roundness: 20,
+    roundness: uiRadius.lg,
     colors: {
       ...paperBaseTheme.colors,
       primary: palette.tint,

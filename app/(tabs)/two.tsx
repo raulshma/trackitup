@@ -6,6 +6,15 @@ import { Chip, Searchbar, Surface } from "react-native-paper";
 import { Text, View } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import {
+    uiBorder,
+    uiElevation,
+    uiRadius,
+    uiShadow,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 
 const timeFilters = [
@@ -28,6 +37,10 @@ type KindFilterId = (typeof kindFilters)[number]["id"];
 export default function TabTwoScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const { logEntries, timelineEntries, workspace } = useWorkspace();
   const [activeTimeFilter, setActiveTimeFilter] = useState<TimeFilterId>("all");
@@ -169,54 +182,39 @@ export default function TabTwoScreen() {
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
+      style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
     >
       <Surface
-        style={[
-          styles.header,
-          {
-            backgroundColor: palette.hero,
-            borderColor: palette.heroBorder,
-          },
-        ]}
-        elevation={2}
+        style={[styles.header, paletteStyles.heroSurface]}
+        elevation={uiElevation.hero}
       >
         <View style={styles.headerBadgeRow}>
           <Chip
             compact
-            style={[styles.headerBadge, { backgroundColor: palette.card }]}
-            textStyle={[styles.headerBadgeLabel, { color: palette.tint }]}
+            style={[styles.headerBadge, paletteStyles.cardChipSurface]}
+            textStyle={[styles.headerBadgeLabel, paletteStyles.tintText]}
           >
             Smart feed
           </Chip>
           <Chip
             compact
-            style={[
-              styles.headerBadge,
-              { backgroundColor: palette.accentSoft },
-            ]}
+            style={[styles.headerBadge, paletteStyles.accentChipSurface]}
             textStyle={styles.headerBadgeLabel}
           >
             {resultSummary}
           </Chip>
         </View>
         <Text style={styles.title}>Unified Timeline</Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
+        <Text style={[styles.subtitle, paletteStyles.mutedText]}>
           Search, scan, and narrow every log, reminder, metric reading, and
           asset event from one clean chronological feed.
         </Text>
       </Surface>
 
       <Surface
-        style={[
-          styles.searchCard,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-          },
-        ]}
-        elevation={1}
+        style={[styles.searchCard, paletteStyles.cardSurface]}
+        elevation={uiElevation.card}
       >
         <Text style={styles.filterGroupTitle}>Search the logbook</Text>
         <Searchbar
@@ -225,22 +223,13 @@ export default function TabTwoScreen() {
           placeholder="Search titles, details, or spaces"
           style={styles.searchInput}
         />
-        <Text style={[styles.resultsMeta, { color: palette.muted }]}>
+        <Text style={[styles.resultsMeta, paletteStyles.mutedText]}>
           {resultSummary} • {activeFilterCount} active filter
           {activeFilterCount === 1 ? "" : "s"}
         </Text>
       </Surface>
 
-      <View
-        style={[
-          styles.filterPanel,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-            shadowColor: palette.shadow,
-          },
-        ]}
-      >
+      <View style={[styles.filterPanel, paletteStyles.raisedCardSurface]}>
         <View style={styles.filterGroup}>
           <Text style={styles.filterGroupTitle}>Time</Text>
           <View style={styles.filterRow}>
@@ -440,22 +429,13 @@ export default function TabTwoScreen() {
       </View>
 
       {filteredEntries.length === 0 ? (
-        <View
-          style={[
-            styles.emptyCard,
-            {
-              backgroundColor: palette.card,
-              borderColor: palette.border,
-              shadowColor: palette.shadow,
-            },
-          ]}
-        >
+        <View style={[styles.emptyCard, paletteStyles.raisedCardSurface]}>
           <Text style={styles.noteTitle}>
             {timelineEntries.length === 0
               ? "No log entries yet"
               : "No entries match these filters"}
           </Text>
-          <Text style={[styles.noteCopy, { color: palette.muted }]}>
+          <Text style={[styles.noteCopy, paletteStyles.mutedText]}>
             {timelineEntries.length === 0
               ? "Real log history will appear here after your workspace data is synced, imported, or recorded on this device."
               : "Try clearing the search, switching spaces, or broadening the kind filter."}
@@ -471,19 +451,15 @@ export default function TabTwoScreen() {
           }
           style={[
             styles.timelineCard,
-            {
-              backgroundColor: palette.card,
-              borderColor: palette.border,
-              borderLeftColor: entry.accent,
-              shadowColor: palette.shadow,
-            },
+            paletteStyles.raisedCardSurface,
+            { borderLeftColor: entry.accent },
           ]}
         >
           <View style={styles.timelineHeader}>
             <View style={[styles.typeBadge, { backgroundColor: entry.accent }]}>
               <Text style={styles.typeLabel}>{entry.type}</Text>
             </View>
-            <Text style={[styles.timestamp, { color: palette.muted }]}>
+            <Text style={[styles.timestamp, paletteStyles.mutedText]}>
               {entry.timestamp}
             </Text>
           </View>
@@ -491,11 +467,11 @@ export default function TabTwoScreen() {
           <Text style={[styles.spaceLabel, { color: entry.accent }]}>
             {entry.spaceName}
           </Text>
-          <Text style={[styles.entryDetail, { color: palette.muted }]}>
+          <Text style={[styles.entryDetail, paletteStyles.mutedText]}>
             {entry.detail}
           </Text>
           {logsById.get(entry.id)?.tags?.length ? (
-            <Text style={[styles.tagSummary, { color: palette.muted }]}>
+            <Text style={[styles.tagSummary, paletteStyles.mutedText]}>
               Tags: {logsById.get(entry.id)?.tags?.join(" • ")}
             </Text>
           ) : null}
@@ -505,18 +481,9 @@ export default function TabTwoScreen() {
         </Pressable>
       ))}
 
-      <View
-        style={[
-          styles.noteCard,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-            shadowColor: palette.shadow,
-          },
-        ]}
-      >
+      <View style={[styles.noteCard, paletteStyles.raisedCardSurface]}>
         <Text style={styles.noteTitle}>Timeline tips</Text>
-        <Text style={[styles.noteCopy, { color: palette.muted }]}>
+        <Text style={[styles.noteCopy, paletteStyles.mutedText]}>
           {timelineEntries.length === 0
             ? "Real activity will appear here once logs, reminders, or metric readings are captured in your workspace."
             : "Use the search and filters above to narrow your real workspace history by time, type, space, asset, tag, or safe-zone alerts."}
@@ -531,159 +498,128 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
-    paddingBottom: 120,
-    gap: 16,
+    padding: uiSpace.screen,
+    paddingBottom: uiSpace.screenBottomTabs,
+    gap: uiSpace.xxl,
   },
   header: {
-    borderWidth: 1,
-    borderRadius: 28,
-    padding: 22,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.hero,
+    padding: uiSpace.hero,
   },
   headerBadgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 14,
+    gap: uiSpace.md,
+    marginBottom: uiSpace.xl,
   },
   headerBadge: {
-    borderRadius: 999,
+    borderRadius: uiRadius.pill,
   },
-  headerBadgeLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
+  headerBadgeLabel: uiTypography.chip,
+  title: { ...uiTypography.heroTitle, marginBottom: uiSpace.sm },
+  subtitle: uiTypography.subtitle,
   searchCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.surface,
   },
   searchInput: {
-    marginTop: 10,
+    marginTop: uiSpace.md,
   },
   resultsMeta: {
-    fontSize: 12,
-    marginTop: 10,
+    ...uiTypography.chip,
+    marginTop: uiSpace.md,
   },
   filterPanel: {
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
+    ...uiShadow.raisedCard,
+    elevation: uiElevation.raisedCard,
   },
   filterGroup: {
-    marginBottom: 18,
+    marginBottom: uiSpace.surface,
   },
   filterGroupTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    marginBottom: 10,
+    ...uiTypography.bodyStrong,
+    marginBottom: uiSpace.md,
   },
   filterRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: uiSpace.md,
   },
   filterChip: {
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    borderWidth: 1,
-    borderRadius: 999,
+    paddingHorizontal: uiSpace.xl,
+    paddingVertical: uiSpace.sm,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.pill,
   },
   filterLabel: {
     fontSize: 13,
     fontWeight: "600",
   },
   timelineCard: {
-    borderWidth: 1,
+    borderWidth: uiBorder.standard,
     borderLeftWidth: 5,
-    borderRadius: 22,
-    padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
+    ...uiShadow.raisedCard,
+    elevation: uiElevation.raisedCard,
   },
   timelineHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: uiSpace.lg,
   },
   typeBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
+    borderRadius: uiRadius.pill,
+    paddingHorizontal: uiSpace.md,
     paddingVertical: 5,
   },
   typeLabel: {
     color: "#f8fafc",
-    fontSize: 12,
-    fontWeight: "700",
+    ...uiTypography.chip,
   },
   timestamp: {
     fontSize: 12,
   },
   entryTitle: {
-    fontSize: 17,
-    fontWeight: "700",
+    ...uiTypography.titleSection,
     marginBottom: 6,
   },
   spaceLabel: {
-    fontSize: 12,
-    fontWeight: "700",
+    ...uiTypography.chip,
     marginBottom: 6,
   },
-  entryDetail: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  entryDetail: uiTypography.body,
   tagSummary: {
-    fontSize: 12,
-    lineHeight: 18,
-    marginTop: 8,
+    ...uiTypography.support,
+    marginTop: uiSpace.sm,
   },
   tapHint: {
-    fontSize: 12,
-    fontWeight: "800",
-    marginTop: 12,
+    ...uiTypography.microLabel,
+    marginTop: uiSpace.lg,
   },
   noteCard: {
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
+    ...uiShadow.raisedCard,
+    elevation: uiElevation.raisedCard,
   },
   emptyCard: {
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 18,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
+    ...uiShadow.raisedCard,
+    elevation: uiElevation.raisedCard,
   },
   noteTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    ...uiTypography.titleMd,
     marginBottom: 6,
   },
-  noteCopy: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
+  noteCopy: uiTypography.body,
 });

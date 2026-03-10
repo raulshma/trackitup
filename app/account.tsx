@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Platform, ScrollView, StyleSheet } from "react-native";
 import {
   ActivityIndicator,
@@ -8,11 +8,16 @@ import {
   SegmentedButtons,
 } from "react-native-paper";
 
-import { Text, View } from "@/components/Themed";
+import { Text } from "@/components/Themed";
+import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { ChipRow } from "@/components/ui/ChipRow";
 import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
 import { useAppAuth } from "@/providers/AuthProvider";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
@@ -30,6 +35,10 @@ const themeOptionLabels: Record<ThemePreference, string> = {
 export default function AccountScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const auth = useAppAuth();
   const workspace = useWorkspace();
@@ -78,7 +87,7 @@ export default function AccountScreen() {
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
+      style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
     >
       <ScreenHero
@@ -107,7 +116,7 @@ export default function AccountScreen() {
         label="Appearance"
         title="Theme preference"
       >
-        <Text style={[styles.copy, { color: palette.muted }]}>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
           The app defaults to dark mode, and you can switch between light, dark,
           and OLED at any time.
         </Text>
@@ -122,15 +131,15 @@ export default function AccountScreen() {
             label: themeOptionLabels[value],
           }))}
         />
-        <View style={styles.themeChipRow}>
+        <ChipRow style={styles.themeChipRow}>
           <Chip compact style={styles.themeChip} icon="theme-light-dark">
             Active: {themeOptionLabels[themePreference]}
           </Chip>
           <Chip compact style={styles.themeChip}>
             Default: Dark
           </Chip>
-        </View>
-        <Text style={[styles.meta, { color: palette.muted }]}>
+        </ChipRow>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
           OLED uses pure-black backgrounds for the darkest nighttime look.
         </Text>
       </SectionSurface>
@@ -140,7 +149,7 @@ export default function AccountScreen() {
         label="Authentication"
         title="Current auth status"
       >
-        <View style={styles.themeChipRow}>
+        <ChipRow style={styles.themeChipRow}>
           <Chip compact style={styles.themeChip}>
             {auth.clerkPublishableKeyConfigured
               ? "Clerk configured"
@@ -149,13 +158,13 @@ export default function AccountScreen() {
           <Chip compact style={styles.themeChip}>
             {authStateLabel}
           </Chip>
-        </View>
-        <Text style={[styles.copy, { color: palette.muted }]}>{auth.note}</Text>
+        </ChipRow>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>{auth.note}</Text>
       </SectionSurface>
 
       {!auth.clerkPublishableKeyConfigured ? (
         <SectionSurface palette={palette} label="Setup" title="Enable sign-in">
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
             Add `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` to your Expo environment to
             activate Clerk sign-in. Until then, the app remains fully
             local-first.
@@ -175,22 +184,22 @@ export default function AccountScreen() {
           title="Loading authentication"
         >
           <ActivityIndicator style={styles.loader} />
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
             Clerk is initializing securely on this device.
           </Text>
         </SectionSurface>
       ) : auth.isSignedIn ? (
         <SectionSurface palette={palette} label="Identity" title="Signed in">
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
             Name: {auth.displayName ?? "Unnamed user"}
           </Text>
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
             Email: {auth.primaryEmailAddress ?? "No primary email returned"}
           </Text>
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
             User ID: {auth.userId ?? "Unavailable"}
           </Text>
-          <View style={styles.buttonRow}>
+          <ActionButtonRow style={styles.buttonRow}>
             <Button
               mode="contained"
               onPress={() => router.replace("/(tabs)")}
@@ -207,7 +216,7 @@ export default function AccountScreen() {
             >
               Sign out
             </Button>
-          </View>
+          </ActionButtonRow>
         </SectionSurface>
       ) : (
         <SectionSurface
@@ -215,7 +224,7 @@ export default function AccountScreen() {
           label="Identity"
           title="Optional sign-in"
         >
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
             Use Clerk to connect this device to future premium sync, backups,
             and multi-device access. You can still continue locally without
             signing in.
@@ -263,30 +272,30 @@ export default function AccountScreen() {
         label="Cloud sync"
         title="Premium sync status"
       >
-        <View style={styles.themeChipRow}>
+        <ChipRow style={styles.themeChipRow}>
           <Chip compact style={styles.themeChip}>
             {syncStateLabel}
           </Chip>
           <Chip compact style={styles.themeChip}>
             Snapshot: {lastLocalSnapshot}
           </Chip>
-        </View>
-        <Text style={[styles.copy, { color: palette.muted }]}>
+        </ChipRow>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
           Pending queued changes: {workspace.workspace.syncQueue.length}
         </Text>
-        <Text style={[styles.copy, { color: palette.muted }]}>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
           Local snapshot: {lastLocalSnapshot}
         </Text>
-        <Text style={[styles.copy, { color: palette.muted }]}>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
           Last sync:{" "}
           {workspace.workspace.lastSyncAt
             ? new Date(workspace.workspace.lastSyncAt).toLocaleString()
             : "No successful sync yet"}
         </Text>
-        <Text style={[styles.copy, { color: palette.muted }]}>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
           Last error: {workspace.workspace.lastSyncError ?? "None"}
         </Text>
-        <Text style={[styles.copy, { color: palette.muted }]}>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
           Configure EXPO_PUBLIC_TRACKITUP_SYNC_ENDPOINT to enable push, pull,
           and force-restore cloud backups when Clerk auth is available.
         </Text>
@@ -299,7 +308,7 @@ export default function AccountScreen() {
         >
           Sync now
         </Button>
-        <View style={styles.buttonRow}>
+        <ActionButtonRow style={styles.buttonRow}>
           <Button
             mode="outlined"
             onPress={() => runAction(workspace.pullWorkspaceFromCloud)}
@@ -318,38 +327,32 @@ export default function AccountScreen() {
           >
             Force restore
           </Button>
-        </View>
+        </ActionButtonRow>
       </SectionSurface>
 
-      <SectionSurface
+      <SectionMessage
         palette={palette}
         label="Session"
         title="Session feedback"
-      >
-        <Text style={[styles.copy, { color: palette.muted }]}>
-          {statusMessage}
-        </Text>
-      </SectionSurface>
+        message={statusMessage}
+      />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 20, paddingBottom: 32 },
-  copy: { fontSize: 14, lineHeight: 20, marginBottom: 6 },
-  meta: { fontSize: 12, fontWeight: "700", marginTop: 2, lineHeight: 18 },
-  loader: { marginVertical: 12 },
-  button: { marginTop: 10 },
-  buttonRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+  content: { padding: uiSpace.screen, paddingBottom: uiSpace.screenBottom },
+  copy: { ...uiTypography.body, marginBottom: 6 },
+  meta: { ...uiTypography.label, marginTop: uiSpace.xxs, lineHeight: 18 },
+  loader: { marginVertical: uiSpace.lg },
+  button: { marginTop: uiSpace.md },
+  buttonRow: { marginTop: uiSpace.md },
   inlineButton: { flex: 1 },
-  themeSelector: { marginTop: 10 },
+  themeSelector: { marginTop: uiSpace.md },
   themeChipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: uiSpace.lg,
+    marginBottom: uiSpace.xs,
   },
-  themeChip: { borderRadius: 999 },
+  themeChip: { borderRadius: uiRadius.pill },
 });

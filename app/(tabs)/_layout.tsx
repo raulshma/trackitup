@@ -7,11 +7,41 @@ import { type MD3Theme, useTheme } from "react-native-paper";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
+import {
+    uiBorder,
+    uiElevation,
+    uiRadius,
+    uiShadow,
+    uiSize,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const palette = getAppPalette(colorScheme);
   const theme = useTheme<MD3Theme>();
+  const headerActionToneStyles = React.useMemo(
+    () =>
+      StyleSheet.create({
+        surface: {
+          backgroundColor: theme.colors.elevation.level2,
+          borderColor: theme.colors.outlineVariant,
+          shadowColor: palette.shadow,
+        },
+        pressed: {
+          opacity: 0.72,
+        },
+        idle: {
+          opacity: 1,
+        },
+      }),
+    [
+      palette.shadow,
+      theme.colors.elevation.level2,
+      theme.colors.outlineVariant,
+    ],
+  );
 
   return (
     <Tabs
@@ -26,25 +56,22 @@ export default function TabLayout() {
         tabBarStyle: {
           backgroundColor: theme.colors.elevation.level2,
           borderTopColor: theme.colors.outlineVariant,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          height: 72,
-          paddingTop: 10,
-          paddingBottom: 12,
-          paddingHorizontal: 8,
+          borderTopWidth: uiBorder.hairline,
+          height: uiSize.tabBarHeight,
+          paddingTop: uiSpace.md,
+          paddingBottom: uiSpace.lg,
+          paddingHorizontal: uiSpace.sm,
           shadowColor: palette.shadow,
-          shadowOpacity: 0.12,
-          shadowRadius: 16,
-          shadowOffset: { width: 0, height: -4 },
-          elevation: 8,
+          ...uiShadow.tabBar,
+          elevation: uiElevation.chrome,
         },
         tabBarItemStyle: {
-          borderRadius: 20,
-          marginHorizontal: 4,
-          marginVertical: 2,
+          borderRadius: uiRadius.lg,
+          marginHorizontal: uiSpace.xs,
+          marginVertical: uiSpace.xxs,
         },
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "600",
+          ...uiTypography.tabLabel,
           marginTop: 1,
         },
         headerStyle: {
@@ -53,10 +80,7 @@ export default function TabLayout() {
         headerTintColor: theme.colors.onSurface,
         headerShadowVisible: false,
         headerTitleAlign: "left",
-        headerTitleStyle: {
-          fontSize: 22,
-          fontWeight: "600",
-        },
+        headerTitleStyle: uiTypography.navTitle,
         // Disable the static render of the header on web
         // to prevent a hydration error in React Navigation v6.
         headerShown: useClientOnlyValue(false, true),
@@ -79,26 +103,17 @@ export default function TabLayout() {
             />
           ),
           headerRight: () => (
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 16,
-                marginRight: 15,
-              }}
-            >
+            <View style={styles.headerActions}>
               <Link href="../account" asChild>
                 <Pressable>
                   {({ pressed }) => (
                     <View
                       style={[
                         styles.headerActionButton,
-                        {
-                          backgroundColor: theme.colors.elevation.level2,
-                          borderColor: theme.colors.outlineVariant,
-                          shadowColor: palette.shadow,
-                          opacity: pressed ? 0.72 : 1,
-                        },
+                        headerActionToneStyles.surface,
+                        pressed
+                          ? headerActionToneStyles.pressed
+                          : headerActionToneStyles.idle,
                       ]}
                     >
                       <SymbolView
@@ -120,12 +135,10 @@ export default function TabLayout() {
                     <View
                       style={[
                         styles.headerActionButton,
-                        {
-                          backgroundColor: theme.colors.elevation.level2,
-                          borderColor: theme.colors.outlineVariant,
-                          shadowColor: palette.shadow,
-                          opacity: pressed ? 0.72 : 1,
-                        },
+                        headerActionToneStyles.surface,
+                        pressed
+                          ? headerActionToneStyles.pressed
+                          : headerActionToneStyles.idle,
                       ]}
                     >
                       <SymbolView
@@ -202,15 +215,19 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   headerActionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
+    width: uiSize.headerAction,
+    height: uiSize.headerAction,
+    borderRadius: uiRadius.lg,
+    borderWidth: uiBorder.standard,
     alignItems: "center",
     justifyContent: "center",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    ...uiShadow.headerAction,
+    elevation: uiElevation.hero,
+  },
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: uiSpace.xxl,
+    marginRight: uiSpace.xl,
   },
 });

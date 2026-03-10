@@ -5,12 +5,21 @@ import { Button, Chip, Surface } from "react-native-paper";
 
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
 import { Text } from "@/components/Themed";
+import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import {
     getLogKindFormTemplate,
     getQuickActionFormTemplate,
 } from "@/constants/TrackItUpFormTemplates";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
     buildInitialFormValues,
@@ -101,6 +110,10 @@ function formatCustomFieldValue(value: unknown): string {
 export default function LogbookScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const {
     isHydrated,
@@ -283,29 +296,23 @@ export default function LogbookScreen() {
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
+      style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
     >
       <Stack.Screen options={{ title: screenTitle }} />
 
-      <Surface
-        style={[
-          styles.hero,
-          { backgroundColor: palette.hero, borderColor: palette.heroBorder },
-        ]}
-        elevation={2}
-      >
+      <Surface style={[styles.hero, paletteStyles.heroSurface]} elevation={2}>
         <View style={styles.heroBadgeRow}>
           <Chip
             compact
-            style={[styles.heroBadge, { backgroundColor: palette.card }]}
-            textStyle={[styles.heroBadgeText, { color: palette.tint }]}
+            style={[styles.heroBadge, paletteStyles.cardChipSurface]}
+            textStyle={[styles.heroBadgeText, paletteStyles.tintText]}
           >
             TrackItUp logbook
           </Chip>
           <Chip
             compact
-            style={[styles.heroBadge, { backgroundColor: palette.accentSoft }]}
+            style={[styles.heroBadge, paletteStyles.accentChipSurface]}
             textStyle={styles.heroBadgeText}
           >
             {entry
@@ -316,7 +323,7 @@ export default function LogbookScreen() {
           </Chip>
         </View>
         <Text style={styles.title}>{screenTitle}</Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
+        <Text style={[styles.subtitle, paletteStyles.mutedText]}>
           {entry
             ? "Review the selected timeline event and its linked tracking context."
             : action
@@ -328,38 +335,32 @@ export default function LogbookScreen() {
       </Surface>
 
       <Surface
-        style={[
-          styles.statusCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+        style={[styles.statusCard, paletteStyles.cardSurface]}
         elevation={1}
       >
         <View style={styles.statusHeader}>
           <Text style={styles.sectionTitle}>Workspace persistence</Text>
           <Chip
             compact
-            style={[
-              styles.statusBadge,
-              { backgroundColor: palette.primaryContainer },
-            ]}
+            style={[styles.statusBadge, paletteStyles.primaryChipSurface]}
             textStyle={[
               styles.statusBadgeText,
-              { color: palette.onPrimaryContainer },
+              paletteStyles.onPrimaryChipText,
             ]}
           >
             {isHydrated ? persistenceLabel : "Hydrating snapshot"}
           </Chip>
         </View>
-        <Text style={[styles.listCopy, { color: palette.muted }]}>
+        <Text style={[styles.listCopy, paletteStyles.mutedText]}>
           {logEntries.length} logs and {workspace.spaces.length} spaces are
           currently loaded from the shared workspace store.
         </Text>
         {feedbackMessage ? (
-          <Text style={[styles.statusMessage, { color: palette.tint }]}>
+          <Text style={[styles.statusMessage, paletteStyles.tintText]}>
             {feedbackMessage}
           </Text>
         ) : null}
-        <View style={styles.actionButtonRow}>
+        <ActionButtonRow style={styles.actionButtonRow}>
           {action || selectedTemplate ? (
             <Button
               onPress={handleSaveEntry}
@@ -378,22 +379,19 @@ export default function LogbookScreen() {
           >
             Clear workspace data
           </Button>
-        </View>
+        </ActionButtonRow>
       </Surface>
 
       {activeTemplate ? (
         <Surface
-          style={[
-            styles.sectionCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
-          ]}
+          style={[styles.sectionCard, paletteStyles.cardSurface]}
           elevation={1}
         >
-          <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+          <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
             Form
           </Text>
           <Text style={styles.sectionTitle}>{activeTemplate.title}</Text>
-          <Text style={[styles.templateIntro, { color: palette.muted }]}>
+          <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
             {activeTemplate.description}
           </Text>
           <DynamicFormRenderer
@@ -415,10 +413,8 @@ export default function LogbookScreen() {
           <Surface
             style={[
               styles.heroCard,
-              {
-                backgroundColor: palette.card,
-                borderColor: entrySpace.themeColor,
-              },
+              paletteStyles.cardChipSurface,
+              { borderColor: entrySpace.themeColor },
             ]}
             elevation={1}
           >
@@ -433,12 +429,12 @@ export default function LogbookScreen() {
               >
                 {logTypeLabels[entry.kind]}
               </Chip>
-              <Text style={[styles.metaText, { color: palette.muted }]}>
+              <Text style={[styles.metaText, paletteStyles.mutedText]}>
                 {formatDateTime(entry.occurredAt)}
               </Text>
             </View>
             <Text style={styles.cardTitle}>{entry.title}</Text>
-            <Text style={[styles.cardCopy, { color: palette.muted }]}>
+            <Text style={[styles.cardCopy, paletteStyles.mutedText]}>
               {entry.note}
             </Text>
             <Text style={[styles.metaText, { color: entrySpace.themeColor }]}>
@@ -462,13 +458,10 @@ export default function LogbookScreen() {
 
           {relatedMetrics.length > 0 ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Metrics
               </Text>
               <Text style={styles.sectionTitle}>Metric readings</Text>
@@ -477,7 +470,7 @@ export default function LogbookScreen() {
                   <Text style={styles.listTitle}>
                     {definition?.name ?? "Unknown metric"}
                   </Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     {String(reading.value)}{" "}
                     {reading.unitLabel ?? definition?.unitLabel ?? ""} • Safe
                     zone{" "}
@@ -490,20 +483,17 @@ export default function LogbookScreen() {
 
           {relatedAssets.length > 0 ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Assets
               </Text>
               <Text style={styles.sectionTitle}>Related assets</Text>
               {relatedAssets.map((asset) => (
                 <View key={asset.id} style={styles.listItem}>
                   <Text style={styles.listTitle}>{asset.name}</Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     {asset.category} • {asset.note}
                   </Text>
                 </View>
@@ -513,20 +503,17 @@ export default function LogbookScreen() {
 
           {relatedRoutine || relatedReminder ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Workflow
               </Text>
               <Text style={styles.sectionTitle}>Linked workflow</Text>
               {relatedRoutine ? (
                 <View style={styles.listItem}>
                   <Text style={styles.listTitle}>{relatedRoutine.name}</Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     {relatedRoutine.description}
                   </Text>
                 </View>
@@ -534,7 +521,7 @@ export default function LogbookScreen() {
               {relatedReminder ? (
                 <View style={styles.listItem}>
                   <Text style={styles.listTitle}>{relatedReminder.title}</Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     Due {formatDateTime(relatedReminder.dueAt)}
                   </Text>
                 </View>
@@ -544,13 +531,10 @@ export default function LogbookScreen() {
 
           {parentEntry || childEntries.length > 0 ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Navigation
               </Text>
               <Text style={styles.sectionTitle}>Macro-linked logs</Text>
@@ -572,7 +556,7 @@ export default function LogbookScreen() {
                 <View key={childEntry.id} style={styles.linkedLogRow}>
                   <View style={styles.linkedLogCopy}>
                     <Text style={styles.listTitle}>{childEntry.title}</Text>
-                    <Text style={[styles.listCopy, { color: palette.muted }]}>
+                    <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                       {logTypeLabels[childEntry.kind]} •{" "}
                       {formatDateTime(childEntry.occurredAt)}
                     </Text>
@@ -596,40 +580,37 @@ export default function LogbookScreen() {
 
           {entry.attachmentsCount || entry.locationLabel || entry.cost ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Context
               </Text>
               <Text style={styles.sectionTitle}>Extended context</Text>
               {entry.attachmentsCount ? (
-                <Text style={[styles.listCopy, { color: palette.muted }]}>
+                <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                   Attachments: {entry.attachmentsCount}
                 </Text>
               ) : null}
               {entry.attachments?.length ? (
-                <Text style={[styles.listCopy, { color: palette.muted }]}>
+                <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                   Types:{" "}
                   {entry.attachments.map((item) => item.mediaType).join(" • ")}
                 </Text>
               ) : null}
               {entry.locationLabel ? (
-                <Text style={[styles.listCopy, { color: palette.muted }]}>
+                <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                   Location: {entry.locationLabel}
                 </Text>
               ) : null}
               {entry.locationPoint ? (
-                <Text style={[styles.listCopy, { color: palette.muted }]}>
+                <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                   GPS: {entry.locationPoint.latitude.toFixed(4)},{" "}
                   {entry.locationPoint.longitude.toFixed(4)}
                 </Text>
               ) : null}
               {entry.cost ? (
-                <Text style={[styles.listCopy, { color: palette.muted }]}>
+                <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                   Linked cost: {formatCurrency(entry.cost)}
                 </Text>
               ) : null}
@@ -637,20 +618,17 @@ export default function LogbookScreen() {
           ) : null}
           {entry.customFieldValues ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Custom fields
               </Text>
               <Text style={styles.sectionTitle}>Custom schema fields</Text>
               {Object.entries(entry.customFieldValues).map(([label, value]) => (
                 <View key={label} style={styles.listItem}>
                   <Text style={styles.listTitle}>{label}</Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     {formatCustomFieldValue(value)}
                   </Text>
                 </View>
@@ -663,17 +641,15 @@ export default function LogbookScreen() {
           <Surface
             style={[
               styles.heroCard,
-              {
-                backgroundColor: palette.card,
-                borderColor: linkedSpace?.themeColor ?? palette.tint,
-              },
+              paletteStyles.cardChipSurface,
+              { borderColor: linkedSpace?.themeColor ?? palette.tint },
             ]}
             elevation={1}
           >
             <Text style={styles.cardTitle}>
               {action?.label ?? selectedTemplate?.name}
             </Text>
-            <Text style={[styles.cardCopy, { color: palette.muted }]}>
+            <Text style={[styles.cardCopy, paletteStyles.mutedText]}>
               {action
                 ? actionDescriptions[action.kind]
                 : selectedTemplate?.summary}
@@ -693,20 +669,17 @@ export default function LogbookScreen() {
           </Surface>
 
           <Surface
-            style={[
-              styles.sectionCard,
-              { backgroundColor: palette.card, borderColor: palette.border },
-            ]}
+            style={[styles.sectionCard, paletteStyles.cardSurface]}
             elevation={1}
           >
-            <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+            <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
               Suggestions
             </Text>
             <Text style={styles.sectionTitle}>Suggested spaces</Text>
             {suggestedSpaces.map((space) => (
               <View key={space.id} style={styles.listItem}>
                 <Text style={styles.listTitle}>{space.name}</Text>
-                <Text style={[styles.listCopy, { color: palette.muted }]}>
+                <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                   {space.templateName ?? "Custom space"} • {space.summary}
                 </Text>
               </View>
@@ -716,20 +689,17 @@ export default function LogbookScreen() {
           {action?.kind === "metric-entry" ||
           selectedTemplate?.formTemplate?.quickActionKind === "metric-entry" ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Metrics
               </Text>
               <Text style={styles.sectionTitle}>Ready-to-log metrics</Text>
               {suggestedMetrics.map((metric) => (
                 <View key={metric.id} style={styles.listItem}>
                   <Text style={styles.listTitle}>{metric.name}</Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     {metric.unitLabel ?? "No unit"} • Safe zone{" "}
                     {formatSafeZone(metric.safeMin, metric.safeMax)}
                   </Text>
@@ -741,20 +711,17 @@ export default function LogbookScreen() {
           {action?.kind === "routine-run" ||
           selectedTemplate?.formTemplate?.quickActionKind === "routine-run" ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Routine
               </Text>
               <Text style={styles.sectionTitle}>Routine steps</Text>
               {suggestedRoutines.map((routine) => (
                 <View key={routine.id} style={styles.listItem}>
                   <Text style={styles.listTitle}>{routine.name}</Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     {routine.steps.map((step) => step.label).join(" • ")}
                   </Text>
                 </View>
@@ -765,20 +732,17 @@ export default function LogbookScreen() {
           {action?.kind === "quick-log" ||
           selectedTemplate?.formTemplate?.quickActionKind === "quick-log" ? (
             <Surface
-              style={[
-                styles.sectionCard,
-                { backgroundColor: palette.card, borderColor: palette.border },
-              ]}
+              style={[styles.sectionCard, paletteStyles.cardSurface]}
               elevation={1}
             >
-              <Text style={[styles.sectionLabel, { color: palette.tint }]}>
+              <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
                 Reminders
               </Text>
               <Text style={styles.sectionTitle}>Open reminders to capture</Text>
               {suggestedReminders.map((reminder) => (
                 <View key={reminder.id} style={styles.listItem}>
                   <Text style={styles.listTitle}>{reminder.title}</Text>
-                  <Text style={[styles.listCopy, { color: palette.muted }]}>
+                  <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                     {reminder.description}
                   </Text>
                 </View>
@@ -787,22 +751,12 @@ export default function LogbookScreen() {
           ) : null}
         </>
       ) : (
-        <Surface
-          style={[
-            styles.sectionCard,
-            { backgroundColor: palette.card, borderColor: palette.border },
-          ]}
-          elevation={1}
-        >
-          <Text style={[styles.sectionLabel, { color: palette.tint }]}>
-            Empty state
-          </Text>
-          <Text style={styles.sectionTitle}>No selection yet</Text>
-          <Text style={[styles.listCopy, { color: palette.muted }]}>
-            Start from Home quick actions or tap a timeline card to inspect a
-            real logbook item.
-          </Text>
-        </Surface>
+        <SectionMessage
+          palette={palette}
+          label="Empty state"
+          title="No selection yet"
+          message="Start from Home quick actions or tap a timeline card to inspect a real logbook item."
+        />
       )}
     </ScrollView>
   );
@@ -810,106 +764,106 @@ export default function LogbookScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 20, paddingBottom: 32 },
+  content: { padding: uiSpace.screen, paddingBottom: uiSpace.screenBottom },
   hero: {
-    borderWidth: 1,
-    borderRadius: 28,
-    padding: 22,
-    marginBottom: 18,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.hero,
+    padding: uiSpace.hero,
+    marginBottom: uiSpace.surface,
   },
   heroBadgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
+    gap: uiSpace.sm,
+    marginBottom: uiSpace.lg,
   },
   heroBadge: {
-    borderRadius: 999,
+    borderRadius: uiRadius.pill,
   },
-  heroBadgeText: {
-    fontSize: 12,
-    fontWeight: "700",
+  heroBadgeText: uiTypography.chip,
+  eyebrow: { ...uiTypography.heroEyebrow, marginBottom: uiSpace.sm },
+  title: uiTypography.heroTitle,
+  subtitle: { ...uiTypography.subtitle, marginTop: uiSpace.md },
+  heroCard: {
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.surface,
+    marginBottom: uiSpace.xxl,
   },
-  eyebrow: { fontSize: 13, fontWeight: "700", marginBottom: 8 },
-  title: { fontSize: 30, fontWeight: "bold", lineHeight: 38 },
-  subtitle: { fontSize: 15, lineHeight: 22, marginTop: 10 },
-  heroCard: { borderWidth: 1, borderRadius: 24, padding: 18, marginBottom: 16 },
   statusCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 16,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.surface,
+    marginBottom: uiSpace.xxl,
   },
   statusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
+    gap: uiSpace.lg,
+    marginBottom: uiSpace.lg,
   },
-  statusBadge: { borderRadius: 999 },
-  statusBadgeText: { fontSize: 12, fontWeight: "700" },
-  statusMessage: { fontSize: 13, lineHeight: 18, marginTop: 10 },
-  actionButtonRow: { flexDirection: "row", gap: 10, marginTop: 14 },
+  statusBadge: { borderRadius: uiRadius.pill },
+  statusBadgeText: uiTypography.chip,
+  statusMessage: { ...uiTypography.bodySmall, marginTop: uiSpace.md },
+  actionButtonRow: { marginTop: uiSpace.xl },
   paperActionButton: {
     flex: 1,
   },
-  paperActionButtonContent: { paddingVertical: 4 },
+  paperActionButtonContent: { paddingVertical: uiSpace.xs },
   cardHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: uiSpace.lg,
   },
-  badge: { borderRadius: 999 },
-  badgeText: { color: "#f8fafc", fontSize: 12, fontWeight: "700" },
-  cardTitle: { fontSize: 20, fontWeight: "700", marginBottom: 6 },
-  cardCopy: { fontSize: 14, lineHeight: 20, marginBottom: 10 },
-  metaText: { fontSize: 12, fontWeight: "700" },
+  badge: { borderRadius: uiRadius.pill },
+  badgeText: { color: "#f8fafc", ...uiTypography.chip },
+  cardTitle: { ...uiTypography.titleXl, marginBottom: 6 },
+  cardCopy: { ...uiTypography.body, marginBottom: uiSpace.md },
+  metaText: uiTypography.chip,
   sectionCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 16,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.surface,
+    marginBottom: uiSpace.xxl,
   },
   sectionLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    marginBottom: 8,
+    ...uiTypography.label,
+    marginBottom: uiSpace.sm,
     textTransform: "uppercase",
   },
-  sectionTitle: { fontSize: 17, fontWeight: "700", marginBottom: 12 },
-  templateIntro: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
-  templateSection: { marginTop: 4, marginBottom: 12 },
-  templateSectionTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
-  templateSectionCopy: { fontSize: 13, lineHeight: 18, marginBottom: 10 },
+  sectionTitle: { ...uiTypography.titleSection, marginBottom: uiSpace.lg },
+  templateIntro: { ...uiTypography.body, marginBottom: uiSpace.lg },
+  templateSection: { marginTop: uiSpace.xs, marginBottom: uiSpace.lg },
+  templateSectionTitle: { ...uiTypography.titleSm, marginBottom: uiSpace.xs },
+  templateSectionCopy: { ...uiTypography.bodySmall, marginBottom: uiSpace.md },
   fieldCard: {
-    borderWidth: 1,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.sm,
+    padding: uiSpace.xl,
+    marginBottom: uiSpace.md,
   },
   fieldHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 6,
-    gap: 8,
+    gap: uiSpace.sm,
   },
-  fieldLabel: { flex: 1, fontSize: 14, fontWeight: "700" },
-  fieldMeta: { fontSize: 12, fontWeight: "700" },
-  fieldDescription: { fontSize: 13, lineHeight: 18, marginBottom: 6 },
-  fieldPreview: { fontSize: 13, lineHeight: 18 },
-  navButton: { marginBottom: 12, alignSelf: "flex-start" },
+  fieldLabel: { flex: 1, ...uiTypography.bodyStrong },
+  fieldMeta: uiTypography.chip,
+  fieldDescription: { ...uiTypography.bodySmall, marginBottom: 6 },
+  fieldPreview: uiTypography.bodySmall,
+  navButton: { marginBottom: uiSpace.lg, alignSelf: "flex-start" },
   linkedLogRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginBottom: 12,
+    gap: uiSpace.lg,
+    marginBottom: uiSpace.lg,
   },
   linkedLogCopy: { flex: 1 },
-  listItem: { marginBottom: 12 },
-  listTitle: { fontSize: 15, fontWeight: "700", marginBottom: 4 },
-  listCopy: { fontSize: 14, lineHeight: 20 },
+  listItem: { marginBottom: uiSpace.lg },
+  listTitle: { ...uiTypography.titleSm, marginBottom: uiSpace.xs },
+  listCopy: uiTypography.body,
 });

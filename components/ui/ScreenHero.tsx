@@ -3,9 +3,14 @@ import { StyleSheet, View } from "react-native";
 import { Chip, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
-import Colors from "@/constants/Colors";
-
-type AppPalette = (typeof Colors)[keyof typeof Colors];
+import type { AppPalette } from "@/constants/AppTheme";
+import {
+    uiBorder,
+    uiElevation,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 
 export type ScreenHeroBadge = {
   label: string;
@@ -36,7 +41,7 @@ export function ScreenHero({
         styles.hero,
         { backgroundColor: palette.hero, borderColor: palette.heroBorder },
       ]}
-      elevation={2}
+      elevation={uiElevation.hero}
     >
       {badges.length > 0 ? (
         <View style={styles.badgeRow}>
@@ -58,9 +63,13 @@ export function ScreenHero({
           ))}
         </View>
       ) : null}
-      {eyebrow ? <Text style={[styles.eyebrow, { color: palette.tint }]}>{eyebrow}</Text> : null}
+      {eyebrow ? (
+        <Text style={[styles.eyebrow, { color: palette.tint }]}>{eyebrow}</Text>
+      ) : null}
       <Text style={styles.title}>{title}</Text>
-      <Text style={[styles.subtitle, { color: palette.muted }]}>{subtitle}</Text>
+      <Text style={[styles.subtitle, { color: palette.muted }]}>
+        {subtitle}
+      </Text>
       {children}
     </Surface>
   );
@@ -68,37 +77,28 @@ export function ScreenHero({
 
 const styles = StyleSheet.create({
   hero: {
-    borderWidth: 1,
-    borderRadius: 28,
-    padding: 22,
-    marginBottom: 18,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.hero,
+    padding: uiSpace.hero,
+    marginBottom: uiSpace.surface,
   },
   badgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 12,
+    gap: uiSpace.sm,
+    marginBottom: uiSpace.lg,
   },
   badge: {
-    borderRadius: 999,
+    borderRadius: uiRadius.pill,
   },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
+  badgeText: uiTypography.chip,
   eyebrow: {
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 8,
+    ...uiTypography.heroEyebrow,
+    marginBottom: uiSpace.sm,
   },
   title: {
-    fontSize: 30,
-    lineHeight: 38,
-    fontWeight: "bold",
-    marginBottom: 8,
+    ...uiTypography.heroTitle,
+    marginBottom: uiSpace.sm,
   },
-  subtitle: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
+  subtitle: uiTypography.subtitle,
 });

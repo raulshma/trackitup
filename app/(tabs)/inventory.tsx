@@ -6,6 +6,15 @@ import { Button, Chip, Surface } from "react-native-paper";
 import { Text, View } from "@/components/Themed";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import {
+    uiBorder,
+    uiElevation,
+    uiRadius,
+    uiShadow,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 
 function formatCurrency(amount: number, currency = "USD") {
@@ -18,6 +27,10 @@ function formatCurrency(amount: number, currency = "USD") {
 export default function InventoryScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const { workspace } = useWorkspace();
 
@@ -58,40 +71,31 @@ export default function InventoryScreen() {
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
+      style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
     >
       <Surface
-        style={[
-          styles.header,
-          {
-            backgroundColor: palette.hero,
-            borderColor: palette.heroBorder,
-          },
-        ]}
-        elevation={2}
+        style={[styles.header, paletteStyles.heroSurface]}
+        elevation={uiElevation.hero}
       >
         <View style={styles.headerBadgeRow}>
           <Chip
             compact
-            style={[styles.headerBadge, { backgroundColor: palette.card }]}
-            textStyle={[styles.headerBadgeLabel, { color: palette.tint }]}
+            style={[styles.headerBadge, paletteStyles.cardChipSurface]}
+            textStyle={[styles.headerBadgeLabel, paletteStyles.tintText]}
           >
             Inventory
           </Chip>
           <Chip
             compact
-            style={[
-              styles.headerBadge,
-              { backgroundColor: palette.accentSoft },
-            ]}
+            style={[styles.headerBadge, paletteStyles.accentChipSurface]}
             textStyle={styles.headerBadgeLabel}
           >
             {formatCurrency(totalOwnership)} total
           </Chip>
         </View>
         <Text style={styles.title}>Inventory & lifecycle</Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
+        <Text style={[styles.subtitle, paletteStyles.mutedText]}>
           Keep hardware, supplies, and maintenance context in one place with
           clearer ownership costs, scan access, and lifecycle visibility.
         </Text>
@@ -99,12 +103,7 @@ export default function InventoryScreen() {
           {inventoryHighlights.map((item) => (
             <Chip
               key={item}
-              style={[
-                styles.highlightPill,
-                {
-                  backgroundColor: palette.card,
-                },
-              ]}
+              style={[styles.highlightPill, paletteStyles.cardChipSurface]}
               textStyle={styles.highlightLabel}
             >
               {item}
@@ -114,20 +113,14 @@ export default function InventoryScreen() {
       </Surface>
 
       <Surface
-        style={[
-          styles.summaryCard,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-          },
-        ]}
-        elevation={1}
+        style={[styles.summaryCard, paletteStyles.cardSurface]}
+        elevation={uiElevation.card}
       >
         <Text style={styles.summaryTitle}>Tracked ownership cost</Text>
         <Text style={styles.summaryValue}>
           {formatCurrency(totalOwnership)}
         </Text>
-        <Text style={[styles.summaryCopy, { color: palette.muted }]}>
+        <Text style={[styles.summaryCopy, paletteStyles.mutedText]}>
           {workspace.expenses.length} expense entries linked to assets and
           recurring care logs.
         </Text>
@@ -144,16 +137,12 @@ export default function InventoryScreen() {
         <View
           style={[
             styles.card,
-            {
-              backgroundColor: palette.card,
-              borderColor: palette.border,
-              borderLeftColor: palette.border,
-              shadowColor: palette.shadow,
-            },
+            paletteStyles.raisedCardSurface,
+            { borderLeftColor: palette.border },
           ]}
         >
           <Text style={styles.cardTitle}>No tracked assets yet</Text>
-          <Text style={[styles.copy, { color: palette.muted }]}>
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
             Asset records will appear here once real workspace data is synced,
             imported, or captured on this device.
           </Text>
@@ -164,12 +153,8 @@ export default function InventoryScreen() {
             key={asset.id}
             style={[
               styles.card,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.border,
-                borderLeftColor: palette.tint,
-                shadowColor: palette.shadow,
-              },
+              paletteStyles.raisedCardSurface,
+              { borderLeftColor: palette.tint },
             ]}
           >
             <Text style={styles.cardTitle}>{asset.name}</Text>
@@ -177,23 +162,23 @@ export default function InventoryScreen() {
               {asset.spaceName} • {asset.category} •{" "}
               {asset.status.toUpperCase()}
             </Text>
-            <Text style={[styles.copy, { color: palette.muted }]}>
+            <Text style={[styles.copy, paletteStyles.mutedText]}>
               {asset.note}
             </Text>
-            <Text style={[styles.copy, { color: palette.muted }]}>
+            <Text style={[styles.copy, paletteStyles.mutedText]}>
               Purchase: {asset.purchaseDate ?? "n/a"} •{" "}
               {formatCurrency(asset.purchasePrice ?? 0)}
             </Text>
-            <Text style={[styles.copy, { color: palette.muted }]}>
+            <Text style={[styles.copy, paletteStyles.mutedText]}>
               Warranty: {asset.warrantyExpiresAt ?? "n/a"}
               {asset.warrantyNote ? ` • ${asset.warrantyNote}` : ""}
             </Text>
-            <Text style={[styles.copy, { color: palette.muted }]}>
+            <Text style={[styles.copy, paletteStyles.mutedText]}>
               Linked logs: {asset.relatedLogCount} • Ownership cost:{" "}
               {formatCurrency(asset.expenseTotal)}
             </Text>
             {asset.barcodeValue || asset.qrCodeValue ? (
-              <Text style={[styles.copy, { color: palette.muted }]}>
+              <Text style={[styles.copy, paletteStyles.mutedText]}>
                 Codes: {asset.barcodeValue ?? asset.qrCodeValue}
               </Text>
             ) : null}
@@ -206,61 +191,60 @@ export default function InventoryScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 20, paddingBottom: 120, gap: 16 },
+  content: {
+    padding: uiSpace.screen,
+    paddingBottom: uiSpace.screenBottomTabs,
+    gap: uiSpace.xxl,
+  },
   header: {
-    borderWidth: 1,
-    borderRadius: 28,
-    padding: 22,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.hero,
+    padding: uiSpace.hero,
   },
   headerBadgeRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginBottom: 14,
+    gap: uiSpace.md,
+    marginBottom: uiSpace.xl,
   },
   headerBadge: {
-    borderRadius: 999,
+    borderRadius: uiRadius.pill,
   },
-  headerBadgeLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  title: { fontSize: 30, fontWeight: "bold", marginBottom: 8 },
-  subtitle: { fontSize: 15, lineHeight: 22 },
+  headerBadgeLabel: uiTypography.chip,
+  title: { ...uiTypography.heroTitle, marginBottom: uiSpace.sm },
+  subtitle: uiTypography.subtitle,
   highlightRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
-    marginTop: 18,
+    gap: uiSpace.md,
+    marginTop: uiSpace.surface,
   },
   highlightPill: {
-    borderRadius: 16,
+    borderRadius: uiRadius.md,
   },
   highlightLabel: {
     fontSize: 13,
     fontWeight: "700",
   },
   summaryCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 20,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.screen,
   },
-  summaryTitle: { fontSize: 16, fontWeight: "700", marginBottom: 6 },
-  summaryValue: { fontSize: 26, fontWeight: "800", marginBottom: 6 },
-  summaryCopy: { fontSize: 14, lineHeight: 20 },
-  scanButton: { marginTop: 14 },
+  summaryTitle: { ...uiTypography.titleMd, marginBottom: 6 },
+  summaryValue: { ...uiTypography.valueLg, marginBottom: 6 },
+  summaryCopy: uiTypography.body,
+  scanButton: { marginTop: uiSpace.xl },
   card: {
-    borderWidth: 1,
+    borderWidth: uiBorder.standard,
     borderLeftWidth: 5,
-    borderRadius: 22,
-    padding: 18,
-    marginBottom: 12,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 3,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
+    marginBottom: uiSpace.lg,
+    ...uiShadow.raisedCard,
+    elevation: uiElevation.raisedCard,
   },
-  cardTitle: { fontSize: 17, fontWeight: "700", marginBottom: 6 },
-  meta: { fontSize: 12, fontWeight: "700", marginBottom: 8 },
-  copy: { fontSize: 14, lineHeight: 20, marginBottom: 4 },
+  cardTitle: { ...uiTypography.titleSection, marginBottom: 6 },
+  meta: { ...uiTypography.chip, marginBottom: uiSpace.sm },
+  copy: { ...uiTypography.body, marginBottom: uiSpace.xs },
 });

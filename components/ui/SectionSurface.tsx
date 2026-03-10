@@ -3,9 +3,13 @@ import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
-import Colors from "@/constants/Colors";
-
-type AppPalette = (typeof Colors)[keyof typeof Colors];
+import type { AppPalette } from "@/constants/AppTheme";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 
 type SectionSurfaceProps = {
   palette: AppPalette;
@@ -33,7 +37,9 @@ export function SectionSurface({
       ]}
       elevation={elevation}
     >
-      {label ? <Text style={[styles.label, { color: palette.tint }]}>{label}</Text> : null}
+      {label ? (
+        <Text style={[styles.label, { color: palette.tint }]}>{label}</Text>
+      ) : null}
       {title ? <Text style={styles.title}>{title}</Text> : null}
       {children}
     </Surface>
@@ -42,21 +48,18 @@ export function SectionSurface({
 
 const styles = StyleSheet.create({
   card: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
-    marginBottom: 16,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.surface,
+    marginBottom: uiSpace.xxl,
   },
   label: {
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    marginBottom: 8,
+    ...uiTypography.label,
+    marginBottom: uiSpace.sm,
     textTransform: "uppercase",
   },
   title: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 10,
+    ...uiTypography.titleLg,
+    marginBottom: uiSpace.md,
   },
 });

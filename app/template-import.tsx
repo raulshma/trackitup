@@ -1,13 +1,16 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet } from "react-native";
 import { Button, Chip } from "react-native-paper";
 
-import { Text } from "@/components/Themed";
+import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { ChipRow } from "@/components/ui/ChipRow";
 import { ScreenHero } from "@/components/ui/ScreenHero";
-import { SectionSurface } from "@/components/ui/SectionSurface";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import type { TemplateImportMethod } from "@/types/trackitup";
 
@@ -74,6 +77,10 @@ function buildImportUrlFromParams(params: ImportParams) {
 export default function TemplateImportScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const params = useLocalSearchParams<ImportParams>();
   const { importTemplateFromUrl, workspace } = useWorkspace();
@@ -114,7 +121,7 @@ export default function TemplateImportScreen() {
 
   return (
     <ScrollView
-      style={[styles.screen, { backgroundColor: palette.background }]}
+      style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
     >
       <Stack.Screen options={{ title: "Template import" }} />
@@ -138,14 +145,15 @@ export default function TemplateImportScreen() {
         ]}
       />
 
-      <SectionSurface
+      <SectionMessage
         palette={palette}
         label="Import status"
         title={
           templateName ? `Imported ${templateName}` : "Workspace catalog update"
         }
+        message={statusMessage}
       >
-        <View style={styles.statusChipRow}>
+        <ChipRow style={styles.statusChipRow}>
           {templateName ? (
             <Chip compact style={styles.statusChip}>
               Template: {templateName}
@@ -154,23 +162,17 @@ export default function TemplateImportScreen() {
           <Chip compact style={styles.statusChip}>
             Catalog: {workspace.templates.length} templates
           </Chip>
-        </View>
-        <Text style={[styles.body, { color: palette.muted }]}>
-          {statusMessage}
-        </Text>
-      </SectionSurface>
+        </ChipRow>
+      </SectionMessage>
 
-      <SectionSurface
+      <SectionMessage
         palette={palette}
         label="Import payload"
         title="Detected import link"
-      >
-        <Text style={[styles.body, { color: palette.muted }]}>
-          {importUrl || "No URL or import payload was provided."}
-        </Text>
-      </SectionSurface>
+        message={importUrl || "No URL or import payload was provided."}
+      />
 
-      <View style={styles.buttonRow}>
+      <ActionButtonRow style={styles.buttonRow}>
         <Button
           mode="contained"
           onPress={() => router.replace("/(tabs)" as never)}
@@ -192,22 +194,19 @@ export default function TemplateImportScreen() {
         >
           Scan again
         </Button>
-      </View>
+      </ActionButtonRow>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  content: { padding: 20, paddingBottom: 32 },
-  body: { fontSize: 14, lineHeight: 20 },
+  content: { padding: uiSpace.screen, paddingBottom: uiSpace.screenBottom },
+  body: uiTypography.body,
   statusChipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10,
+    marginBottom: uiSpace.md,
   },
-  statusChip: { borderRadius: 999 },
-  buttonRow: { gap: 10, marginTop: 2 },
+  statusChip: { borderRadius: uiRadius.pill },
+  buttonRow: { gap: uiSpace.md, marginTop: uiSpace.xxs },
   button: { flexGrow: 1 },
 });

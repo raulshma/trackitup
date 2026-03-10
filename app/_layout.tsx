@@ -9,6 +9,7 @@ import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
+import { uiTypography } from "@/constants/UiTokens";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ThemePreferenceProvider } from "@/providers/ThemePreferenceProvider";
 import { WorkspaceProvider } from "@/providers/WorkspaceProvider";
@@ -73,10 +74,7 @@ function RootLayoutNav() {
                 headerTintColor: paperTheme.colors.onSurface,
                 headerShadowVisible: false,
                 headerTitleAlign: "left",
-                headerTitleStyle: {
-                  fontSize: 22,
-                  fontWeight: "600",
-                },
+                headerTitleStyle: uiTypography.navTitle,
               }}
             >
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

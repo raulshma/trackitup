@@ -5,10 +5,20 @@ import { StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { ChipRow } from "@/components/ui/ChipRow";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
+import {
+    uiBorder,
+    uiRadius,
+    uiSize,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
     getCameraPermissionStatusAsync,
@@ -36,6 +46,10 @@ const supportedBarcodeTypes: BarcodeType[] = [
 export default function ScannerScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const { workspace } = useWorkspace();
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -72,7 +86,7 @@ export default function ScannerScreen() {
   );
 
   return (
-    <View style={[styles.screen, { backgroundColor: palette.background }]}>
+    <View style={[styles.screen, paletteStyles.screenBackground]}>
       <Stack.Screen options={{ title: "Scanner" }} />
 
       <ScreenHero
@@ -93,10 +107,7 @@ export default function ScannerScreen() {
       />
 
       <Surface
-        style={[
-          styles.cameraCard,
-          { backgroundColor: palette.card, borderColor: palette.border },
-        ]}
+        style={[styles.cameraCard, paletteStyles.cardSurface]}
         elevation={1}
       >
         {hasPermission ? (
@@ -113,7 +124,7 @@ export default function ScannerScreen() {
         ) : (
           <View style={styles.permissionState}>
             <Text style={styles.permissionTitle}>Camera access required</Text>
-            <Text style={[styles.permissionCopy, { color: palette.muted }]}>
+            <Text style={[styles.permissionCopy, paletteStyles.mutedText]}>
               Grant permission to scan product barcodes, printed QR labels, and
               shared template links.
             </Text>
@@ -135,7 +146,7 @@ export default function ScannerScreen() {
       >
         {lastScan ? (
           <>
-            <View style={styles.resultChipRow}>
+            <ChipRow style={styles.resultChipRow}>
               <Chip compact style={styles.resultChip}>
                 {lastScan.type.toUpperCase()}
               </Chip>
@@ -152,8 +163,8 @@ export default function ScannerScreen() {
                   External link
                 </Chip>
               ) : null}
-            </View>
-            <Text style={[styles.resultValue, { color: palette.muted }]}>
+            </ChipRow>
+            <Text style={[styles.resultValue, paletteStyles.mutedText]}>
               {lastScan.data}
             </Text>
             {matchedAsset ? (
@@ -161,10 +172,10 @@ export default function ScannerScreen() {
                 <Text style={styles.matchTitle}>
                   Matched asset: {matchedAsset.name}
                 </Text>
-                <Text style={[styles.resultValue, { color: palette.muted }]}>
+                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
                   {matchedAsset.category} • {matchedAsset.status.toUpperCase()}
                 </Text>
-                <Text style={[styles.resultValue, { color: palette.muted }]}>
+                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
                   {matchedAsset.note}
                 </Text>
               </>
@@ -176,30 +187,30 @@ export default function ScannerScreen() {
                     scannedTemplate.templateId ??
                     "shared template"}
                 </Text>
-                <Text style={[styles.resultValue, { color: palette.muted }]}>
+                <Text style={[styles.resultValue, paletteStyles.mutedText]}>
                   This QR code contains a TrackItUp template import payload and
                   can be added to the local catalog right now.
                 </Text>
               </>
             ) : looksLikeUrl ? (
-              <Text style={[styles.resultValue, { color: palette.muted }]}>
+              <Text style={[styles.resultValue, paletteStyles.mutedText]}>
                 This scan looks like a link, but it does not match the TrackItUp
                 template import format.
               </Text>
             ) : (
-              <Text style={[styles.resultValue, { color: palette.muted }]}>
+              <Text style={[styles.resultValue, paletteStyles.mutedText]}>
                 No asset currently uses this barcode or QR code in the local
                 workspace.
               </Text>
             )}
           </>
         ) : (
-          <Text style={[styles.resultValue, { color: palette.muted }]}>
+          <Text style={[styles.resultValue, paletteStyles.mutedText]}>
             Point the camera at a barcode or QR code to start matching assets.
           </Text>
         )}
 
-        <View style={styles.buttonRow}>
+        <ActionButtonRow style={styles.buttonRow}>
           {scannedTemplate ? (
             <Button
               mode="contained-tonal"
@@ -229,47 +240,43 @@ export default function ScannerScreen() {
           >
             Back to inventory
           </Button>
-        </View>
+        </ActionButtonRow>
       </SectionSurface>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, padding: 20 },
+  screen: { flex: 1, padding: uiSpace.screen },
   cameraCard: {
-    borderWidth: 1,
-    borderRadius: 24,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
     overflow: "hidden",
-    marginBottom: 16,
+    marginBottom: uiSpace.xxl,
   },
   camera: {
     width: "100%",
-    height: 320,
+    height: uiSize.scannerPreview,
   },
   permissionState: {
-    padding: 20,
+    padding: uiSpace.screen,
     alignItems: "flex-start",
   },
-  permissionTitle: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
-  permissionCopy: { fontSize: 14, lineHeight: 20, marginBottom: 12 },
+  permissionTitle: { ...uiTypography.titleLg, marginBottom: uiSpace.sm },
+  permissionCopy: { ...uiTypography.body, marginBottom: uiSpace.lg },
   resultChipRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 10,
+    marginBottom: uiSpace.md,
   },
   resultChip: {
-    borderRadius: 999,
+    borderRadius: uiRadius.pill,
   },
-  resultValue: { fontSize: 14, lineHeight: 20, marginBottom: 6 },
+  resultValue: { ...uiTypography.body, marginBottom: 6 },
   matchTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    ...uiTypography.titleMd,
     marginTop: 6,
-    marginBottom: 4,
+    marginBottom: uiSpace.xs,
   },
-  buttonRow: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
+  buttonRow: { marginTop: uiSpace.lg },
   inlineButton: { flex: 1 },
-  primaryButton: { marginTop: 4 },
+  primaryButton: { marginTop: uiSpace.xs },
 });
