@@ -1,15 +1,16 @@
+import { getHeaderTitle } from "@react-navigation/elements";
 import { ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { StyleSheet, View } from "react-native";
-import { ActivityIndicator, PaperProvider } from "react-native-paper";
+import { StyleSheet } from "react-native";
+import { PaperProvider } from "react-native-paper";
 import "react-native-reanimated";
 
 import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
 import { OnboardingExperience } from "@/components/OnboardingExperience";
-import { Text } from "@/components/Themed";
+import { MaterialCompactTopAppBar } from "@/components/ui/MaterialCompactTopAppBar";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
 import { uiSpace, uiTypography } from "@/constants/UiTokens";
@@ -85,16 +86,19 @@ function RootLayoutNav() {
                 <Stack
                   screenOptions={{
                     contentStyle: { backgroundColor: palette.background },
-                    headerStyle: {
-                      backgroundColor: paperTheme.colors.elevation.level2,
-                    },
-                    headerTintColor: paperTheme.colors.onSurface,
-                    headerShadowVisible: false,
-                    headerTitleAlign: "left",
-                    headerTitleStyle: uiTypography.navTitle,
+                    header: (props) => (
+                      <MaterialCompactTopAppBar
+                        canGoBack={Boolean(props.back)}
+                        onBack={props.navigation.goBack}
+                        title={getHeaderTitle(props.options, props.route.name)}
+                      />
+                    ),
                   }}
                 >
-                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{ headerShown: false }}
+                  />
                   <Stack.Screen name="account" options={{ title: "Account" }} />
                   <Stack.Screen name="logbook" options={{ title: "Logbook" }} />
                   <Stack.Screen

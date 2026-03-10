@@ -1,9 +1,11 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { Chip, Searchbar, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
@@ -37,6 +39,8 @@ type KindFilterId = (typeof kindFilters)[number]["id"];
 export default function TabTwoScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const headerHeight = useMaterialCompactTopAppBarHeight();
+  const headerScroll = useTabHeaderScroll("two");
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
@@ -181,9 +185,14 @@ export default function TabTwoScreen() {
   ].filter(Boolean).length;
 
   return (
-    <ScrollView
+    <Animated.ScrollView
+      {...headerScroll}
+      scrollIndicatorInsets={{ top: headerHeight }}
       style={[styles.screen, paletteStyles.screenBackground]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: uiSpace.screen + headerHeight },
+      ]}
     >
       <Surface
         style={[styles.header, paletteStyles.heroSurface]}
@@ -489,7 +498,7 @@ export default function TabTwoScreen() {
             : "Use the search and filters above to narrow your real workspace history by time, type, space, asset, tag, or safe-zone alerts."}
         </Text>
       </View>
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 

@@ -1,9 +1,11 @@
 import { useRouter } from "expo-router";
 import { useMemo } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Animated, StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
@@ -27,6 +29,8 @@ function formatCurrency(amount: number, currency = "USD") {
 export default function InventoryScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const headerHeight = useMaterialCompactTopAppBarHeight();
+  const headerScroll = useTabHeaderScroll("inventory");
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
@@ -70,9 +74,14 @@ export default function InventoryScreen() {
   ];
 
   return (
-    <ScrollView
+    <Animated.ScrollView
+      {...headerScroll}
+      scrollIndicatorInsets={{ top: headerHeight }}
       style={[styles.screen, paletteStyles.screenBackground]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: uiSpace.screen + headerHeight },
+      ]}
     >
       <Surface
         style={[styles.header, paletteStyles.heroSurface]}
@@ -185,7 +194,7 @@ export default function InventoryScreen() {
           </View>
         ))
       )}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 

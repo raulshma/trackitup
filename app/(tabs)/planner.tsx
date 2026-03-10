@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
@@ -36,6 +38,8 @@ function formatDue(timestamp: string) {
 export default function PlannerScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const headerHeight = useMaterialCompactTopAppBarHeight();
+  const headerScroll = useTabHeaderScroll("planner");
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
@@ -127,9 +131,14 @@ export default function PlannerScreen() {
   ];
 
   return (
-    <ScrollView
+    <Animated.ScrollView
+      {...headerScroll}
+      scrollIndicatorInsets={{ top: headerHeight }}
       style={[styles.screen, paletteStyles.screenBackground]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: uiSpace.screen + headerHeight },
+      ]}
     >
       <Surface
         style={[styles.header, paletteStyles.heroSurface]}
@@ -364,7 +373,7 @@ export default function PlannerScreen() {
           </View>
         ))
       )}
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 

@@ -1,49 +1,83 @@
-import { Link, Tabs } from "expo-router";
+import { getHeaderTitle } from "@react-navigation/elements";
+import { Tabs, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { type MD3Theme, useTheme } from "react-native-paper";
 
+import {
+  MaterialCompactTopAppBar,
+  type MaterialCompactTopAppBarAction,
+} from "@/components/ui/MaterialCompactTopAppBar";
 import { RecordEventFab } from "@/components/ui/RecordEventFab";
+import {
+  TabHeaderScrollProvider,
+  useTabHeaderScrollValue,
+} from "@/components/ui/TabHeaderScrollContext";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
 import {
-    uiBorder,
-    uiElevation,
-    uiRadius,
-    uiShadow,
-    uiSize,
-    uiSpace,
-    uiTypography,
+  uiElevation,
+  uiRadius,
+  uiShadow,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
+
+function TabRouteHeader({
+  routeName,
+  title,
+  showBrand,
+  actions,
+}: {
+  routeName: string;
+  title: string;
+  showBrand: boolean;
+  actions?: MaterialCompactTopAppBarAction[];
+}) {
+  const scrollY = useTabHeaderScrollValue(routeName);
+
+  return (
+    <MaterialCompactTopAppBar
+      actions={actions}
+      canGoBack={false}
+      scrollY={scrollY}
+      showBrand={showBrand}
+      title={title}
+    />
+  );
+}
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
   const palette = getAppPalette(colorScheme);
   const theme = useTheme<MD3Theme>();
+  const router = useRouter();
   const activeTabColor = theme.colors.onSecondaryContainer;
   const inactiveTabColor = theme.colors.onSurfaceVariant;
-  const headerActionToneStyles = React.useMemo(
-    () =>
-      StyleSheet.create({
-        surface: {
-          backgroundColor: theme.colors.elevation.level2,
-          borderColor: theme.colors.outlineVariant,
-          shadowColor: palette.shadow,
+  const homeHeaderActions = React.useMemo<MaterialCompactTopAppBarAction[]>(
+    () => [
+      {
+        icon: {
+          ios: "person.crop.circle",
+          android: "account_circle",
+          web: "account_circle",
         },
-        pressed: {
-          opacity: 0.72,
+        accessibilityLabel: "Open account and sync settings",
+        onPress: () => router.push("/account"),
+      },
+      {
+        icon: {
+          ios: "checklist",
+          android: "task_alt",
+          web: "task_alt",
         },
-        idle: {
-          opacity: 1,
-        },
-      }),
-    [
-      palette.shadow,
-      theme.colors.elevation.level2,
-      theme.colors.outlineVariant,
+        accessibilityLabel: "Open workspace tools",
+        onPress: () => router.push("/modal"),
+      },
     ],
+    [router],
   );
 
   const renderTabIcon = React.useCallback(
@@ -68,7 +102,7 @@ export default function TabLayout() {
   );
 
   return (
-    <>
+    <TabHeaderScrollProvider>
       <Tabs
         screenOptions={{
           sceneStyle: {
@@ -105,13 +139,22 @@ export default function TabLayout() {
             fontWeight: "500",
             marginTop: uiSpace.xxs,
           },
-          headerStyle: {
-            backgroundColor: theme.colors.elevation.level2,
+          headerTransparent: true,
+          header: (props) => {
+            const showBrand = props.route.name === "index";
+            const title = showBrand
+              ? "TrackItUp"
+              : getHeaderTitle(props.options, props.route.name);
+
+            return (
+              <TabRouteHeader
+                actions={showBrand ? homeHeaderActions : undefined}
+                routeName={props.route.name}
+                showBrand={showBrand}
+                title={title}
+              />
+            );
           },
-          headerTintColor: theme.colors.onSurface,
-          headerShadowVisible: false,
-          headerTitleAlign: "left",
-          headerTitleStyle: uiTypography.navTitle,
           // Disable the static render of the header on web
           // to prevent a hydration error in React Navigation v6.
           headerShown: useClientOnlyValue(false, true),
@@ -121,66 +164,11 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
-            headerTitle: "TrackItUp",
             tabBarIcon: renderTabIcon({
               ios: "house.fill",
               android: "home",
               web: "home",
             }),
-            headerRight: () => (
-              <View style={styles.headerActions}>
-                <Link href="../account" asChild>
-                  <Pressable>
-                    {({ pressed }) => (
-                      <View
-                        style={[
-                          styles.headerActionButton,
-                          headerActionToneStyles.surface,
-                          pressed
-                            ? headerActionToneStyles.pressed
-                            : headerActionToneStyles.idle,
-                        ]}
-                      >
-                        <SymbolView
-                          name={{
-                            ios: "person.crop.circle",
-                            android: "account_circle",
-                            web: "account_circle",
-                          }}
-                          size={22}
-                          tintColor={palette.text}
-                        />
-                      </View>
-                    )}
-                  </Pressable>
-                </Link>
-                <Link href="/modal" asChild>
-                  <Pressable>
-                    {({ pressed }) => (
-                      <View
-                        style={[
-                          styles.headerActionButton,
-                          headerActionToneStyles.surface,
-                          pressed
-                            ? headerActionToneStyles.pressed
-                            : headerActionToneStyles.idle,
-                        ]}
-                      >
-                        <SymbolView
-                          name={{
-                            ios: "checklist",
-                            android: "task_alt",
-                            web: "task_alt",
-                          }}
-                          size={22}
-                          tintColor={palette.text}
-                        />
-                      </View>
-                    )}
-                  </Pressable>
-                </Link>
-              </View>
-            ),
           }}
         />
         <Tabs.Screen
@@ -218,7 +206,7 @@ export default function TabLayout() {
         />
       </Tabs>
       <RecordEventFab />
-    </>
+    </TabHeaderScrollProvider>
   );
 }
 
@@ -229,21 +217,5 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.pill,
     alignItems: "center",
     justifyContent: "center",
-  },
-  headerActionButton: {
-    width: uiSize.headerAction,
-    height: uiSize.headerAction,
-    borderRadius: uiRadius.lg,
-    borderWidth: uiBorder.standard,
-    alignItems: "center",
-    justifyContent: "center",
-    ...uiShadow.headerAction,
-    elevation: uiElevation.hero,
-  },
-  headerActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: uiSpace.xxl,
-    marginRight: uiSpace.xl,
   },
 });

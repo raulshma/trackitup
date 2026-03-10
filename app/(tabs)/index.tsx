@@ -1,10 +1,12 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { Button, Chip, SegmentedButtons, Surface } from "react-native-paper";
 
 import { MiniMetricChart, type ChartMode } from "@/components/MiniMetricChart";
 import { Text } from "@/components/Themed";
+import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
@@ -17,6 +19,8 @@ export default function TabOneScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
   const router = useRouter();
+  const headerHeight = useMaterialCompactTopAppBarHeight();
+  const headerScroll = useTabHeaderScroll("index");
   const [chartMode, setChartMode] = useState<ChartMode>("line");
   const {
     cycleDashboardWidgetSize,
@@ -264,9 +268,14 @@ export default function TabOneScreen() {
   }
 
   return (
-    <ScrollView
+    <Animated.ScrollView
+      {...headerScroll}
+      scrollIndicatorInsets={{ top: headerHeight }}
       style={[styles.screen, { backgroundColor: palette.background }]}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: 20 + headerHeight },
+      ]}
     >
       <Surface
         style={[
@@ -765,7 +774,7 @@ export default function TabOneScreen() {
           </View>
         ))}
       </Surface>
-    </ScrollView>
+    </Animated.ScrollView>
   );
 }
 
