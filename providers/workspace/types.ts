@@ -5,6 +5,8 @@ import {
     getTimelineEntries,
 } from "@/constants/TrackItUpSelectors";
 import type { FormValueMap } from "@/services/forms/workspaceForm";
+import type { WorkspaceBiometricAvailability } from "@/services/offline/workspaceBiometric";
+import type { WorkspaceBiometricReauthTimeout } from "@/services/offline/workspaceBiometricSessionPolicy";
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
@@ -41,6 +43,10 @@ export type WorkspaceContextValue = {
   isHydrated: boolean;
   persistenceMode: PersistenceMode;
   privacyMode: WorkspacePrivacyMode;
+  biometricLockEnabled: boolean;
+  biometricAvailability: WorkspaceBiometricAvailability;
+  biometricReauthTimeout: WorkspaceBiometricReauthTimeout;
+  isWorkspaceLocked: boolean;
   localProtectionStatus: WorkspaceLocalProtectionStatus;
   blockedProtectionReason: BlockedEncryptedWorkspaceReason | null;
   isSyncing: boolean;
@@ -74,6 +80,13 @@ export type WorkspaceContextValue = {
   setWorkspacePrivacyMode: (
     mode: WorkspacePrivacyMode,
   ) => Promise<{ status: string; message: string }>;
+  setBiometricLockEnabled: (
+    enabled: boolean,
+  ) => Promise<{ status: string; message: string }>;
+  setBiometricReauthTimeout: (
+    timeout: WorkspaceBiometricReauthTimeout,
+  ) => Promise<{ status: string; message: string }>;
+  unlockWorkspace: () => Promise<{ status: string; message: string }>;
   recoverBlockedWorkspace: () => Promise<{ status: string; message: string }>;
   syncWorkspaceNow: () => Promise<SyncActionResult>;
   pullWorkspaceFromCloud: () => Promise<SyncActionResult>;

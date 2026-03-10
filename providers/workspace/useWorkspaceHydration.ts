@@ -6,15 +6,15 @@ import { loadLogReadModelFromWatermelon } from "@/services/offline/watermelon/wo
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import {
-  cloneWorkspaceSnapshot,
-  loadPersistedWorkspace,
-  persistWorkspace,
-  waitForWorkspacePersistence,
+    cloneWorkspaceSnapshot,
+    loadPersistedWorkspace,
+    persistWorkspace,
+    waitForWorkspacePersistence,
 } from "@/services/offline/workspacePersistence";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import type {
-  PersistenceMode,
-  WorkspaceUpdater,
+    PersistenceMode,
+    WorkspaceUpdater,
 } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
@@ -25,6 +25,7 @@ type UseWorkspaceHydrationArgs = {
   ownerScopeKey: string;
   workspace: WorkspaceSnapshot;
   isHydrated: boolean;
+  canHydrate: boolean;
   privacyMode: WorkspacePrivacyMode;
   isPrivacyModeLoaded: boolean;
   persistenceMode: PersistenceMode;
@@ -43,6 +44,7 @@ type UseWorkspaceHydrationArgs = {
 };
 
 export function useWorkspaceHydration({
+  canHydrate,
   defaultWorkspace,
   isPrivacyModeLoaded,
   isHydrated,
@@ -61,8 +63,6 @@ export function useWorkspaceHydration({
   workspace,
 }: UseWorkspaceHydrationArgs) {
   useEffect(() => {
-    if (!isPrivacyModeLoaded) return;
-
     let isMounted = true;
 
     setIsHydrated(false);
@@ -70,6 +70,12 @@ export function useWorkspaceHydration({
     setLocalProtectionStatus("standard");
     setBlockedProtectionReason(null);
     setWorkspace(cloneWorkspaceSnapshot(defaultWorkspace));
+
+    if (!isPrivacyModeLoaded || !canHydrate) {
+      return () => {
+        isMounted = false;
+      };
+    }
 
     void (async () => {
       const loaded = await loadPersistedWorkspace(
@@ -90,6 +96,7 @@ export function useWorkspaceHydration({
       isMounted = false;
     };
   }, [
+    canHydrate,
     defaultWorkspace,
     isPrivacyModeLoaded,
     ownerScopeKey,
@@ -102,9 +109,9 @@ export function useWorkspaceHydration({
   ]);
 
   useEffect(() => {
-    if (!isHydrated) return;
+    if (!isHydrated || !canHydrate) return;
     void persistWorkspace(workspace, ownerScopeKey, privacyMode);
-  }, [isHydrated, ownerScopeKey, workspace]);
+  }, [canHydrate, isHydrated, ownerScopeKey, privacyMode, workspace]);
 
   useEffect(() => {
     setLogEntries(snapshotLogEntries);

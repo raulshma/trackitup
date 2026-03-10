@@ -2,11 +2,15 @@ import {
     createContext,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
+    useRef,
     useState,
     type ReactNode,
 } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 
+import { WorkspaceLockScreen } from "@/components/WorkspaceLockScreen";
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
     getOverviewStats,
@@ -20,6 +24,23 @@ import type { WorkspaceContextValue } from "@/providers/workspace/types";
 import { useWorkspaceHydration } from "@/providers/workspace/useWorkspaceHydration";
 import { useWorkspaceMutations } from "@/providers/workspace/useWorkspaceMutations";
 import { useWorkspaceSyncActions } from "@/providers/workspace/useWorkspaceSyncActions";
+import {
+    authenticateWorkspaceBiometric,
+    getWorkspaceBiometricAvailability,
+    type WorkspaceBiometricAvailability,
+} from "@/services/offline/workspaceBiometric";
+import {
+    loadWorkspaceBiometricLockPreference,
+    loadWorkspaceBiometricReauthTimeoutPreference,
+    persistWorkspaceBiometricLockPreference,
+    persistWorkspaceBiometricReauthTimeoutPreference,
+} from "@/services/offline/workspaceBiometricPreferencePersistence";
+import {
+    DEFAULT_WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT,
+    getWorkspaceBiometricReauthTimeoutLabel,
+    shouldRelockWorkspaceBiometricSession,
+    type WorkspaceBiometricReauthTimeout,
+} from "@/services/offline/workspaceBiometricSessionPolicy";
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import { getWorkspaceOwnerScopeKey } from "@/services/offline/workspaceOwnership";
@@ -58,6 +79,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     useState<WorkspaceLocalProtectionStatus>("standard");
   const [blockedProtectionReason, setBlockedProtectionReason] =
     useState<BlockedEncryptedWorkspaceReason | null>(null);
+  const [biometricLockEnabled, setBiometricLockEnabledState] = useState(false);
+  const [isBiometricPreferenceLoaded, setIsBiometricPreferenceLoaded] =
+    useState(false);
+  const [biometricAvailability, setBiometricAvailability] =
+    useState<WorkspaceBiometricAvailability>({
+      status: "unavailable",
+      label: "Checking",
+      reason: "unsupported",
+    });
+  const [biometricReauthTimeout, setBiometricReauthTimeoutState] =
+    useState<WorkspaceBiometricReauthTimeout>(
+      DEFAULT_WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT,
+    );
+  const [isBiometricSessionUnlocked, setIsBiometricSessionUnlocked] =
+    useState(false);
+  const [isUnlockingWorkspace, setIsUnlockingWorkspace] = useState(false);
+  const [workspaceLockMessage, setWorkspaceLockMessage] = useState(
+    "Unlock with biometrics or the device credential fallback to continue.",
+  );
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const backgroundedAtRef = useRef<number | null>(null);
   const syncEndpoint = process.env.EXPO_PUBLIC_TRACKITUP_SYNC_ENDPOINT;
   const {
     workspacePrivacyMode,
@@ -65,12 +107,143 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isLoaded: isPrivacyModeLoaded,
   } = useWorkspacePrivacyMode();
   const defaultWorkspace = useMemo(() => createEmptyWorkspaceSnapshot(), []);
+  const refreshBiometricAvailability = useCallback(async () => {
+    const availability = await getWorkspaceBiometricAvailability();
+    setBiometricAvailability(availability);
+    return availability;
+  }, []);
   const ownerScopeKey = useMemo(
     () => getWorkspaceOwnerScopeKey(auth.isSignedIn ? auth.userId : null),
     [auth.isSignedIn, auth.userId],
   );
 
+  useEffect(() => {
+    let isMounted = true;
+
+    void (async () => {
+      const [enabled, availability, reauthTimeout] = await Promise.all([
+        loadWorkspaceBiometricLockPreference(),
+        getWorkspaceBiometricAvailability(),
+        loadWorkspaceBiometricReauthTimeoutPreference(),
+      ]);
+      if (!isMounted) return;
+
+      setBiometricLockEnabledState(enabled);
+      setIsBiometricPreferenceLoaded(true);
+      setBiometricAvailability(availability);
+      setBiometricReauthTimeoutState(reauthTimeout);
+      setIsBiometricSessionUnlocked(!enabled);
+      setWorkspaceLockMessage(
+        availability.status === "available"
+          ? "Unlock with biometrics or the device credential fallback to continue."
+          : "Biometric authentication is not currently available on this device.",
+      );
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isBiometricPreferenceLoaded) return;
+    if (!biometricLockEnabled || workspacePrivacyMode !== "protected") {
+      backgroundedAtRef.current = null;
+      setIsBiometricSessionUnlocked(true);
+      return;
+    }
+
+    setWorkspaceLockMessage(
+      biometricAvailability.status === "available"
+        ? "Unlock with biometrics or the device credential fallback to continue."
+        : "Biometric authentication is not currently available on this device.",
+    );
+  }, [
+    biometricAvailability.status,
+    biometricLockEnabled,
+    isBiometricPreferenceLoaded,
+    workspacePrivacyMode,
+  ]);
+
+  useEffect(() => {
+    if (!isBiometricPreferenceLoaded || !biometricLockEnabled) return;
+    if (workspacePrivacyMode !== "protected") return;
+
+    backgroundedAtRef.current = null;
+    setIsBiometricSessionUnlocked(false);
+  }, [
+    isBiometricPreferenceLoaded,
+    biometricLockEnabled,
+    ownerScopeKey,
+    workspacePrivacyMode,
+  ]);
+
+  const requiresBiometricLock =
+    isBiometricPreferenceLoaded &&
+    biometricLockEnabled &&
+    workspacePrivacyMode === "protected";
+  const isWorkspaceLocked =
+    requiresBiometricLock && !isBiometricSessionUnlocked;
+  const canHydrateWorkspace =
+    isPrivacyModeLoaded &&
+    (!requiresBiometricLock ||
+      (biometricAvailability.status === "available" &&
+        isBiometricSessionUnlocked));
+
+  useEffect(() => {
+    if (!requiresBiometricLock) {
+      appStateRef.current = AppState.currentState;
+      backgroundedAtRef.current = null;
+      return;
+    }
+
+    appStateRef.current = AppState.currentState;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (nextState === "active") {
+        const inactiveDurationMs =
+          backgroundedAtRef.current === null
+            ? null
+            : Date.now() - backgroundedAtRef.current;
+        backgroundedAtRef.current = null;
+
+        if (
+          shouldRelockWorkspaceBiometricSession({
+            timeout: biometricReauthTimeout,
+            inactiveDurationMs,
+          })
+        ) {
+          setIsBiometricSessionUnlocked(false);
+          setWorkspaceLockMessage(
+            `Protected workspace re-locked after ${getWorkspaceBiometricReauthTimeoutLabel(
+              biometricReauthTimeout,
+            ).toLowerCase()} away from the app. Unlock to continue.`,
+          );
+        }
+        return;
+      }
+
+      if (previousState === "active") {
+        backgroundedAtRef.current = Date.now();
+
+        if (biometricReauthTimeout === "immediate") {
+          setIsBiometricSessionUnlocked(false);
+          setWorkspaceLockMessage(
+            "Protected workspace re-locked as soon as TrackItUp left the foreground. Unlock to continue.",
+          );
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [biometricReauthTimeout, requiresBiometricLock]);
+
   useWorkspaceHydration({
+    canHydrate: canHydrateWorkspace,
     workspace,
     isHydrated,
     privacyMode: workspacePrivacyMode,
@@ -104,6 +277,96 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     resetWorkspace,
   } = useWorkspaceMutations(setWorkspace, ownerScopeKey);
 
+  const setBiometricLockEnabled = useCallback(
+    async (enabled: boolean) => {
+      const availability = await refreshBiometricAvailability();
+      if (enabled) {
+        if (availability.status !== "available") {
+          return {
+            status: "error" as const,
+            message:
+              "Biometric authentication is not ready on this device. Set up biometrics or a device credential and try again.",
+          };
+        }
+
+        const authResult = await authenticateWorkspaceBiometric({
+          promptMessage: "Confirm biometric lock for TrackItUp",
+        });
+        if (authResult.status !== "success") {
+          return authResult;
+        }
+
+        await persistWorkspaceBiometricLockPreference(true);
+        setBiometricLockEnabledState(true);
+        setIsBiometricSessionUnlocked(true);
+        setWorkspaceLockMessage(
+          "Biometric lock enabled. Protected workspaces will require local authentication on this device.",
+        );
+        return {
+          status: "success" as const,
+          message:
+            "Biometric lock is now enabled for protected local workspaces on this device.",
+        };
+      }
+
+      await persistWorkspaceBiometricLockPreference(false);
+      setBiometricLockEnabledState(false);
+      setIsBiometricSessionUnlocked(true);
+      setWorkspaceLockMessage(
+        "Biometric lock disabled for this device. Protected mode still keeps encrypted local snapshots when enabled.",
+      );
+      return {
+        status: "success" as const,
+        message: "Biometric lock is now disabled for this device.",
+      };
+    },
+    [refreshBiometricAvailability],
+  );
+
+  const setBiometricReauthTimeout = useCallback(
+    async (timeout: WorkspaceBiometricReauthTimeout) => {
+      await persistWorkspaceBiometricReauthTimeoutPreference(timeout);
+      setBiometricReauthTimeoutState(timeout);
+      return {
+        status: "success" as const,
+        message: `Biometric re-auth is now set to ${getWorkspaceBiometricReauthTimeoutLabel(
+          timeout,
+        ).toLowerCase()}.`,
+      };
+    },
+    [],
+  );
+
+  const unlockWorkspace = useCallback(async () => {
+    const availability = await refreshBiometricAvailability();
+    if (availability.status !== "available") {
+      const message =
+        "Biometric authentication is not currently available on this device. Disable biometric lock for this device to recover access.";
+      setWorkspaceLockMessage(message);
+      return {
+        status: "error" as const,
+        message,
+      };
+    }
+
+    setIsUnlockingWorkspace(true);
+    try {
+      const result = await authenticateWorkspaceBiometric();
+      setWorkspaceLockMessage(result.message);
+      if (result.status === "success") {
+        setIsBiometricSessionUnlocked(true);
+      }
+      return result;
+    } finally {
+      setIsUnlockingWorkspace(false);
+    }
+  }, [refreshBiometricAvailability]);
+
+  const disableBiometricLockFromLockScreen = useCallback(async () => {
+    const result = await setBiometricLockEnabled(false);
+    setWorkspaceLockMessage(result.message);
+  }, [setBiometricLockEnabled]);
+
   const setWorkspacePrivacyMode = useCallback(
     async (nextMode: typeof workspacePrivacyMode) => {
       if (nextMode === workspacePrivacyMode) {
@@ -122,6 +385,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
 
       try {
+        if (nextMode === "protected" && biometricLockEnabled) {
+          const authResult = await authenticateWorkspaceBiometric({
+            promptMessage: "Confirm protected mode for TrackItUp",
+          });
+          if (authResult.status !== "success") {
+            return authResult;
+          }
+
+          setIsBiometricSessionUnlocked(true);
+        }
+
         setIsHydrated(false);
         await persistWorkspace(workspace, ownerScopeKey, nextMode);
         setWorkspacePrivacyModePreference(nextMode);
@@ -153,6 +427,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
     },
     [
+      biometricLockEnabled,
       defaultWorkspace,
       localProtectionStatus,
       ownerScopeKey,
@@ -232,6 +507,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       isHydrated,
       persistenceMode,
       privacyMode: workspacePrivacyMode,
+      biometricLockEnabled,
+      biometricAvailability,
+      biometricReauthTimeout,
+      isWorkspaceLocked,
       localProtectionStatus,
       blockedProtectionReason,
       isSyncing,
@@ -252,6 +531,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       saveCustomTemplate,
       resetWorkspace,
       setWorkspacePrivacyMode,
+      setBiometricLockEnabled,
+      setBiometricReauthTimeout,
+      unlockWorkspace,
       recoverBlockedWorkspace,
       pullWorkspaceFromCloud,
       restoreWorkspaceFromCloud,
@@ -264,7 +546,11 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       importTemplateFromUrl,
       isHydrated,
       blockedProtectionReason,
+      biometricAvailability,
+      biometricLockEnabled,
+      biometricReauthTimeout,
       isSyncing,
+      isWorkspaceLocked,
       logEntries,
       localProtectionStatus,
       moveDashboardWidget,
@@ -278,6 +564,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       saveCustomTemplate,
       saveLogForAction,
       saveLogForTemplate,
+      setBiometricLockEnabled,
+      setBiometricReauthTimeout,
       setWorkspacePrivacyMode,
       skipReminder,
       snoozeReminder,
@@ -285,6 +573,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       syncWorkspaceNow,
       timelineEntries,
       toggleWidgetVisibility,
+      unlockWorkspace,
       workspacePrivacyMode,
       workspace,
     ],
@@ -292,7 +581,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   return (
     <WorkspaceContext.Provider value={value}>
-      {children}
+      {isWorkspaceLocked ? (
+        <WorkspaceLockScreen
+          availability={biometricAvailability}
+          isUnlocking={isUnlockingWorkspace}
+          message={workspaceLockMessage}
+          reauthTimeoutLabel={getWorkspaceBiometricReauthTimeoutLabel(
+            biometricReauthTimeout,
+          )}
+          onUnlock={() => {
+            void unlockWorkspace();
+          }}
+          onDisableLock={() => {
+            void disableBiometricLockFromLockScreen();
+          }}
+        />
+      ) : (
+        children
+      )}
     </WorkspaceContext.Provider>
   );
 }

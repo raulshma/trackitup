@@ -5,6 +5,8 @@ import {
     ActivityIndicator,
     Button,
     Chip,
+    Dialog,
+    Portal,
     SegmentedButtons,
 } from "react-native-paper";
 
@@ -21,6 +23,13 @@ import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
 import { useAppAuth } from "@/providers/AuthProvider";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { getWorkspaceBiometricDescription } from "@/services/offline/workspaceBiometric";
+import {
+    getWorkspaceBiometricReauthTimeoutDescription,
+    getWorkspaceBiometricReauthTimeoutLabel,
+    WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
+    type WorkspaceBiometricReauthTimeout,
+} from "@/services/offline/workspaceBiometricSessionPolicy";
 import {
     getWorkspaceLocalProtectionDescription,
     getWorkspaceLocalProtectionLabel,
@@ -55,6 +64,8 @@ export default function AccountScreen() {
   const { themePreference, setThemePreference } = useThemePreference();
   const [statusMessage, setStatusMessage] = useState(auth.note);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingPrivacyModeChange, setPendingPrivacyModeChange] =
+    useState<WorkspacePrivacyMode | null>(null);
 
   const lastLocalSnapshot = new Date(
     workspace.workspace.generatedAt,
@@ -82,6 +93,15 @@ export default function AccountScreen() {
   const privacyModeDescription = getWorkspacePrivacyModeDescription(
     workspace.privacyMode,
   );
+  const biometricDescription = getWorkspaceBiometricDescription({
+    availability: workspace.biometricAvailability,
+    enabled: workspace.biometricLockEnabled,
+    privacyMode: workspace.privacyMode,
+  });
+  const biometricReauthDescription =
+    getWorkspaceBiometricReauthTimeoutDescription(
+      workspace.biometricReauthTimeout,
+    );
   const isProtectionBlocked = workspace.localProtectionStatus === "blocked";
 
   async function runAction(
@@ -105,6 +125,26 @@ export default function AccountScreen() {
       "Signed out. This device switched back to its separate anonymous local workspace.",
     );
     setIsSubmitting(false);
+  }
+
+  function requestPrivacyModeChange(nextMode: WorkspacePrivacyMode) {
+    if (
+      nextMode === workspace.privacyMode ||
+      isSubmitting ||
+      isProtectionBlocked
+    ) {
+      return;
+    }
+
+    setPendingPrivacyModeChange(nextMode);
+  }
+
+  async function confirmPrivacyModeChange() {
+    if (!pendingPrivacyModeChange) return;
+
+    const nextMode = pendingPrivacyModeChange;
+    setPendingPrivacyModeChange(null);
+    await runAction(() => workspace.setWorkspacePrivacyMode(nextMode));
   }
 
   return (
@@ -210,9 +250,7 @@ export default function AccountScreen() {
         <SegmentedButtons
           value={workspace.privacyMode}
           onValueChange={(value: string) =>
-            runAction(() =>
-              workspace.setWorkspacePrivacyMode(value as WorkspacePrivacyMode),
-            )
+            requestPrivacyModeChange(value as WorkspacePrivacyMode)
           }
           style={styles.themeSelector}
           buttons={WORKSPACE_PRIVACY_MODE_OPTIONS.map((value) => ({
@@ -245,6 +283,70 @@ export default function AccountScreen() {
             Reset blocked protected workspace
           </Button>
         ) : null}
+      </SectionSurface>
+
+      <SectionSurface
+        palette={palette}
+        label="Biometric lock"
+        title="Protected workspace gate"
+      >
+        <ChipRow style={styles.themeChipRow}>
+          <Chip compact style={styles.themeChip} icon="fingerprint">
+            {workspace.biometricLockEnabled ? "Enabled" : "Disabled"}
+          </Chip>
+          <Chip compact style={styles.themeChip}>
+            {workspace.biometricAvailability.label}
+          </Chip>
+          <Chip compact style={styles.themeChip}>
+            Re-auth:{" "}
+            {getWorkspaceBiometricReauthTimeoutLabel(
+              workspace.biometricReauthTimeout,
+            )}
+          </Chip>
+        </ChipRow>
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
+          {biometricDescription}
+        </Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          When enabled, protected local workspaces stay locked until biometric
+          or device-credential verification succeeds on this device.
+        </Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          {biometricReauthDescription}
+        </Text>
+        <SegmentedButtons
+          value={workspace.biometricReauthTimeout}
+          onValueChange={(value: string) =>
+            runAction(() =>
+              workspace.setBiometricReauthTimeout(
+                value as WorkspaceBiometricReauthTimeout,
+              ),
+            )
+          }
+          style={styles.themeSelector}
+          buttons={WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS.map((value) => ({
+            value,
+            label: getWorkspaceBiometricReauthTimeoutLabel(value),
+            disabled: isSubmitting,
+          }))}
+        />
+        <Button
+          mode={workspace.biometricLockEnabled ? "outlined" : "contained"}
+          onPress={() =>
+            runAction(() =>
+              workspace.setBiometricLockEnabled(
+                !workspace.biometricLockEnabled,
+              ),
+            )
+          }
+          style={styles.button}
+          loading={isSubmitting}
+          disabled={isSubmitting}
+        >
+          {workspace.biometricLockEnabled
+            ? "Disable biometric lock"
+            : "Enable biometric lock"}
+        </Button>
       </SectionSurface>
 
       {!auth.clerkPublishableKeyConfigured ? (
@@ -438,6 +540,36 @@ export default function AccountScreen() {
         title="Session feedback"
         message={statusMessage}
       />
+
+      <Portal>
+        <Dialog
+          visible={pendingPrivacyModeChange !== null}
+          onDismiss={() => setPendingPrivacyModeChange(null)}
+        >
+          <Dialog.Title>
+            Switch to{" "}
+            {pendingPrivacyModeChange
+              ? getWorkspacePrivacyModeLabel(pendingPrivacyModeChange)
+              : "selected"}
+            ?
+          </Dialog.Title>
+          <Dialog.Content>
+            <Text>
+              {pendingPrivacyModeChange === "compatibility"
+                ? "Compatibility mode rewrites this scope back to the legacy local persistence path on this device and removes encrypted local snapshots for the current scope."
+                : "Protected mode prefers encrypted local snapshots for this scope and migrates readable compatibility data into protected storage on this device when available."}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setPendingPrivacyModeChange(null)}>
+              Cancel
+            </Button>
+            <Button onPress={() => void confirmPrivacyModeChange()}>
+              Confirm
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </ScrollView>
   );
 }

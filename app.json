@@ -40,6 +40,12 @@
       "expo-router",
       "expo-secure-store",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow TrackItUp to use Face ID to unlock your protected local workspace."
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Allow TrackItUp to capture photos and scans for logs, inventory, and templates."
