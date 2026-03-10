@@ -21,6 +21,8 @@ export default function TabLayout() {
   const colorScheme = useColorScheme();
   const palette = getAppPalette(colorScheme);
   const theme = useTheme<MD3Theme>();
+  const activeTabColor = theme.colors.onSecondaryContainer;
+  const inactiveTabColor = theme.colors.onSurfaceVariant;
   const headerActionToneStyles = React.useMemo(
     () =>
       StyleSheet.create({
@@ -43,6 +45,27 @@ export default function TabLayout() {
     ],
   );
 
+  const renderTabIcon = React.useCallback(
+    (name: React.ComponentProps<typeof SymbolView>["name"]) =>
+      ({ color, focused }: { color: string; focused: boolean }) => (
+        <View
+          style={[
+            styles.tabIconContainer,
+            focused && {
+              backgroundColor: theme.colors.secondaryContainer,
+            },
+          ]}
+        >
+          <SymbolView
+            name={name}
+            tintColor={focused ? activeTabColor : color}
+            size={24}
+          />
+        </View>
+      ),
+    [activeTabColor, theme.colors.secondaryContainer],
+  );
+
   return (
     <Tabs
       screenOptions={{
@@ -50,29 +73,35 @@ export default function TabLayout() {
           backgroundColor: theme.colors.background,
         },
         tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: theme.colors.primary,
-        tabBarInactiveTintColor: palette.tabIconDefault,
-        tabBarActiveBackgroundColor: palette.primaryContainer,
+        tabBarActiveTintColor: activeTabColor,
+        tabBarInactiveTintColor: inactiveTabColor,
+        tabBarActiveBackgroundColor: "transparent",
+        tabBarInactiveBackgroundColor: "transparent",
+        tabBarLabelPosition: "below-icon",
         tabBarStyle: {
           backgroundColor: theme.colors.elevation.level2,
-          borderTopColor: theme.colors.outlineVariant,
-          borderTopWidth: uiBorder.hairline,
-          height: uiSize.tabBarHeight,
-          paddingTop: uiSpace.md,
-          paddingBottom: uiSpace.lg,
+          borderTopColor: "transparent",
+          borderTopWidth: 0,
+          height: 80,
+          paddingTop: uiSpace.sm,
+          paddingBottom: uiSpace.sm,
           paddingHorizontal: uiSpace.sm,
           shadowColor: palette.shadow,
           ...uiShadow.tabBar,
           elevation: uiElevation.chrome,
         },
         tabBarItemStyle: {
-          borderRadius: uiRadius.lg,
-          marginHorizontal: uiSpace.xs,
-          marginVertical: uiSpace.xxs,
+          justifyContent: "center",
+          paddingVertical: uiSpace.xxs,
+        },
+        tabBarIconStyle: {
+          marginBottom: 0,
         },
         tabBarLabelStyle: {
           ...uiTypography.tabLabel,
-          marginTop: 1,
+          fontSize: 12,
+          fontWeight: "500",
+          marginTop: uiSpace.xxs,
         },
         headerStyle: {
           backgroundColor: theme.colors.elevation.level2,
@@ -91,17 +120,11 @@ export default function TabLayout() {
         options={{
           title: "Home",
           headerTitle: "TrackItUp",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "house.fill",
-                android: "home",
-                web: "home",
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: renderTabIcon({
+            ios: "house.fill",
+            android: "home",
+            web: "home",
+          }),
           headerRight: () => (
             <View style={styles.headerActions}>
               <Link href="../account" asChild>
@@ -162,51 +185,33 @@ export default function TabLayout() {
         name="two"
         options={{
           title: "Timeline",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "list.bullet.rectangle.portrait.fill",
-                android: "list",
-                web: "list",
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: renderTabIcon({
+            ios: "list.bullet.rectangle.portrait.fill",
+            android: "list",
+            web: "list",
+          }),
         }}
       />
       <Tabs.Screen
         name="planner"
         options={{
           title: "Planner",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "calendar",
-                android: "calendar_month",
-                web: "calendar_month",
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: renderTabIcon({
+            ios: "calendar",
+            android: "calendar_month",
+            web: "calendar_month",
+          }),
         }}
       />
       <Tabs.Screen
         name="inventory"
         options={{
           title: "Inventory",
-          tabBarIcon: ({ color }) => (
-            <SymbolView
-              name={{
-                ios: "shippingbox.fill",
-                android: "inventory_2",
-                web: "inventory_2",
-              }}
-              tintColor={color}
-              size={28}
-            />
-          ),
+          tabBarIcon: renderTabIcon({
+            ios: "shippingbox.fill",
+            android: "inventory_2",
+            web: "inventory_2",
+          }),
         }}
       />
     </Tabs>
@@ -214,6 +219,13 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
+  tabIconContainer: {
+    width: 64,
+    height: 32,
+    borderRadius: uiRadius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerActionButton: {
     width: uiSize.headerAction,
     height: uiSize.headerAction,
