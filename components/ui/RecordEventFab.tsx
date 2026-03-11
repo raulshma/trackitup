@@ -25,6 +25,10 @@ export function RecordEventFab() {
     return null;
   }
 
+  if (pathname === "/" && workspace.spaces.length === 0) {
+    return null;
+  }
+
   function handlePress() {
     if (workspace.spaces.length === 0) {
       router.push({
@@ -63,7 +67,7 @@ export function RecordEventFab() {
         style={{
           position: "absolute",
           right: uiSpace.screen,
-          bottom: uiSpace.screenBottomTabs - uiSpace.lg,
+          bottom: uiSpace.screenBottomTabs - uiSpace.xl,
           backgroundColor: theme.colors.primaryContainer,
         }}
         color={theme.colors.onPrimaryContainer}

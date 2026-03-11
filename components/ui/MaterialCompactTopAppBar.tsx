@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.15,
   },
   action: {
-    marginLeft: uiSpace.xxs,
+    marginLeft: uiSpace.sm,
     marginRight: 0,
     borderWidth: uiBorder.hairline,
     borderRadius: uiRadius.md,

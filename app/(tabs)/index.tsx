@@ -163,6 +163,46 @@ export default function TabOneScreen() {
     workspace.templates.length,
   ]);
 
+  const baseCardSurfaceStyle = {
+    backgroundColor: palette.surface2,
+    borderColor: palette.borderSoft,
+    shadowColor: palette.shadow,
+  };
+
+  const nestedCardSurfaceStyle = {
+    backgroundColor: palette.surface3,
+    borderColor: palette.borderSoft,
+    shadowColor: palette.shadow,
+  };
+
+  const toolbarButtonColor = palette.secondaryContainer;
+  const toolbarButtonTextColor = palette.onSecondaryContainer;
+  const widgetButtonColor = palette.surface4;
+  const widgetButtonTextColor = palette.text;
+
+  function getSeverityBadgeColors(
+    severity: WorkspaceRecommendation["severity"],
+  ) {
+    if (severity === "high") {
+      return {
+        backgroundColor: palette.dangerContainer,
+        color: palette.onDangerContainer,
+      };
+    }
+
+    if (severity === "medium") {
+      return {
+        backgroundColor: `${palette.warning}22`,
+        color: palette.warning,
+      };
+    }
+
+    return {
+      backgroundColor: `${palette.success}22`,
+      color: palette.success,
+    };
+  }
+
   function openRecommendation(recommendation: WorkspaceRecommendation) {
     if (recommendation.action.kind === "open-inventory") {
       router.push("/inventory");
@@ -214,7 +254,14 @@ export default function TabOneScreen() {
               params: { actionId: action.id },
             })
           }
-          style={[styles.widgetShortcut, { borderColor: action.accent }]}
+          style={({ pressed }) => [
+            styles.widgetShortcut,
+            nestedCardSurfaceStyle,
+            {
+              borderColor: `${action.accent}22`,
+              opacity: pressed ? 0.94 : 1,
+            },
+          ]}
         >
           <Text style={styles.widgetShortcutLabel}>{action.label}</Text>
           <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
@@ -229,42 +276,39 @@ export default function TabOneScreen() {
         <Pressable
           key={recommendation.id}
           onPress={() => openRecommendation(recommendation)}
-          style={[styles.widgetShortcut, styles.recommendationCard]}
+          style={({ pressed }) => [
+            styles.widgetShortcut,
+            styles.recommendationCard,
+            nestedCardSurfaceStyle,
+            { opacity: pressed ? 0.94 : 1 },
+          ]}
         >
-          <View style={styles.widgetRecommendationHeader}>
-            <Text style={styles.widgetShortcutLabel}>
-              {recommendation.title}
-            </Text>
-            <View
-              style={[
-                styles.severityBadge,
-                {
-                  backgroundColor:
-                    recommendation.severity === "high"
-                      ? "#fee2e2"
-                      : recommendation.severity === "medium"
-                        ? "#fef3c7"
-                        : "#dcfce7",
-                },
-              ]}
-            >
-              <Text
-                style={[
-                  styles.severityBadgeLabel,
-                  {
-                    color:
-                      recommendation.severity === "high"
-                        ? "#b91c1c"
-                        : recommendation.severity === "medium"
-                          ? "#b45309"
-                          : "#166534",
-                  },
-                ]}
-              >
-                {recommendation.severity}
-              </Text>
-            </View>
-          </View>
+          {(() => {
+            const badgeColors = getSeverityBadgeColors(recommendation.severity);
+
+            return (
+              <View style={styles.widgetRecommendationHeader}>
+                <Text style={styles.widgetShortcutLabel}>
+                  {recommendation.title}
+                </Text>
+                <View
+                  style={[
+                    styles.severityBadge,
+                    { backgroundColor: badgeColors.backgroundColor },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.severityBadgeLabel,
+                      { color: badgeColors.color },
+                    ]}
+                  >
+                    {recommendation.severity}
+                  </Text>
+                </View>
+              </View>
+            );
+          })()}
           <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
             {recommendation.explanation}
           </Text>
@@ -378,14 +422,20 @@ export default function TabOneScreen() {
         <View style={styles.heroBadgeRow}>
           <Chip
             compact
-            style={[styles.heroBadge, { backgroundColor: palette.card }]}
-            textStyle={[styles.heroBadgeLabel, { color: palette.tint }]}
+            style={[
+              styles.heroBadge,
+              { backgroundColor: palette.primaryContainer },
+            ]}
+            textStyle={[
+              styles.heroBadgeLabel,
+              { color: palette.onPrimaryContainer },
+            ]}
           >
             TrackItUp
           </Chip>
           <Chip
             compact
-            style={[styles.heroBadge, { backgroundColor: palette.accentSoft }]}
+            style={[styles.heroBadge, { backgroundColor: palette.surface3 }]}
             textStyle={[styles.heroBadgeLabel, { color: palette.text }]}
           >
             {attentionSummary}
@@ -408,10 +458,10 @@ export default function TabOneScreen() {
               style={[
                 styles.heroStatPill,
                 {
-                  backgroundColor: palette.card,
+                  backgroundColor: palette.surface3,
                 },
               ]}
-              textStyle={styles.heroStatLabel}
+              textStyle={[styles.heroStatLabel, { color: palette.text }]}
             >
               {item}
             </Chip>
@@ -423,13 +473,7 @@ export default function TabOneScreen() {
         {overviewStats.map((stat) => (
           <Surface
             key={stat.label}
-            style={[
-              styles.statCard,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.border,
-              },
-            ]}
+            style={[styles.statCard, nestedCardSurfaceStyle]}
             elevation={1}
           >
             <Text style={[styles.statEyebrow, { color: palette.muted }]}>
@@ -450,43 +494,62 @@ export default function TabOneScreen() {
           metrics, and asset history.
         </Text>
       </View>
-      <Surface
-        style={[
-          styles.focusCard,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-          },
-        ]}
-        elevation={1}
-      >
+      <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
         {recommendations.length === 0 ? (
           <Text style={[styles.focusText, { color: palette.muted }]}>
             Recommendations will appear here as your spaces build up reminders,
             readings, and maintenance history.
           </Text>
         ) : (
-          recommendations.slice(0, 3).map((recommendation) => (
-            <Pressable
-              key={recommendation.id}
-              onPress={() => openRecommendation(recommendation)}
-              style={styles.recommendationRow}
-            >
-              <View style={styles.widgetListCopy}>
-                <Text style={styles.widgetListTitle}>
-                  {recommendation.title}
-                </Text>
-                <Text
-                  style={[styles.widgetShortcutMeta, { color: palette.muted }]}
-                >
-                  {recommendation.explanation}
-                </Text>
-              </View>
-              <Text style={[styles.actionCta, { color: palette.tint }]}>
-                {recommendation.action.label}
-              </Text>
-            </Pressable>
-          ))
+          recommendations.slice(0, 3).map((recommendation) => {
+            const badgeColors = getSeverityBadgeColors(recommendation.severity);
+
+            return (
+              <Pressable
+                key={recommendation.id}
+                onPress={() => openRecommendation(recommendation)}
+                style={({ pressed }) => [
+                  styles.recommendationRow,
+                  nestedCardSurfaceStyle,
+                  { opacity: pressed ? 0.94 : 1 },
+                ]}
+              >
+                <View style={styles.widgetListCopy}>
+                  <Text style={styles.widgetListTitle}>
+                    {recommendation.title}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.widgetShortcutMeta,
+                      { color: palette.muted },
+                    ]}
+                  >
+                    {recommendation.explanation}
+                  </Text>
+                </View>
+                <View style={styles.recommendationAside}>
+                  <View
+                    style={[
+                      styles.severityBadge,
+                      { backgroundColor: badgeColors.backgroundColor },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.severityBadgeLabel,
+                        { color: badgeColors.color },
+                      ]}
+                    >
+                      {recommendation.severity}
+                    </Text>
+                  </View>
+                  <Text style={[styles.actionCta, { color: palette.tint }]}>
+                    {recommendation.action.label}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })
         )}
       </Surface>
 
@@ -509,19 +572,23 @@ export default function TabOneScreen() {
             }
             style={({ pressed }) => [
               styles.actionPressable,
-              { opacity: pressed ? 0.9 : 1 },
+              { opacity: pressed ? 0.96 : 1 },
             ]}
           >
             <Surface
               style={[
                 styles.actionButton,
-                {
-                  backgroundColor: palette.card,
-                  borderColor: action.accent,
-                },
+                baseCardSurfaceStyle,
+                { borderColor: `${action.accent}24` },
               ]}
-              elevation={1}
+              elevation={3}
             >
+              <View
+                style={[
+                  styles.actionAccentBar,
+                  { backgroundColor: action.accent },
+                ]}
+              />
               <Text style={styles.actionLabel}>{action.label}</Text>
               <Text
                 style={[styles.actionDescription, { color: palette.muted }]}
@@ -529,12 +596,26 @@ export default function TabOneScreen() {
                 {action.description}
               </Text>
               <View style={styles.actionFooter}>
-                <Text style={[styles.actionMeta, { color: palette.muted }]}>
-                  {action.target}
-                </Text>
-                <Text style={[styles.actionCta, { color: action.accent }]}>
-                  Record now
-                </Text>
+                <View
+                  style={[
+                    styles.actionMetaPill,
+                    { backgroundColor: palette.surface3 },
+                  ]}
+                >
+                  <Text style={[styles.actionMeta, { color: palette.muted }]}>
+                    {action.target}
+                  </Text>
+                </View>
+                <View
+                  style={[
+                    styles.actionCtaPill,
+                    { backgroundColor: `${action.accent}24` },
+                  ]}
+                >
+                  <Text style={[styles.actionCta, { color: action.accent }]}>
+                    Record now
+                  </Text>
+                </View>
               </View>
             </Surface>
           </Pressable>
@@ -549,17 +630,7 @@ export default function TabOneScreen() {
         </Text>
       </View>
       {spaceSummaries.length === 0 ? (
-        <Surface
-          style={[
-            styles.spaceCard,
-            {
-              backgroundColor: palette.card,
-              borderColor: palette.border,
-              borderLeftColor: palette.border,
-            },
-          ]}
-          elevation={1}
-        >
+        <Surface style={[styles.spaceCard, baseCardSurfaceStyle]} elevation={1}>
           <Text style={styles.spaceName}>No tracked spaces yet</Text>
           <Text style={[styles.spaceNote, { color: palette.muted }]}>
             Create your first space to give new events, routines, and metrics a
@@ -581,14 +652,7 @@ export default function TabOneScreen() {
         spaceSummaries.map((space) => (
           <Surface
             key={space.id}
-            style={[
-              styles.spaceCard,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.border,
-                borderLeftColor: space.accent,
-              },
-            ]}
+            style={[styles.spaceCard, baseCardSurfaceStyle]}
             elevation={1}
           >
             <View style={styles.spaceHeader}>
@@ -626,8 +690,10 @@ export default function TabOneScreen() {
                 onPress={() =>
                   router.push(`/visual-history?spaceId=${space.id}` as never)
                 }
-                mode="outlined"
-                style={[styles.toolbarButton, { borderColor: palette.border }]}
+                mode="contained-tonal"
+                buttonColor={toolbarButtonColor}
+                textColor={toolbarButtonTextColor}
+                style={styles.toolbarButton}
                 contentStyle={styles.toolbarButtonContent}
                 labelStyle={styles.toolbarButtonLabel}
               >
@@ -659,14 +725,7 @@ export default function TabOneScreen() {
       {visibleWidgets.map((widget, index) => (
         <Surface
           key={widget.id}
-          style={[
-            styles.spaceCard,
-            {
-              backgroundColor: palette.card,
-              borderColor: palette.border,
-              borderLeftColor: palette.tint,
-            },
-          ]}
+          style={[styles.spaceCard, baseCardSurfaceStyle]}
           elevation={1}
         >
           <View style={styles.spaceHeader}>
@@ -679,9 +738,11 @@ export default function TabOneScreen() {
             <View style={styles.widgetControls}>
               <Button
                 onPress={() => moveDashboardWidget(widget.id, "up")}
-                mode="outlined"
+                mode="contained-tonal"
+                buttonColor={widgetButtonColor}
+                textColor={widgetButtonTextColor}
                 compact
-                style={[styles.widgetButton, { borderColor: palette.border }]}
+                style={styles.widgetButton}
                 contentStyle={styles.widgetButtonContent}
                 labelStyle={styles.widgetButtonLabel}
               >
@@ -689,9 +750,11 @@ export default function TabOneScreen() {
               </Button>
               <Button
                 onPress={() => moveDashboardWidget(widget.id, "down")}
-                mode="outlined"
+                mode="contained-tonal"
+                buttonColor={widgetButtonColor}
+                textColor={widgetButtonTextColor}
                 compact
-                style={[styles.widgetButton, { borderColor: palette.border }]}
+                style={styles.widgetButton}
                 contentStyle={styles.widgetButtonContent}
                 labelStyle={styles.widgetButtonLabel}
               >
@@ -699,9 +762,11 @@ export default function TabOneScreen() {
               </Button>
               <Button
                 onPress={() => cycleDashboardWidgetSize(widget.id)}
-                mode="outlined"
+                mode="contained-tonal"
+                buttonColor={widgetButtonColor}
+                textColor={widgetButtonTextColor}
                 compact
-                style={[styles.widgetButton, { borderColor: palette.border }]}
+                style={styles.widgetButton}
                 contentStyle={styles.widgetButtonContent}
                 labelStyle={styles.widgetButtonLabel}
               >
@@ -709,9 +774,11 @@ export default function TabOneScreen() {
               </Button>
               <Button
                 onPress={() => toggleDashboardWidgetVisibility(widget.id)}
-                mode="outlined"
+                mode="contained-tonal"
+                buttonColor={widgetButtonColor}
+                textColor={widgetButtonTextColor}
                 compact
-                style={[styles.widgetButton, { borderColor: palette.border }]}
+                style={styles.widgetButton}
                 contentStyle={styles.widgetButtonContent}
                 labelStyle={styles.widgetButtonLabel}
               >
@@ -727,16 +794,7 @@ export default function TabOneScreen() {
         </Surface>
       ))}
       {hiddenWidgets.length > 0 ? (
-        <Surface
-          style={[
-            styles.focusCard,
-            {
-              backgroundColor: palette.card,
-              borderColor: palette.border,
-            },
-          ]}
-          elevation={1}
-        >
+        <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
           <Text style={styles.sectionTitle}>Hidden widgets</Text>
           {hiddenWidgets.map((widget) => (
             <View key={widget.id} style={styles.hiddenWidgetRow}>
@@ -750,9 +808,11 @@ export default function TabOneScreen() {
               </View>
               <Button
                 onPress={() => toggleDashboardWidgetVisibility(widget.id)}
-                mode="outlined"
+                mode="contained-tonal"
+                buttonColor={widgetButtonColor}
+                textColor={widgetButtonTextColor}
                 compact
-                style={[styles.widgetButton, { borderColor: palette.border }]}
+                style={styles.widgetButton}
                 contentStyle={styles.widgetButtonContent}
                 labelStyle={styles.widgetButtonLabel}
               >
@@ -770,16 +830,7 @@ export default function TabOneScreen() {
           workspace.
         </Text>
       </View>
-      <Surface
-        style={[
-          styles.focusCard,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-          },
-        ]}
-        elevation={1}
-      >
+      <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
         {attentionItems.map((item) => (
           <View key={item} style={styles.focusItem}>
             <View
@@ -802,8 +853,10 @@ export default function TabOneScreen() {
       <View style={styles.widgetToolbar}>
         <Button
           onPress={() => router.push("/schema-builder")}
-          mode="outlined"
-          style={[styles.toolbarButton, { borderColor: palette.border }]}
+          mode="contained-tonal"
+          buttonColor={toolbarButtonColor}
+          textColor={toolbarButtonTextColor}
+          style={styles.toolbarButton}
           contentStyle={styles.toolbarButtonContent}
           labelStyle={styles.toolbarButtonLabel}
         >
@@ -811,8 +864,10 @@ export default function TabOneScreen() {
         </Button>
         <Button
           onPress={() => router.push("/template-import")}
-          mode="outlined"
-          style={[styles.toolbarButton, { borderColor: palette.border }]}
+          mode="contained-tonal"
+          buttonColor={toolbarButtonColor}
+          textColor={toolbarButtonTextColor}
+          style={styles.toolbarButton}
           contentStyle={styles.toolbarButtonContent}
           labelStyle={styles.toolbarButtonLabel}
         >
@@ -820,17 +875,7 @@ export default function TabOneScreen() {
         </Button>
       </View>
       {workspace.templates.length === 0 ? (
-        <Surface
-          style={[
-            styles.spaceCard,
-            {
-              backgroundColor: palette.card,
-              borderColor: palette.border,
-              borderLeftColor: palette.border,
-            },
-          ]}
-          elevation={1}
-        >
+        <Surface style={[styles.spaceCard, baseCardSurfaceStyle]} elevation={1}>
           <Text style={styles.spaceName}>
             No templates in this workspace yet
           </Text>
@@ -842,14 +887,7 @@ export default function TabOneScreen() {
         workspace.templates.map((template) => (
           <Surface
             key={template.id}
-            style={[
-              styles.spaceCard,
-              {
-                backgroundColor: palette.card,
-                borderColor: palette.border,
-                borderLeftColor: palette.tint,
-              },
-            ]}
+            style={[styles.spaceCard, baseCardSurfaceStyle]}
             elevation={1}
           >
             <View style={styles.spaceHeader}>
@@ -882,11 +920,10 @@ export default function TabOneScreen() {
                       params: { templateId: template.id },
                     })
                   }
-                  mode="outlined"
-                  style={[
-                    styles.toolbarButton,
-                    { borderColor: palette.border },
-                  ]}
+                  mode="contained-tonal"
+                  buttonColor={toolbarButtonColor}
+                  textColor={toolbarButtonTextColor}
+                  style={styles.toolbarButton}
                   contentStyle={styles.toolbarButtonContent}
                   labelStyle={styles.toolbarButtonLabel}
                 >
@@ -904,16 +941,7 @@ export default function TabOneScreen() {
           Tips here reflect your current real workspace state.
         </Text>
       </View>
-      <Surface
-        style={[
-          styles.focusCard,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.border,
-          },
-        ]}
-        elevation={1}
-      >
+      <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
         {workspaceGuidance.map((item) => (
           <View key={item} style={styles.focusItem}>
             <View
@@ -935,8 +963,8 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 120,
-    gap: 18,
+    paddingBottom: 168,
+    gap: 20,
   },
   hero: {
     borderWidth: 1,
@@ -955,6 +983,7 @@ const styles = StyleSheet.create({
   heroBadgeLabel: {
     fontSize: 12,
     fontWeight: "700",
+    lineHeight: 16,
   },
   eyebrow: {
     fontSize: 13,
@@ -963,7 +992,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 30,
-    fontWeight: "bold",
+    fontWeight: "700",
     lineHeight: 38,
   },
   subtitle: {
@@ -982,7 +1011,7 @@ const styles = StyleSheet.create({
   },
   heroStatLabel: {
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   statRow: {
     flexDirection: "row",
@@ -992,9 +1021,9 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: 100,
-    borderWidth: 1,
-    borderRadius: 22,
-    padding: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+    padding: 20,
   },
   statEyebrow: {
     fontSize: 11,
@@ -1012,11 +1041,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   sectionHeader: {
-    marginTop: 4,
-    marginBottom: -4,
+    marginTop: 2,
+    marginBottom: 2,
+    gap: 4,
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
     marginBottom: 4,
   },
@@ -1027,29 +1057,35 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 10,
+    gap: 12,
   },
   actionPressable: {
     flex: 1,
     minWidth: 200,
   },
   actionButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 14,
+    paddingVertical: 20,
+    paddingHorizontal: 18,
     borderRadius: 24,
-    borderWidth: 1,
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "flex-start",
-    minHeight: 148,
+    minHeight: 176,
+  },
+  actionAccentBar: {
+    width: 40,
+    height: 5,
+    borderRadius: 999,
+    marginBottom: 16,
   },
   actionLabel: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
   },
   actionDescription: {
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 8,
-    marginBottom: 14,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 10,
+    marginBottom: 16,
     flex: 1,
   },
   actionFooter: {
@@ -1057,36 +1093,45 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: 12,
     marginTop: "auto",
+  },
+  actionMetaPill: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexShrink: 1,
   },
   actionMeta: {
     fontSize: 12,
-    lineHeight: 18,
-    flex: 1,
-    marginRight: 10,
+    lineHeight: 16,
+  },
+  actionCtaPill: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   actionCta: {
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   spaceCard: {
-    borderWidth: 1,
-    borderLeftWidth: 5,
-    borderRadius: 24,
-    padding: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+    padding: 20,
   },
   spaceHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   spaceHeadingCopy: {
     flex: 1,
     marginRight: 12,
   },
   spaceName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: "700",
     marginBottom: 4,
   },
@@ -1121,9 +1166,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   focusCard: {
-    borderWidth: 1,
-    borderRadius: 24,
-    padding: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 20,
+    padding: 20,
   },
   focusItem: {
     flexDirection: "row",
@@ -1144,32 +1189,30 @@ const styles = StyleSheet.create({
   },
   widgetControls: {
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     flexWrap: "wrap",
     justifyContent: "flex-end",
   },
   widgetButton: {
-    minWidth: 56,
-    borderRadius: 999,
-    borderWidth: 1,
-    backgroundColor: "transparent",
+    minWidth: 0,
+    borderRadius: 16,
   },
   widgetButtonContent: {
-    minHeight: 34,
+    minHeight: 32,
   },
   widgetButtonLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    marginHorizontal: 4,
+    fontSize: 11,
+    fontWeight: "600",
+    marginHorizontal: 2,
   },
   widgetBody: {
-    marginBottom: 12,
+    marginBottom: 14,
   },
   hiddenWidgetRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   widgetListItem: {
     flexDirection: "row",
@@ -1185,10 +1228,10 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   widgetShortcut: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 12,
-    marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
   },
   widgetShortcutLabel: {
     fontSize: 14,
@@ -1212,7 +1255,7 @@ const styles = StyleSheet.create({
   },
   severityBadgeLabel: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "600",
     textTransform: "uppercase",
   },
   recommendationCard: {
@@ -1220,21 +1263,27 @@ const styles = StyleSheet.create({
   },
   recommendationRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
-    paddingVertical: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 12,
+  },
+  recommendationAside: {
+    alignItems: "flex-end",
+    gap: 8,
   },
   widgetToolbar: {
     flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
+    gap: 12,
+    marginBottom: 14,
     flexWrap: "wrap",
   },
   toolbarButton: {
-    borderWidth: 1,
     borderRadius: 999,
-    backgroundColor: "transparent",
   },
   toolbarButtonContent: {
     minHeight: 42,
