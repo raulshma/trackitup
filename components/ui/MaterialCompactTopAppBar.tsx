@@ -57,6 +57,11 @@ export function MaterialCompactTopAppBar({
   const theme = useTheme<MD3Theme>();
   const insets = useSafeAreaInsets();
   const totalHeaderHeight = useMaterialCompactTopAppBarHeight();
+  const clampedScrollY = React.useMemo(
+    () =>
+      scrollY ? Animated.diffClamp(scrollY, 0, HEADER_COLLAPSE_DISTANCE) : null,
+    [scrollY],
+  );
   const actionColor = showBrand
     ? theme.colors.onSecondaryContainer
     : theme.colors.onSurfaceVariant;
@@ -64,7 +69,7 @@ export function MaterialCompactTopAppBar({
     ? theme.colors.secondaryContainer
     : theme.colors.elevation.level2;
   const animatedContainerStyle = React.useMemo(() => {
-    if (!scrollY) {
+    if (!clampedScrollY) {
       return {
         height: totalHeaderHeight,
         opacity: 1,
@@ -73,7 +78,7 @@ export function MaterialCompactTopAppBar({
 
     return {
       height: totalHeaderHeight,
-      opacity: scrollY.interpolate({
+      opacity: clampedScrollY.interpolate({
         inputRange: [
           0,
           HEADER_RELEASE_OFFSET,
@@ -85,7 +90,7 @@ export function MaterialCompactTopAppBar({
       }),
       transform: [
         {
-          translateY: scrollY.interpolate({
+          translateY: clampedScrollY.interpolate({
             inputRange: [0, HEADER_RELEASE_OFFSET, HEADER_COLLAPSE_DISTANCE],
             outputRange: [0, 0, -totalHeaderHeight],
             extrapolate: "clamp",
@@ -93,7 +98,7 @@ export function MaterialCompactTopAppBar({
         },
       ],
     };
-  }, [scrollY, totalHeaderHeight]);
+  }, [clampedScrollY, totalHeaderHeight]);
 
   return (
     <Animated.View
