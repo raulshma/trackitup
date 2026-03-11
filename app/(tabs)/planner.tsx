@@ -1,9 +1,11 @@
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -44,6 +46,7 @@ export default function PlannerScreen() {
     () => createCommonPaletteStyles(palette),
     [palette],
   );
+  const router = useRouter();
   const { completeReminder, skipReminder, snoozeReminder, workspace } =
     useWorkspace();
   const [monthOffset, setMonthOffset] = useState(0);
@@ -129,6 +132,44 @@ export default function PlannerScreen() {
     `${selectedDayReminders.length} on the selected day`,
     `${plannerGroups.length} upcoming day groups`,
   ];
+  const selectedReminderForQuickAction = selectedDayReminders[0];
+  const pageQuickActions = [
+    {
+      id: "planner-today",
+      label: "Focus today",
+      hint: `${selectedDayReminders.length} reminder${selectedDayReminders.length === 1 ? "" : "s"} are on the currently selected day.`,
+      onPress: () => {
+        setMonthOffset(0);
+        setSelectedDateKey(workspace.generatedAt.slice(0, 10));
+      },
+      accentColor: palette.tint,
+    },
+    {
+      id: "planner-log-proof",
+      label: selectedReminderForQuickAction ? "Log proof" : "Open logbook",
+      hint: selectedReminderForQuickAction
+        ? `Ready to capture proof for ${selectedReminderForQuickAction.title}.`
+        : "Open the logbook and attach proof to a reminder when needed.",
+      onPress: () =>
+        router.push({
+          pathname: "/logbook",
+          params: selectedReminderForQuickAction
+            ? {
+                actionId: "quick-log",
+                reminderId: selectedReminderForQuickAction.id,
+                spaceId: selectedReminderForQuickAction.spaceId,
+              }
+            : { actionId: "quick-log" },
+        }),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "planner-action-center",
+      label: "Open action center",
+      hint: "Complete, snooze, or skip reminder work from a single queue.",
+      onPress: () => router.push("/action-center" as never),
+    },
+  ];
 
   return (
     <Animated.ScrollView
@@ -177,6 +218,13 @@ export default function PlannerScreen() {
           ))}
         </View>
       </Surface>
+
+      <PageQuickActions
+        palette={palette}
+        title="Keep planner work flowing"
+        description="Jump straight into today’s work, capture proof from the selected day, or move into the action queue without losing planner context."
+        actions={pageQuickActions}
+      />
 
       <Surface
         style={[styles.calendarCard, paletteStyles.cardSurface]}

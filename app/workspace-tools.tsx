@@ -4,16 +4,17 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet } from "react-native";
 import {
-  Button,
-  Chip,
-  SegmentedButtons,
-  Surface,
-  TextInput,
+    Button,
+    Chip,
+    SegmentedButtons,
+    Surface,
+    TextInput,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
@@ -21,25 +22,25 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-  uiBorder,
-  uiRadius,
-  uiSize,
-  uiSpace,
-  uiTypography,
+    uiBorder,
+    uiRadius,
+    uiSize,
+    uiSpace,
+    uiTypography,
 } from "@/constants/UiTokens";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
-  getCameraPermissionStatusAsync,
-  getLastKnownLocationPreviewAsync,
-  getLocationPermissionStatusAsync,
-  requestCameraPermissionAsync,
-  requestLocationPermissionAsync,
+    getCameraPermissionStatusAsync,
+    getLastKnownLocationPreviewAsync,
+    getLocationPermissionStatusAsync,
+    requestCameraPermissionAsync,
+    requestLocationPermissionAsync,
 } from "@/services/device/deviceCapabilities";
 import {
-  exportWorkspaceJsonAsync,
-  exportWorkspaceLogsCsvAsync,
-  exportWorkspaceSummaryPdfAsync,
+    exportWorkspaceJsonAsync,
+    exportWorkspaceLogsCsvAsync,
+    exportWorkspaceSummaryPdfAsync,
 } from "@/services/export/workspaceExport";
 import type { ThemePreference } from "@/services/theme/themePreferences";
 
@@ -193,6 +194,48 @@ export default function WorkspaceToolsScreen() {
     });
   }
 
+  const pageQuickActions = [
+    {
+      id: "workspace-tools-export",
+      label: "Export JSON",
+      hint: `${workspace.logs.length} log${workspace.logs.length === 1 ? "" : "s"} and ${workspace.assets.length} asset${workspace.assets.length === 1 ? "" : "s"} are ready to travel with the workspace snapshot.`,
+      onPress: () =>
+        runTool(async () => {
+          const uri = await exportWorkspaceJsonAsync(workspace);
+          return `JSON export created at ${uri}`;
+        }),
+      accentColor: palette.tint,
+      disabled: isWorking,
+    },
+    {
+      id: "workspace-tools-template",
+      label:
+        templateImportUrl.trim().length > 0
+          ? "Review import link"
+          : "Scan template QR",
+      hint:
+        templateImportUrl.trim().length > 0
+          ? "Open the pasted TrackItUp link and review it before importing."
+          : `${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"} already live in your local catalog.`,
+      onPress: () =>
+        templateImportUrl.trim().length > 0
+          ? router.push({
+              pathname: "/template-import",
+              params: { url: templateImportUrl.trim(), source: "deep-link" },
+            })
+          : router.push("/scanner" as never),
+      accentColor: palette.secondary,
+      disabled: isWorking,
+    },
+    {
+      id: "workspace-tools-refresh",
+      label: "Refresh device status",
+      hint: `${cameraStatus} camera • ${locationStatus} location`,
+      onPress: () => void refreshDeviceCapabilities(),
+      disabled: isWorking,
+    },
+  ];
+
   return (
     <ScrollView
       style={[styles.screen, paletteStyles.screenBackground]}
@@ -213,6 +256,13 @@ export default function WorkspaceToolsScreen() {
             backgroundColor: palette.accentSoft,
           },
         ]}
+      />
+
+      <PageQuickActions
+        palette={palette}
+        title="Jump to the tools you need most"
+        description="Export the workspace, move a shared template into review, or refresh device readiness before diving into the longer tool sections below."
+        actions={pageQuickActions}
       />
 
       <SectionSurface

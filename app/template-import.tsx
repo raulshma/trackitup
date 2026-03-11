@@ -5,6 +5,7 @@ import { Button, Chip, Surface } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChipRow } from "@/components/ui/ChipRow";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -143,6 +144,31 @@ export default function TemplateImportScreen() {
     setTemplateName(result.templateName ?? null);
     setLastImportKey(importKey);
   };
+  const pageQuickActions = [
+    {
+      id: "template-import-primary",
+      label: templateName ? "Imported" : "Import template",
+      hint: parsedImport
+        ? `${parsedImport.supportedFieldTypes.length} supported field type${parsedImport.supportedFieldTypes.length === 1 ? "" : "s"} from ${parsedImport.origin ?? "a shared source"}.`
+        : "Import unlocks once this route contains a valid TrackItUp template link.",
+      onPress: handleImport,
+      accentColor: palette.tint,
+      disabled: isImportDisabled,
+    },
+    {
+      id: "template-import-scan",
+      label: "Scan again",
+      hint: "Use the scanner when the template came from a QR label or printed share card.",
+      onPress: () => router.replace("/scanner" as never),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "template-import-builder",
+      label: "Open schema builder",
+      hint: `${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"} are already available in this local catalog.`,
+      onPress: () => router.push("/schema-builder" as never),
+    },
+  ];
 
   return (
     <View style={[styles.screen, paletteStyles.screenBackground]}>
@@ -169,6 +195,13 @@ export default function TemplateImportScreen() {
               backgroundColor: palette.accentSoft,
             },
           ]}
+        />
+
+        <PageQuickActions
+          palette={palette}
+          title="Move through template review faster"
+          description="Import the current payload, rescan a QR source, or jump into the local schema builder when a shared template needs a custom follow-up."
+          actions={pageQuickActions}
         />
 
         <SectionMessage

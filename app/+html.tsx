@@ -13,6 +13,12 @@ import {
 const clerkScriptSource = "https://*.clerk.accounts.dev";
 const clerkImageSource = "https://img.clerk.com";
 const clerkChallengeFrameSource = "https://challenges.cloudflare.com";
+const webScriptSources = [
+  "'self'",
+  "'unsafe-inline'",
+  ...(process.env.NODE_ENV === "production" ? [] : ["'unsafe-eval'"]),
+  clerkScriptSource,
+].join(" ");
 
 const webContentSecurityPolicy = [
   "default-src 'self'",
@@ -21,7 +27,7 @@ const webContentSecurityPolicy = [
   `img-src 'self' data: blob: ${clerkImageSource}`,
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline' ${clerkScriptSource}`,
+  `script-src ${webScriptSources}`,
   "worker-src 'self' blob:",
   `frame-src 'self' ${clerkChallengeFrameSource}`,
   "connect-src 'self' https: ws: wss:",

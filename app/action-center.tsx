@@ -6,6 +6,7 @@ import { Button, Chip } from "react-native-paper";
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -79,6 +80,39 @@ export default function ActionCenterScreen() {
     { label: "Due today", reminders: actionCenter.dueToday },
     { label: "Coming up", reminders: actionCenter.upcoming.slice(0, 6) },
   ];
+  const quickActionReminder =
+    actionCenter.overdue[0] ??
+    actionCenter.dueToday[0] ??
+    actionCenter.upcoming[0];
+  const pageQuickActions = [
+    {
+      id: "action-center-planner",
+      label: "Open planner",
+      hint: `${actionCenter.summary.overdueCount} overdue • ${actionCenter.summary.dueTodayCount} due today`,
+      onPress: () => router.push("/planner" as never),
+      accentColor: palette.tint,
+    },
+    {
+      id: "action-center-proof",
+      label: quickActionReminder ? "Log proof" : "Open logbook",
+      hint: quickActionReminder
+        ? `Capture completion evidence for ${quickActionReminder.title}.`
+        : "Jump into the logbook when you need to record proof or context.",
+      onPress: () =>
+        router.push(
+          quickActionReminder
+            ? (`/logbook?actionId=quick-log&spaceId=${quickActionReminder.spaceId}&reminderId=${quickActionReminder.id}` as never)
+            : ("/logbook" as never),
+        ),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "action-center-inventory",
+      label: "Review inventory",
+      hint: `${workspace.assets.length} asset${workspace.assets.length === 1 ? "" : "s"} can be tied back to reminder work and recommendations.`,
+      onPress: () => router.push("/inventory" as never),
+    },
+  ];
 
   return (
     <ScrollView
@@ -104,6 +138,13 @@ export default function ActionCenterScreen() {
             backgroundColor: palette.card,
           },
         ]}
+      />
+
+      <PageQuickActions
+        palette={palette}
+        title="Handle the next best move"
+        description="These shortcuts keep the action center connected to planning, proof capture, and the asset context behind the work."
+        actions={pageQuickActions}
       />
 
       <SectionSurface

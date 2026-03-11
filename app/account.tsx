@@ -13,6 +13,7 @@ import {
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
@@ -111,6 +112,29 @@ export default function AccountScreen() {
         : workspace.reminderNotificationPermissionStatus === "unsupported"
           ? "Unsupported"
           : "Not enabled";
+  const pageQuickActions = [
+    {
+      id: "account-sync",
+      label: workspace.isSyncing ? "Syncing now" : "Sync now",
+      hint: `${syncStateLabel} • last local snapshot ${lastLocalSnapshot}`,
+      onPress: () => runAction(workspace.syncWorkspaceNow),
+      accentColor: palette.tint,
+      disabled: isSubmitting || workspace.isSyncing || isProtectionBlocked,
+    },
+    {
+      id: "account-alerts",
+      label: "Open action center",
+      hint: `${reminderNotificationLabel} reminder alerts across ${workspace.workspace.reminders.length} tracked reminder${workspace.workspace.reminders.length === 1 ? "" : "s"}.`,
+      onPress: () => router.push("/action-center" as never),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "account-home",
+      label: "Open workspace",
+      hint: `${workspace.workspace.quickActions.length} recording shortcut${workspace.workspace.quickActions.length === 1 ? "" : "s"} are ready from the main workspace.`,
+      onPress: () => router.replace("/(tabs)"),
+    },
+  ];
 
   async function runAction(
     action: () => Promise<{ status: string; message: string }>,
@@ -196,6 +220,13 @@ export default function AccountScreen() {
             backgroundColor: palette.card,
           },
         ]}
+      />
+
+      <PageQuickActions
+        palette={palette}
+        title="Stay on top of device and account state"
+        description="Jump to sync, alerts, and the main workspace without scrolling through every account, privacy, or authentication setting first."
+        actions={pageQuickActions}
       />
 
       <SectionSurface

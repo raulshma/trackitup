@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
@@ -85,6 +86,46 @@ export default function ScannerScreen() {
   const looksLikeUrl = Boolean(
     lastScan?.data.match(/^(https?:\/\/|trackitup:\/\/)/i),
   );
+  const pageQuickActions = [
+    {
+      id: "scanner-primary",
+      label: hasPermission
+        ? lastScan
+          ? "Scan again"
+          : "Camera ready"
+        : "Allow camera",
+      hint: hasPermission
+        ? lastScan
+          ? "Clear the current result and keep moving through labels."
+          : "The camera feed is ready for the next barcode or QR code."
+        : "Grant access to use live barcode and QR scanning on this device.",
+      onPress: () =>
+        hasPermission ? setLastScan(null) : handleRequestPermission(),
+      accentColor: palette.tint,
+      disabled: Boolean(hasPermission && !lastScan),
+    },
+    {
+      id: "scanner-inventory",
+      label: "Back to inventory",
+      hint: `${workspace.assets.length} tracked asset${workspace.assets.length === 1 ? "" : "s"} can be matched against scanned codes.`,
+      onPress: () => router.replace("/(tabs)/inventory"),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "scanner-secondary",
+      label: scannedTemplate ? "Review template" : "Open workspace tools",
+      hint: scannedTemplate
+        ? `Open ${scannedTemplate.name ?? "the shared template"} before importing it into your catalog.`
+        : "Check permissions, import links, and device readiness from one tool hub.",
+      onPress: () =>
+        scannedTemplate
+          ? router.push({
+              pathname: "/template-import",
+              params: { url: lastScan?.data ?? "", source: "qr-code" },
+            })
+          : router.push("/workspace-tools" as never),
+    },
+  ];
 
   return (
     <View style={[styles.screen, paletteStyles.screenBackground]}>
@@ -109,6 +150,13 @@ export default function ScannerScreen() {
               backgroundColor: palette.accentSoft,
             },
           ]}
+        />
+
+        <PageQuickActions
+          palette={palette}
+          title="Work the next scan faster"
+          description="Grant access, jump back to inventory, or move a scanned template straight into review without leaving the scanner flow."
+          actions={pageQuickActions}
         />
 
         <Surface

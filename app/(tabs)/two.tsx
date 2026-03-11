@@ -5,6 +5,7 @@ import { Chip, Searchbar, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -88,6 +89,9 @@ export default function TabTwoScreen() {
     () => new Map(logEntries.map((log) => [log.id, log] as const)),
     [logEntries],
   );
+  const preferredQuickLogAction =
+    workspace.quickActions.find((action) => action.kind === "quick-log") ??
+    workspace.quickActions[0];
 
   const filteredEntries = useMemo(() => {
     const now = new Date(workspace.generatedAt).getTime();
@@ -184,6 +188,56 @@ export default function TabTwoScreen() {
     searchQuery.trim().length > 0,
   ].filter(Boolean).length;
 
+  const pageQuickActions = [
+    {
+      id: "timeline-record",
+      label: preferredQuickLogAction?.label ?? "Record event",
+      hint: "Capture something new and jump straight back into the unified feed.",
+      onPress: () =>
+        router.push({
+          pathname: "/logbook",
+          params: preferredQuickLogAction
+            ? { actionId: preferredQuickLogAction.id }
+            : {},
+        }),
+      accentColor: palette.tint,
+    },
+    {
+      id: "timeline-alerts",
+      label:
+        thresholdMode === "alerts"
+          ? "Alert filter on"
+          : "Show safe-zone alerts",
+      hint:
+        thresholdMode === "alerts"
+          ? "You are already focused on out-of-range metric readings."
+          : "Narrow the feed to entries that crossed a tracked safe zone.",
+      onPress: () => {
+        setThresholdMode("alerts");
+        setSearchQuery("");
+      },
+      accentColor: palette.secondary,
+    },
+    {
+      id: "timeline-reset",
+      label: activeFilterCount === 0 ? "Feed is reset" : "Clear filters",
+      hint:
+        activeFilterCount === 0
+          ? resultSummary
+          : `${activeFilterCount} active filter${activeFilterCount === 1 ? "" : "s"} are shaping this view.`,
+      onPress: () => {
+        setActiveTimeFilter("all");
+        setActiveKindFilter("all");
+        setActiveSpaceId("all");
+        setActiveAssetId("all");
+        setActiveTag("all");
+        setThresholdMode("all");
+        setSearchQuery("");
+      },
+      disabled: activeFilterCount === 0,
+    },
+  ];
+
   return (
     <Animated.ScrollView
       {...headerScroll}
@@ -220,6 +274,13 @@ export default function TabTwoScreen() {
           asset event from one clean chronological feed.
         </Text>
       </Surface>
+
+      <PageQuickActions
+        palette={palette}
+        title="Move through the timeline faster"
+        description="These shortcuts stay focused on the current feed so you can record, isolate issues, and reset the view without hunting through filters."
+        actions={pageQuickActions}
+      />
 
       <Surface
         style={[styles.searchCard, paletteStyles.cardSurface]}

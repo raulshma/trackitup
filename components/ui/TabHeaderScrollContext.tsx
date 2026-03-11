@@ -1,5 +1,5 @@
 import React from "react";
-import { Animated, type ScrollViewProps } from "react-native";
+import { Animated, Platform, type ScrollViewProps } from "react-native";
 
 type TabHeaderScrollContextValue = {
   getScrollValue: (routeName: string) => Animated.Value;
@@ -61,7 +61,7 @@ export function useTabHeaderScroll(routeName: string): {
   const onScroll = React.useMemo(
     () =>
       Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }),
     [scrollY],
   );

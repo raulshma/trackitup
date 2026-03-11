@@ -10,6 +10,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
@@ -114,6 +115,29 @@ export default function SpaceCreateScreen() {
     });
   }
 
+  const pageQuickActions = [
+    {
+      id: "space-create-save",
+      label: primaryActionLabel,
+      hint: `Current category: ${categoryLabels[category]} • ${name.trim().length > 0 ? `name ready as ${name.trim()}` : "choose a clear name to finish setup"}`,
+      onPress: handleSave,
+      accentColor: palette.tint,
+    },
+    {
+      id: "space-create-logbook",
+      label: "Open logbook",
+      hint: suggestion.returnMessage,
+      onPress: () => router.push("/logbook" as never),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "space-create-builder",
+      label: "Open schema builder",
+      hint: "Need a custom form before you start tracking? Build it before finishing the space.",
+      onPress: () => router.push("/schema-builder" as never),
+    },
+  ];
+
   return (
     <View style={[styles.screen, paletteStyles.screenBackground]}>
       <ScrollView
@@ -131,6 +155,13 @@ export default function SpaceCreateScreen() {
               ? [{ label: suggestion.badgeLabel }]
               : []),
           ]}
+        />
+
+        <PageQuickActions
+          palette={palette}
+          title="Set up the next space quickly"
+          description="Finish the space, jump back to recording, or open the custom schema builder if this space needs a more tailored form setup."
+          actions={pageQuickActions}
         />
 
         <SectionSurface

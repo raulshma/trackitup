@@ -5,6 +5,7 @@ import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -91,6 +92,37 @@ export default function InventoryScreen() {
     `${workspace.expenses.length} expense entries`,
     `${visualHistory.photoCount} progress photos`,
   ];
+  const preferredQuickLogAction =
+    workspace.quickActions.find((action) => action.kind === "quick-log") ??
+    workspace.quickActions[0];
+  const pageQuickActions = [
+    {
+      id: "inventory-scan",
+      label: "Scan item",
+      hint: `${workspace.assets.length} tracked asset${workspace.assets.length === 1 ? "" : "s"} can be matched with barcode or QR context.`,
+      onPress: () => router.push("/scanner" as never),
+      accentColor: palette.tint,
+    },
+    {
+      id: "inventory-gallery",
+      label: "Open gallery",
+      hint: `${visualHistory.photoCount} progress photo${visualHistory.photoCount === 1 ? "" : "s"} are ready for lifecycle review.`,
+      onPress: () => router.push("/visual-history" as never),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "inventory-log",
+      label: preferredQuickLogAction?.label ?? "Record asset update",
+      hint: "Capture a fresh note, maintenance event, or ownership update from the logbook.",
+      onPress: () =>
+        router.push({
+          pathname: "/logbook",
+          params: preferredQuickLogAction
+            ? { actionId: preferredQuickLogAction.id }
+            : {},
+        }),
+    },
+  ];
 
   return (
     <Animated.ScrollView
@@ -139,6 +171,13 @@ export default function InventoryScreen() {
           ))}
         </View>
       </Surface>
+
+      <PageQuickActions
+        palette={palette}
+        title="Handle inventory work quickly"
+        description="Open the scan flow, review visual proof, or capture a fresh asset update without leaving the inventory context behind."
+        actions={pageQuickActions}
+      />
 
       <Surface
         style={[styles.summaryCard, paletteStyles.cardSurface]}

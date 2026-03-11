@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
 import { Text } from "@/components/Themed";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
@@ -173,6 +174,29 @@ export default function SchemaBuilderScreen() {
     }
   }
 
+  const pageQuickActions = [
+    {
+      id: "schema-builder-save",
+      label: "Save template",
+      hint: `${totalFieldCount} field${totalFieldCount === 1 ? "" : "s"} are currently mapped into this template preview.`,
+      onPress: handleSaveTemplate,
+      accentColor: palette.tint,
+    },
+    {
+      id: "schema-builder-logbook",
+      label: "Open logbook",
+      hint: `${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"} already live in the local catalog.`,
+      onPress: () => router.push("/logbook" as never),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "schema-builder-tools",
+      label: "Open workspace tools",
+      hint: "Jump to import, export, scanner, and capability checks while building your schema.",
+      onPress: () => router.push("/workspace-tools" as never),
+    },
+  ];
+
   return (
     <View style={[styles.screen, paletteStyles.screenBackground]}>
       <ScrollView
@@ -187,6 +211,13 @@ export default function SchemaBuilderScreen() {
           eyebrow="Schema builder"
           title="Build a local template with real form fields."
           subtitle="Base tracking fields come from the selected template family, and the extra fields below are saved into the form schema."
+        />
+
+        <PageQuickActions
+          palette={palette}
+          title="Keep schema building moving"
+          description="Save the current template, jump into the live logbook, or open supporting tools without losing the builder context."
+          actions={pageQuickActions}
         />
 
         <SectionSurface

@@ -15,6 +15,7 @@ import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { BeforeAfterSlider } from "@/components/ui/BeforeAfterSlider";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import {
     PhotoLightbox,
     type LightboxItem,
@@ -141,6 +142,49 @@ export default function VisualHistoryScreen() {
     : space
       ? "Review progress photos, proof-of-completion shots, and monthly recaps for this space."
       : "Browse progress photos across your workspace and open the logs that captured each moment.";
+  const latestPhoto = history.photos[0];
+  const logbookActionPath = asset
+    ? (`/logbook?actionId=quick-log&spaceId=${asset.spaceId}` as never)
+    : space
+      ? (`/logbook?actionId=quick-log&spaceId=${space.id}` as never)
+      : ("/logbook?actionId=quick-log" as never);
+  const pageQuickActions = [
+    {
+      id: "visual-history-log",
+      label: latestPhoto ? "Open latest log" : "Record proof",
+      hint: latestPhoto
+        ? `Jump back to ${latestPhoto.logTitle} and the photo context behind it.`
+        : `Start the next proof capture for ${scopeLabel.toLowerCase()}.`,
+      onPress: () =>
+        router.push(
+          latestPhoto
+            ? (`/logbook?entryId=${latestPhoto.logId}` as never)
+            : logbookActionPath,
+        ),
+      accentColor: palette.tint,
+    },
+    {
+      id: "visual-history-record",
+      label: "Add new proof",
+      hint: `Capture another photo so ${scopeLabel.toLowerCase()} keeps a stronger visual trail.`,
+      onPress: () => router.push(logbookActionPath),
+      accentColor: palette.secondary,
+    },
+    {
+      id: "visual-history-scope",
+      label: asset || space ? "Open workspace gallery" : "Open inventory",
+      hint:
+        asset || space
+          ? "Step back out to the wider workspace photo timeline."
+          : `${workspace.assets.length} tracked asset${workspace.assets.length === 1 ? "" : "s"} connect into this gallery.`,
+      onPress: () =>
+        router.push(
+          asset || space
+            ? ("/visual-history" as never)
+            : ("/inventory" as never),
+        ),
+    },
+  ];
 
   useEffect(() => {
     let isCancelled = false;
@@ -239,6 +283,13 @@ export default function VisualHistoryScreen() {
               textColor: palette.tint,
             },
           ]}
+        />
+
+        <PageQuickActions
+          palette={palette}
+          title="Act on the visual trail"
+          description="Jump into the linked log, capture the next proof photo, or change gallery scope without losing the context of the current history view."
+          actions={pageQuickActions}
         />
 
         {exportMessage ? (

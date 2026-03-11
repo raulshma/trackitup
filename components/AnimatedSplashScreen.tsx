@@ -1,6 +1,6 @@
+import { useEffect, useState } from "react";
+import { Animated, Platform, StyleSheet } from "react-native";
 import BootSplash from "react-native-bootsplash";
-import { useState, useEffect } from "react";
-import { Animated, StyleSheet } from "react-native";
 import { AnimatedVectorLogo } from "./AnimatedVectorLogo";
 
 type Props = {
@@ -9,7 +9,11 @@ type Props = {
   isReady: boolean;
 };
 
-export function AnimatedSplashScreen({ children, onAnimationEnd, isReady }: Props) {
+export function AnimatedSplashScreen({
+  children,
+  onAnimationEnd,
+  isReady,
+}: Props) {
   const [visible, setVisible] = useState(true);
   const [svgAnimationFinished, setSvgAnimationFinished] = useState(false);
   const opacity = useState(new Animated.Value(1))[0];
@@ -24,7 +28,7 @@ export function AnimatedSplashScreen({ children, onAnimationEnd, isReady }: Prop
   useEffect(() => {
     if (isReady && svgAnimationFinished && visible) {
       Animated.timing(opacity, {
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
         toValue: 0,
         duration: 800, // Smooth slow fadeout of the whole background
       }).start(() => {
@@ -40,8 +44,8 @@ export function AnimatedSplashScreen({ children, onAnimationEnd, isReady }: Prop
 
       {visible && (
         <Animated.View style={[styles.container, { opacity }]}>
-          <AnimatedVectorLogo 
-            onAnimationFinish={() => setSvgAnimationFinished(true)} 
+          <AnimatedVectorLogo
+            onAnimationFinish={() => setSvgAnimationFinished(true)}
           />
         </Animated.View>
       )}
