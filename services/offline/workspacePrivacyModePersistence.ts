@@ -1,14 +1,15 @@
-import { Directory, File, Paths } from "expo-file-system";
-
 import {
-  DEFAULT_WORKSPACE_PRIVACY_MODE,
-  normalizeWorkspacePrivacyMode,
-  WORKSPACE_PRIVACY_MODE_STORAGE_KEY,
-  type WorkspacePrivacyMode,
+    ANONYMOUS_WORKSPACE_SCOPE_KEY,
+    buildWorkspacePrivacyModeFilename,
+    buildWorkspacePrivacyModeStorageKey,
+    SNAPSHOT_DIRECTORY,
+} from "./workspaceOwnership.ts";
+import {
+    DEFAULT_WORKSPACE_PRIVACY_MODE,
+    normalizeWorkspacePrivacyMode,
+    WORKSPACE_PRIVACY_MODE_STORAGE_KEY,
+    type WorkspacePrivacyMode,
 } from "./workspacePrivacyMode.ts";
-
-const WORKSPACE_DIRECTORY = "trackitup";
-const WORKSPACE_PRIVACY_MODE_FILENAME = "workspace-privacy-mode-v1.json";
 
 type StorageLike = {
   getItem(key: string): string | null;
@@ -22,27 +23,40 @@ function getStorage(): StorageLike | null {
   return maybeStorage ?? null;
 }
 
-function getWorkspacePrivacyModeFile() {
-  return new File(
-    Paths.document,
-    WORKSPACE_DIRECTORY,
-    WORKSPACE_PRIVACY_MODE_FILENAME,
-  );
+async function getExpoFileSystem() {
+  try {
+    return await import("expo-file-system");
+  } catch {
+    return null;
+  }
 }
 
-function hasDocumentDirectory() {
+function hasDocumentDirectory(paths: {
+  document?: { uri?: string } | unknown;
+}) {
   try {
-    return Boolean(Paths.document?.uri || Paths.document);
+    return Boolean(
+      paths.document &&
+      ((paths.document as { uri?: string }).uri || paths.document),
+    );
   } catch {
     return false;
   }
 }
 
-function readFilePreference(): WorkspacePrivacyMode | null {
-  if (!hasDocumentDirectory()) return null;
+async function readScopedFilePreference(
+  ownerScopeKey: string,
+): Promise<WorkspacePrivacyMode | null> {
+  const expoFileSystem = await getExpoFileSystem();
+  if (!expoFileSystem || !hasDocumentDirectory(expoFileSystem.Paths))
+    return null;
 
   try {
-    const preferenceFile = getWorkspacePrivacyModeFile();
+    const preferenceFile = new expoFileSystem.File(
+      expoFileSystem.Paths.document,
+      SNAPSHOT_DIRECTORY,
+      buildWorkspacePrivacyModeFilename(ownerScopeKey),
+    );
     if (!preferenceFile.exists) return null;
 
     const parsed = JSON.parse(preferenceFile.textSync()) as {
@@ -54,10 +68,41 @@ function readFilePreference(): WorkspacePrivacyMode | null {
   }
 }
 
-export async function loadWorkspacePrivacyMode(): Promise<WorkspacePrivacyMode> {
+async function readLegacyFilePreference(): Promise<WorkspacePrivacyMode | null> {
+  const expoFileSystem = await getExpoFileSystem();
+  if (!expoFileSystem || !hasDocumentDirectory(expoFileSystem.Paths))
+    return null;
+
+  try {
+    const preferenceFile = new expoFileSystem.File(
+      expoFileSystem.Paths.document,
+      SNAPSHOT_DIRECTORY,
+      "workspace-privacy-mode-v1.json",
+    );
+    if (!preferenceFile.exists) return null;
+
+    const parsed = JSON.parse(preferenceFile.textSync()) as {
+      mode?: unknown;
+    };
+    return normalizeWorkspacePrivacyMode(parsed.mode);
+  } catch {
+    return null;
+  }
+}
+
+export async function loadWorkspacePrivacyMode(
+  ownerScopeKey = ANONYMOUS_WORKSPACE_SCOPE_KEY,
+): Promise<WorkspacePrivacyMode> {
   const storage = getStorage();
   if (storage) {
     try {
+      const scopedPreference = storage.getItem(
+        buildWorkspacePrivacyModeStorageKey(ownerScopeKey),
+      );
+      if (scopedPreference) {
+        return normalizeWorkspacePrivacyMode(scopedPreference);
+      }
+
       return normalizeWorkspacePrivacyMode(
         storage.getItem(WORKSPACE_PRIVACY_MODE_STORAGE_KEY),
       );
@@ -66,31 +111,44 @@ export async function loadWorkspacePrivacyMode(): Promise<WorkspacePrivacyMode> 
     }
   }
 
-  return readFilePreference() ?? DEFAULT_WORKSPACE_PRIVACY_MODE;
+  return (
+    (await readScopedFilePreference(ownerScopeKey)) ??
+    (await readLegacyFilePreference()) ??
+    DEFAULT_WORKSPACE_PRIVACY_MODE
+  );
 }
 
 export async function persistWorkspacePrivacyMode(
   mode: WorkspacePrivacyMode,
+  ownerScopeKey = ANONYMOUS_WORKSPACE_SCOPE_KEY,
 ): Promise<void> {
   const storage = getStorage();
   if (storage) {
     try {
-      storage.setItem(WORKSPACE_PRIVACY_MODE_STORAGE_KEY, mode);
+      storage.setItem(buildWorkspacePrivacyModeStorageKey(ownerScopeKey), mode);
     } catch {
       // Keep the in-memory preference if browser storage is unavailable.
     }
     return;
   }
 
-  if (!hasDocumentDirectory()) return;
+  const expoFileSystem = await getExpoFileSystem();
+  if (!expoFileSystem || !hasDocumentDirectory(expoFileSystem.Paths)) return;
 
   try {
-    const directory = new Directory(Paths.document, WORKSPACE_DIRECTORY);
+    const directory = new expoFileSystem.Directory(
+      expoFileSystem.Paths.document,
+      SNAPSHOT_DIRECTORY,
+    );
     if (!directory.exists) {
       directory.create({ idempotent: true, intermediates: true });
     }
 
-    const preferenceFile = getWorkspacePrivacyModeFile();
+    const preferenceFile = new expoFileSystem.File(
+      expoFileSystem.Paths.document,
+      SNAPSHOT_DIRECTORY,
+      buildWorkspacePrivacyModeFilename(ownerScopeKey),
+    );
     if (!preferenceFile.exists) {
       preferenceFile.create({ intermediates: true, overwrite: true });
     }

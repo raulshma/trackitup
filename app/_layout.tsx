@@ -57,9 +57,7 @@ export default function RootLayout() {
     <ThemePreferenceProvider>
       <AiPreferencesProvider>
         <OnboardingProvider>
-          <WorkspacePrivacyModeProvider>
-            <RootLayoutNav />
-          </WorkspacePrivacyModeProvider>
+          <RootLayoutNav />
         </OnboardingProvider>
       </AiPreferencesProvider>
     </ThemePreferenceProvider>
@@ -121,71 +119,88 @@ function RootLayoutNav() {
   return (
     <AnimatedSplashScreen isReady={isOnboardingLoaded}>
       <AuthProvider>
-        <PaperProvider theme={paperTheme}>
-          <StatusBar style={statusBarStyle} />
-          <ThemeProvider value={navigationTheme}>
-            {!isOnboardingLoaded ? null : !hasCompletedOnboarding ? (
-              <OnboardingExperience
-                onComplete={() => setHasCompletedOnboardingPreference(true)}
-              />
-            ) : (
-              <WorkspaceProvider>
-                <Stack
-                  screenOptions={{
-                    contentStyle: { backgroundColor: palette.background },
-                    header: (props) => (
-                      <MaterialCompactTopAppBar
-                        canGoBack={Boolean(props.back)}
-                        onBack={props.navigation.goBack}
-                        title={getHeaderTitle(props.options, props.route.name)}
-                      />
-                    ),
-                  }}
-                >
-                  <Stack.Screen
-                    name="(tabs)"
-                    options={{ headerShown: false }}
-                  />
-                  <Stack.Screen name="account" options={{ title: "Account" }} />
-                  <Stack.Screen name="logbook" options={{ title: "Logbook" }} />
-                  <Stack.Screen
-                    name="space-create"
-                    options={{ title: "Create space" }}
-                  />
-                  <Stack.Screen
-                    name="action-center"
-                    options={{ title: "Action center" }}
-                  />
-                  <Stack.Screen
-                    name="visual-history"
-                    options={{ title: "Visual history" }}
-                  />
-                  <Stack.Screen
-                    name="schema-builder"
-                    options={{ title: "Schema builder" }}
-                  />
-                  <Stack.Screen name="scanner" options={{ title: "Scanner" }} />
-                  <Stack.Screen
-                    name="template-import"
-                    options={{ title: "Template import" }}
-                  />
-                  <Stack.Screen
-                    name="workspace-tools"
-                    options={{ title: "Workspace tools" }}
-                  />
-                  <Stack.Screen
-                    name="openrouter-model-picker"
-                    options={{
-                      title: "OpenRouter models",
-                      presentation: "modal",
+        <WorkspacePrivacyModeProvider>
+          <PaperProvider theme={paperTheme}>
+            <StatusBar style={statusBarStyle} />
+            <ThemeProvider value={navigationTheme}>
+              {!isOnboardingLoaded ? null : !hasCompletedOnboarding ? (
+                <OnboardingExperience
+                  onComplete={() => setHasCompletedOnboardingPreference(true)}
+                />
+              ) : (
+                <WorkspaceProvider>
+                  <Stack
+                    screenOptions={{
+                      contentStyle: { backgroundColor: palette.background },
+                      header: (props) => (
+                        <MaterialCompactTopAppBar
+                          canGoBack={Boolean(props.back)}
+                          onBack={props.navigation.goBack}
+                          title={getHeaderTitle(
+                            props.options,
+                            props.route.name,
+                          )}
+                        />
+                      ),
                     }}
-                  />
-                  <Stack.Screen name="modal" options={{ headerShown: false }} />
-                </Stack>
-              </WorkspaceProvider>
-            )}
-          </ThemeProvider>
-        </PaperProvider>
+                  >
+                    <Stack.Screen
+                      name="(tabs)"
+                      options={{ headerShown: false }}
+                    />
+                    <Stack.Screen
+                      name="account"
+                      options={{ title: "Account" }}
+                    />
+                    <Stack.Screen
+                      name="logbook"
+                      options={{ title: "Logbook" }}
+                    />
+                    <Stack.Screen
+                      name="space-create"
+                      options={{ title: "Create space" }}
+                    />
+                    <Stack.Screen
+                      name="action-center"
+                      options={{ title: "Action center" }}
+                    />
+                    <Stack.Screen
+                      name="visual-history"
+                      options={{ title: "Visual history" }}
+                    />
+                    <Stack.Screen
+                      name="schema-builder"
+                      options={{ title: "Schema builder" }}
+                    />
+                    <Stack.Screen
+                      name="scanner"
+                      options={{ title: "Scanner" }}
+                    />
+                    <Stack.Screen
+                      name="template-import"
+                      options={{ title: "Template import" }}
+                    />
+                    <Stack.Screen
+                      name="workspace-tools"
+                      options={{ title: "Workspace tools" }}
+                    />
+                    <Stack.Screen
+                      name="openrouter-model-picker"
+                      options={{
+                        title: "OpenRouter models",
+                        presentation: "modal",
+                      }}
+                    />
+                    <Stack.Screen
+                      name="modal"
+                      options={{ headerShown: false }}
+                    />
+                  </Stack>
+                </WorkspaceProvider>
+              )}
+            </ThemeProvider>
+          </PaperProvider>
+        </WorkspacePrivacyModeProvider>
       </AuthProvider>
     </AnimatedSplashScreen>
   );

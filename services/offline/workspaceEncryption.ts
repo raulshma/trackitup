@@ -1,10 +1,14 @@
 import type { WorkspaceSnapshot } from "@/types/trackitup";
-import { buildWorkspaceEncryptionKeyAlias } from "./workspaceOwnership.ts";
+import {
+    buildWorkspaceEncryptionKeyAlias,
+    buildWorkspaceRestorePointEncryptionKeyAlias,
+} from "./workspaceOwnership.ts";
 import { normalizeWorkspaceSnapshot } from "./workspacePersistenceStrategy.ts";
 
 const WORKSPACE_ENCRYPTION_ALGORITHM = "aes-256-gcm";
 const WORKSPACE_ENCRYPTION_FORMAT_VERSION = 1;
 const WORKSPACE_ENCRYPTION_KIND = "workspace-snapshot";
+const WORKSPACE_RESTORE_POINT_ENCRYPTION_KIND = "workspace-restore-point";
 const WORKSPACE_PRODUCT_ID = "trackitup";
 
 type CloneWorkspaceSnapshot = (
@@ -70,12 +74,15 @@ function decodeUtf8(value: Uint8Array) {
   return new TextDecoder().decode(value);
 }
 
-function buildWorkspaceEncryptionAdditionalData(scopeKey: string) {
+function buildWorkspaceEncryptionAdditionalData(
+  scopeKey: string,
+  kind: string,
+) {
   return encodeUtf8(
     JSON.stringify({
       productId: WORKSPACE_PRODUCT_ID,
       formatVersion: WORKSPACE_ENCRYPTION_FORMAT_VERSION,
-      kind: WORKSPACE_ENCRYPTION_KIND,
+      kind,
       scopeKey,
     }),
   );
@@ -211,10 +218,19 @@ export async function getWorkspaceEncryptionKey(
   scopeKey: string,
   options?: { createIfMissing?: boolean },
 ) {
+  return getWorkspaceEncryptionKeyByAlias(
+    buildWorkspaceEncryptionKeyAlias(scopeKey),
+    options,
+  );
+}
+
+async function getWorkspaceEncryptionKeyByAlias(
+  keyAlias: string,
+  options?: { createIfMissing?: boolean },
+) {
   const adapters = await resolveWorkspaceEncryptionAdapters();
   if (!adapters) return null;
 
-  const keyAlias = buildWorkspaceEncryptionKeyAlias(scopeKey);
   const existingKey = await adapters.keyStore.getItem(keyAlias);
   if (existingKey || !options?.createIfMissing) {
     return existingKey;
@@ -226,22 +242,50 @@ export async function getWorkspaceEncryptionKey(
 }
 
 export async function deleteWorkspaceEncryptionKey(scopeKey: string) {
+  await deleteWorkspaceEncryptionKeyByAlias(
+    buildWorkspaceEncryptionKeyAlias(scopeKey),
+  );
+}
+
+async function deleteWorkspaceEncryptionKeyByAlias(keyAlias: string) {
   const adapters = await resolveWorkspaceEncryptionAdapters();
   if (!adapters) return;
 
-  await adapters.keyStore.deleteItem(
-    buildWorkspaceEncryptionKeyAlias(scopeKey),
-  );
+  await adapters.keyStore.deleteItem(keyAlias);
 }
 
 export async function encryptWorkspaceSnapshot(
   snapshot: WorkspaceSnapshot,
   scopeKey: string,
 ): Promise<EncryptedWorkspaceEnvelope | null> {
+  return encryptWorkspaceSnapshotWithContext(snapshot, scopeKey, {
+    encryptionKind: WORKSPACE_ENCRYPTION_KIND,
+    keyAlias: buildWorkspaceEncryptionKeyAlias(scopeKey),
+  });
+}
+
+export async function encryptWorkspaceRestorePointSnapshot(
+  snapshot: WorkspaceSnapshot,
+  scopeKey: string,
+): Promise<EncryptedWorkspaceEnvelope | null> {
+  return encryptWorkspaceSnapshotWithContext(snapshot, scopeKey, {
+    encryptionKind: WORKSPACE_RESTORE_POINT_ENCRYPTION_KIND,
+    keyAlias: buildWorkspaceRestorePointEncryptionKeyAlias(scopeKey),
+  });
+}
+
+async function encryptWorkspaceSnapshotWithContext(
+  snapshot: WorkspaceSnapshot,
+  scopeKey: string,
+  options: {
+    encryptionKind: string;
+    keyAlias: string;
+  },
+): Promise<EncryptedWorkspaceEnvelope | null> {
   const adapters = await resolveWorkspaceEncryptionAdapters();
   if (!adapters) return null;
 
-  const keyMaterial = await getWorkspaceEncryptionKey(scopeKey, {
+  const keyMaterial = await getWorkspaceEncryptionKeyByAlias(options.keyAlias, {
     createIfMissing: true,
   });
   if (!keyMaterial) return null;
@@ -249,7 +293,7 @@ export async function encryptWorkspaceSnapshot(
   const sealedData = await adapters.cryptoBridge.encrypt(
     encodeUtf8(JSON.stringify(snapshot)),
     keyMaterial,
-    buildWorkspaceEncryptionAdditionalData(scopeKey),
+    buildWorkspaceEncryptionAdditionalData(scopeKey, options.encryptionKind),
   );
 
   return {
@@ -268,6 +312,46 @@ export async function decryptWorkspaceSnapshot(
   cloneWorkspaceSnapshot: CloneWorkspaceSnapshot,
   scopeKey: string,
 ): Promise<DecryptWorkspaceSnapshotResult> {
+  return decryptWorkspaceSnapshotWithContext(
+    rawEnvelope,
+    defaultWorkspace,
+    cloneWorkspaceSnapshot,
+    scopeKey,
+    {
+      encryptionKind: WORKSPACE_ENCRYPTION_KIND,
+      keyAlias: buildWorkspaceEncryptionKeyAlias(scopeKey),
+    },
+  );
+}
+
+export async function decryptWorkspaceRestorePointSnapshot(
+  rawEnvelope: string,
+  defaultWorkspace: WorkspaceSnapshot,
+  cloneWorkspaceSnapshot: CloneWorkspaceSnapshot,
+  scopeKey: string,
+): Promise<DecryptWorkspaceSnapshotResult> {
+  return decryptWorkspaceSnapshotWithContext(
+    rawEnvelope,
+    defaultWorkspace,
+    cloneWorkspaceSnapshot,
+    scopeKey,
+    {
+      encryptionKind: WORKSPACE_RESTORE_POINT_ENCRYPTION_KIND,
+      keyAlias: buildWorkspaceRestorePointEncryptionKeyAlias(scopeKey),
+    },
+  );
+}
+
+async function decryptWorkspaceSnapshotWithContext(
+  rawEnvelope: string,
+  defaultWorkspace: WorkspaceSnapshot,
+  cloneWorkspaceSnapshot: CloneWorkspaceSnapshot,
+  scopeKey: string,
+  options: {
+    encryptionKind: string;
+    keyAlias: string;
+  },
+): Promise<DecryptWorkspaceSnapshotResult> {
   const envelope = parseEncryptedWorkspaceEnvelope(rawEnvelope);
   if (!envelope || envelope.scopeKey !== scopeKey) {
     return { status: "invalid-envelope" };
@@ -278,7 +362,7 @@ export async function decryptWorkspaceSnapshot(
     return { status: "unavailable" };
   }
 
-  const keyMaterial = await getWorkspaceEncryptionKey(scopeKey);
+  const keyMaterial = await getWorkspaceEncryptionKeyByAlias(options.keyAlias);
   if (!keyMaterial) {
     return { status: "missing-key" };
   }
@@ -287,7 +371,7 @@ export async function decryptWorkspaceSnapshot(
     const decryptedBytes = await adapters.cryptoBridge.decrypt(
       envelope.sealedData,
       keyMaterial,
-      buildWorkspaceEncryptionAdditionalData(scopeKey),
+      buildWorkspaceEncryptionAdditionalData(scopeKey, options.encryptionKind),
     );
     const decryptedPayload = JSON.parse(decodeUtf8(decryptedBytes));
     const workspace = normalizeWorkspaceSnapshot(

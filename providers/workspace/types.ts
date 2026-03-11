@@ -10,6 +10,14 @@ import type { WorkspaceBiometricReauthTimeout } from "@/services/offline/workspa
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
+import type {
+    CreateWorkspaceRestorePointResult,
+    DeleteWorkspaceRestorePointResult,
+    ExportWorkspaceRestorePointResult,
+    RestoreWorkspaceFromRestorePointResult,
+    WorkspaceRestorePointReason,
+    WorkspaceRestorePointSummary,
+} from "@/services/offline/workspaceRestorePoints";
 import type { ReminderNotificationPermissionStatus } from "@/services/reminders/reminderNotifications";
 import type { CreateSpaceDraft } from "@/services/spaces/workspaceSpaces";
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
@@ -61,6 +69,7 @@ export type WorkspaceContextValue = {
   localProtectionStatus: WorkspaceLocalProtectionStatus;
   blockedProtectionReason: BlockedEncryptedWorkspaceReason | null;
   isSyncing: boolean;
+  restorePoints: WorkspaceRestorePointSummary[];
   overviewStats: ReturnType<typeof getOverviewStats>;
   recommendations: WorkspaceRecommendation[];
   quickActionCards: ReturnType<typeof getQuickActionCards>;
@@ -90,6 +99,20 @@ export type WorkspaceContextValue = {
   ) => SaveCustomTemplateResult;
   createSpace: (draft: CreateSpaceDraft) => CreateSpaceResult;
   resetWorkspace: () => void;
+  createRestorePoint: (options?: {
+    reason?: WorkspaceRestorePointReason;
+    label?: string;
+    allowEmpty?: boolean;
+  }) => Promise<CreateWorkspaceRestorePointResult>;
+  restoreWorkspaceFromRestorePoint: (
+    restorePointId: string,
+  ) => Promise<RestoreWorkspaceFromRestorePointResult>;
+  deleteRestorePoint: (
+    restorePointId: string,
+  ) => Promise<DeleteWorkspaceRestorePointResult>;
+  exportRestorePointJson: (
+    restorePointId: string,
+  ) => Promise<ExportWorkspaceRestorePointResult>;
   setWorkspacePrivacyMode: (
     mode: WorkspacePrivacyMode,
   ) => Promise<{ status: string; message: string }>;

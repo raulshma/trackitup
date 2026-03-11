@@ -1,21 +1,22 @@
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useState,
 } from "react";
 
+import { useAppAuth } from "@/providers/AuthProvider";
+import { getWorkspaceOwnerScopeKey } from "@/services/offline/workspaceOwnership";
 import {
-  loadWorkspacePrivacyMode,
-  persistWorkspacePrivacyMode,
-} from "@/services/offline/workspacePrivacyModePersistence";
-import {
-  DEFAULT_WORKSPACE_PRIVACY_MODE,
-  type WorkspacePrivacyMode,
+    DEFAULT_WORKSPACE_PRIVACY_MODE,
+    type WorkspacePrivacyMode,
 } from "@/services/offline/workspacePrivacyMode";
+import {
+    loadWorkspacePrivacyMode,
+    persistWorkspacePrivacyMode,
+} from "@/services/offline/workspacePrivacyModePersistence";
 
 type WorkspacePrivacyModeContextValue = {
   workspacePrivacyMode: WorkspacePrivacyMode;
@@ -31,17 +32,30 @@ export function WorkspacePrivacyModeProvider({
 }: {
   children: React.ReactNode;
 }) {
+  const auth = useAppAuth();
   const [workspacePrivacyMode, setWorkspacePrivacyModeState] =
     useState<WorkspacePrivacyMode>(DEFAULT_WORKSPACE_PRIVACY_MODE);
   const [isLoaded, setIsLoaded] = useState(false);
-  const hasUserSelectedPreferenceRef = useRef(false);
+  const ownerScopeKey = useMemo(
+    () => getWorkspaceOwnerScopeKey(auth.isSignedIn ? auth.userId : null),
+    [auth.isSignedIn, auth.userId],
+  );
 
   useEffect(() => {
     let isMounted = true;
 
+    if (!auth.isLoaded) {
+      setIsLoaded(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    setIsLoaded(false);
+
     void (async () => {
-      const storedPreference = await loadWorkspacePrivacyMode();
-      if (!isMounted || hasUserSelectedPreferenceRef.current) return;
+      const storedPreference = await loadWorkspacePrivacyMode(ownerScopeKey);
+      if (!isMounted) return;
 
       setWorkspacePrivacyModeState(storedPreference);
       setIsLoaded(true);
@@ -50,16 +64,15 @@ export function WorkspacePrivacyModeProvider({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [auth.isLoaded, ownerScopeKey]);
 
   const setWorkspacePrivacyModePreference = useCallback(
     (mode: WorkspacePrivacyMode) => {
-      hasUserSelectedPreferenceRef.current = true;
       setWorkspacePrivacyModeState(mode);
       setIsLoaded(true);
-      void persistWorkspacePrivacyMode(mode);
+      void persistWorkspacePrivacyMode(mode, ownerScopeKey);
     },
-    [],
+    [ownerScopeKey],
   );
 
   const value = useMemo(

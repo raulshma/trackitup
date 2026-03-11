@@ -84,7 +84,7 @@ export default function SchemaBuilderScreen() {
     [palette],
   );
   const router = useRouter();
-  const { saveCustomTemplate, workspace } = useWorkspace();
+  const { createRestorePoint, saveCustomTemplate, workspace } = useWorkspace();
   const [name, setName] = useState("Custom hobby schema");
   const [summary, setSummary] = useState(
     "A local template built from the TrackItUp schema builder.",
@@ -186,14 +186,23 @@ export default function SchemaBuilderScreen() {
     setStatusMessage(`Added the '${field.label}' preset field.`);
   }
 
-  function handleSaveTemplate() {
+  async function handleSaveTemplate() {
     if (!name.trim()) {
       setStatusMessage("Name the schema before saving it.");
       return;
     }
 
+    const restorePointResult = await createRestorePoint({
+      reason: "before-template-save",
+      label: "Before saving custom template",
+    });
     const result = saveCustomTemplate(builtTemplate);
-    setStatusMessage(result.message);
+    setStatusMessage(
+      restorePointResult.status === "created" ||
+        restorePointResult.status === "unavailable"
+        ? `${restorePointResult.message} ${result.message}`
+        : result.message,
+    );
     if (result.status === "saved" && result.templateId) {
       router.replace({
         pathname: "/logbook",

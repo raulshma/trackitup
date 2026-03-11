@@ -51,6 +51,18 @@ import {
     loadPersistedWorkspace,
     persistWorkspace,
 } from "@/services/offline/workspacePersistence";
+import {
+    createWorkspaceRestorePoint,
+    deleteWorkspaceRestorePoint,
+    exportWorkspaceRestorePointJson,
+    listWorkspaceRestorePoints,
+    restoreWorkspaceFromRestorePoint as restoreWorkspaceFromRestorePointStorage,
+    type CreateWorkspaceRestorePointResult,
+    type DeleteWorkspaceRestorePointResult,
+    type ExportWorkspaceRestorePointResult,
+    type WorkspaceRestorePointReason,
+    type WorkspaceRestorePointSummary,
+} from "@/services/offline/workspaceRestorePoints";
 import { getReminderNotificationResponseIntent } from "@/services/reminders/reminderNotificationIntents";
 import {
     clearScheduledReminderNotifications,
@@ -86,6 +98,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     snapshotTimelineEntries,
   );
   const [isSyncing, setIsSyncing] = useState(false);
+  const [restorePoints, setRestorePoints] = useState<
+    WorkspaceRestorePointSummary[]
+  >([]);
   const [localProtectionStatus, setLocalProtectionStatus] =
     useState<WorkspaceLocalProtectionStatus>("standard");
   const [blockedProtectionReason, setBlockedProtectionReason] =
@@ -210,6 +225,43 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void refreshReminderNotificationPermissions();
   }, [refreshReminderNotificationPermissions]);
+
+  const refreshRestorePoints = useCallback(async () => {
+    return listWorkspaceRestorePoints(ownerScopeKey, defaultWorkspace);
+  }, [defaultWorkspace, ownerScopeKey]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void (async () => {
+      const nextRestorePoints = await refreshRestorePoints();
+      if (isMounted) {
+        setRestorePoints(nextRestorePoints);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [refreshRestorePoints]);
+
+  const appendRestorePointMessage = useCallback(
+    (
+      baseMessage: string,
+      result: CreateWorkspaceRestorePointResult,
+      createdSuffix: string,
+      unavailableSuffix: string,
+    ) => {
+      if (result.status === "created") {
+        return `${baseMessage} ${createdSuffix}`;
+      }
+      if (result.status === "unavailable") {
+        return `${baseMessage} ${unavailableSuffix}`;
+      }
+      return baseMessage;
+    },
+    [],
+  );
 
   const requiresBiometricLock =
     isBiometricPreferenceLoaded &&
@@ -533,6 +585,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           setIsBiometricSessionUnlocked(true);
         }
 
+        const restorePointResult = await createWorkspaceRestorePoint(
+          workspace,
+          ownerScopeKey,
+          workspacePrivacyMode,
+          {
+            reason: "before-privacy-mode-change",
+            label: "Before changing local privacy mode",
+            defaultWorkspace,
+          },
+        );
+
         setIsHydrated(false);
         await persistWorkspace(workspace, ownerScopeKey, nextMode);
         setWorkspacePrivacyModePreference(nextMode);
@@ -551,25 +614,37 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         if (reloaded.localProtectionStatus === "blocked") {
           return {
             status: "error" as const,
-            message:
+            message: appendRestorePointMessage(
               "Protected local storage for this scope could not be recovered on this device. Reset the blocked protected workspace to continue.",
+              restorePointResult,
+              "Saved a restore point before the privacy-mode change.",
+              "TrackItUp could not save a restore point before the privacy-mode change.",
+            ),
           };
         }
 
         if (nextMode === "protected" && reloaded.persistenceMode === "memory") {
           return {
             status: "success" as const,
-            message:
+            message: appendRestorePointMessage(
               "Protected mode is now selected, but secure local persistence is unavailable here, so this workspace will remain in memory only on this device.",
+              restorePointResult,
+              "Saved a restore point before the privacy-mode change.",
+              "TrackItUp could not save a restore point before the privacy-mode change.",
+            ),
           };
         }
 
         return {
           status: "success" as const,
-          message:
+          message: appendRestorePointMessage(
             nextMode === "protected"
               ? "Protected local privacy mode is now preferred on this device."
               : "Compatibility local privacy mode is now active on this device.",
+            restorePointResult,
+            "Saved a restore point before the privacy-mode change.",
+            "TrackItUp could not save a restore point before the privacy-mode change.",
+          ),
         };
       } catch {
         setIsHydrated(true);
@@ -580,6 +655,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
     },
     [
+      appendRestorePointMessage,
       biometricLockEnabled,
       defaultWorkspace,
       localProtectionStatus,
@@ -595,6 +671,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const recoverBlockedWorkspace = useCallback(async () => {
     try {
+      const restorePointResult = await createWorkspaceRestorePoint(
+        workspace,
+        ownerScopeKey,
+        workspacePrivacyMode,
+        {
+          reason: "before-blocked-recovery",
+          label: "Before blocked workspace recovery",
+          defaultWorkspace,
+          storageModeOverride: "compatibility",
+        },
+      );
       await clearPersistedWorkspace(ownerScopeKey);
       const recovered = await loadPersistedWorkspace(
         defaultWorkspace,
@@ -606,11 +693,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setLocalProtectionStatus(recovered.localProtectionStatus);
       setBlockedProtectionReason(recovered.blockedProtectionReason ?? null);
       setIsHydrated(true);
+      const nextRestorePoints = await refreshRestorePoints();
+      setRestorePoints(nextRestorePoints);
 
       return {
         status: "success" as const,
-        message:
+        message: appendRestorePointMessage(
           "Cleared the blocked protected workspace for this device scope and started a fresh local workspace.",
+          restorePointResult,
+          "Saved a compatibility restore point before the reset.",
+          "TrackItUp could not save a compatibility restore point before the reset.",
+        ),
       };
     } catch {
       return {
@@ -620,13 +713,16 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       };
     }
   }, [
+    appendRestorePointMessage,
     defaultWorkspace,
     ownerScopeKey,
+    refreshRestorePoints,
     setBlockedProtectionReason,
     setIsHydrated,
     setLocalProtectionStatus,
     setPersistenceMode,
     setWorkspace,
+    workspace,
     workspacePrivacyMode,
   ]);
 
@@ -642,6 +738,122 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     workspace,
     setWorkspace,
   });
+
+  const createRestorePointForCurrentWorkspace = useCallback(
+    async (options?: {
+      reason?: WorkspaceRestorePointReason;
+      label?: string;
+      allowEmpty?: boolean;
+    }): Promise<CreateWorkspaceRestorePointResult> => {
+      const result = await createWorkspaceRestorePoint(
+        workspace,
+        ownerScopeKey,
+        workspacePrivacyMode,
+        {
+          ...options,
+          defaultWorkspace,
+        },
+      );
+
+      if (result.status === "created") {
+        const nextRestorePoints = await refreshRestorePoints();
+        setRestorePoints(nextRestorePoints);
+      }
+
+      return result;
+    },
+    [
+      defaultWorkspace,
+      ownerScopeKey,
+      refreshRestorePoints,
+      workspace,
+      workspacePrivacyMode,
+    ],
+  );
+
+  const restoreWorkspaceFromRestorePoint = useCallback(
+    async (restorePointId: string) => {
+      const currentWorkspaceBackup = await createWorkspaceRestorePoint(
+        workspace,
+        ownerScopeKey,
+        workspacePrivacyMode,
+        {
+          reason: "before-restore",
+          label: "Before restoring an earlier backup",
+          defaultWorkspace,
+        },
+      );
+      const restored = await restoreWorkspaceFromRestorePointStorage(
+        restorePointId,
+        ownerScopeKey,
+        defaultWorkspace,
+      );
+      if (restored.status !== "restored") {
+        return restored;
+      }
+
+      setWorkspace(restored.workspace);
+      await persistWorkspace(
+        restored.workspace,
+        ownerScopeKey,
+        workspacePrivacyMode,
+      );
+
+      const nextRestorePoints = await refreshRestorePoints();
+      setRestorePoints(nextRestorePoints);
+
+      return {
+        ...restored,
+        message:
+          currentWorkspaceBackup.status === "created"
+            ? `${restored.message} Saved a pre-restore checkpoint of your current workspace first.`
+            : currentWorkspaceBackup.status === "unavailable"
+              ? `${restored.message} TrackItUp could not save a pre-restore checkpoint on this device first.`
+              : restored.message,
+      };
+    },
+    [
+      defaultWorkspace,
+      ownerScopeKey,
+      refreshRestorePoints,
+      setWorkspace,
+      workspace,
+      workspacePrivacyMode,
+    ],
+  );
+
+  const deleteRestorePointForCurrentWorkspace = useCallback(
+    async (
+      restorePointId: string,
+    ): Promise<DeleteWorkspaceRestorePointResult> => {
+      const result = await deleteWorkspaceRestorePoint(
+        restorePointId,
+        ownerScopeKey,
+        defaultWorkspace,
+      );
+
+      if (result.status === "deleted") {
+        const nextRestorePoints = await refreshRestorePoints();
+        setRestorePoints(nextRestorePoints);
+      }
+
+      return result;
+    },
+    [defaultWorkspace, ownerScopeKey, refreshRestorePoints],
+  );
+
+  const exportRestorePointJsonForCurrentWorkspace = useCallback(
+    async (
+      restorePointId: string,
+    ): Promise<ExportWorkspaceRestorePointResult> => {
+      return exportWorkspaceRestorePointJson(
+        restorePointId,
+        ownerScopeKey,
+        defaultWorkspace,
+      );
+    },
+    [defaultWorkspace, ownerScopeKey],
+  );
 
   const overviewStats = useMemo(() => getOverviewStats(workspace), [workspace]);
   const recommendations = useMemo(
@@ -673,6 +885,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       localProtectionStatus,
       blockedProtectionReason,
       isSyncing,
+      restorePoints,
       overviewStats,
       recommendations,
       quickActionCards,
@@ -691,6 +904,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       saveCustomTemplate,
       createSpace,
       resetWorkspace,
+      createRestorePoint: createRestorePointForCurrentWorkspace,
+      restoreWorkspaceFromRestorePoint,
+      deleteRestorePoint: deleteRestorePointForCurrentWorkspace,
+      exportRestorePointJson: exportRestorePointJsonForCurrentWorkspace,
       setWorkspacePrivacyMode,
       setBiometricLockEnabled,
       setBiometricReauthTimeout,
@@ -708,6 +925,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       importTemplateFromUrl,
       isHydrated,
       createSpace,
+      createRestorePointForCurrentWorkspace,
+      deleteRestorePointForCurrentWorkspace,
       blockedProtectionReason,
       biometricAvailability,
       biometricLockEnabled,
@@ -719,7 +938,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       localProtectionStatus,
       moveDashboardWidget,
       overviewStats,
+      restorePoints,
       recommendations,
+      exportRestorePointJsonForCurrentWorkspace,
       reminderNotificationPermissionStatus,
       persistenceMode,
       pullWorkspaceFromCloud,
@@ -727,6 +948,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       requestReminderNotifications,
       recoverBlockedWorkspace,
       resetWorkspace,
+      restoreWorkspaceFromRestorePoint,
       restoreWorkspaceFromCloud,
       saveCustomTemplate,
       saveLogForAction,

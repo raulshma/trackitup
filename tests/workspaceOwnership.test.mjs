@@ -7,6 +7,8 @@ const {
   buildEncryptedWorkspaceStorageKey,
   buildWorkspaceDatabaseName,
   buildWorkspaceEncryptionKeyAlias,
+  buildWorkspacePrivacyModeFilename,
+  buildWorkspacePrivacyModeStorageKey,
   buildWorkspaceSnapshotFilename,
   buildWorkspaceStorageKey,
   getWorkspaceOwnerScopeKey,
@@ -45,6 +47,14 @@ test("workspace ownership helpers build safe per-scope storage names", () => {
   assert.equal(
     buildWorkspaceEncryptionKeyAlias("user:user_123"),
     "trackitup.workspace.key.v1.user_x3a_user_123",
+  );
+  assert.equal(
+    buildWorkspacePrivacyModeStorageKey("user:user_123"),
+    "trackitup.workspace.privacy-mode.v2.user:user_123",
+  );
+  assert.equal(
+    buildWorkspacePrivacyModeFilename("user:user_123"),
+    "workspace-privacy-mode-v2-user_x3a_user_123.json",
   );
   assert.equal(
     sanitizeWorkspaceOwnerScopeKey("anonymous/scope"),

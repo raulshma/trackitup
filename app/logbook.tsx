@@ -209,6 +209,7 @@ export default function LogbookScreen() {
   );
   const router = useRouter();
   const {
+    createRestorePoint,
     isHydrated,
     logEntries,
     persistenceMode,
@@ -637,9 +638,18 @@ export default function LogbookScreen() {
     });
   }
 
-  function handleResetWorkspace() {
+  async function handleResetWorkspace() {
+    const restorePointResult = await createRestorePoint({
+      reason: "before-reset",
+      label: "Before workspace reset",
+    });
     resetWorkspace();
-    setFeedbackMessage("Local workspace data cleared.");
+    setFeedbackMessage(
+      restorePointResult.status === "created" ||
+        restorePointResult.status === "unavailable"
+        ? `${restorePointResult.message} Local workspace data cleared.`
+        : "Local workspace data cleared.",
+    );
 
     if (action) {
       router.replace({ pathname: "/logbook", params: { actionId: action.id } });

@@ -91,7 +91,8 @@ export default function TemplateImportScreen() {
   );
   const router = useRouter();
   const params = useLocalSearchParams<ImportParams>();
-  const { importTemplateFromUrl, workspace } = useWorkspace();
+  const { createRestorePoint, importTemplateFromUrl, workspace } =
+    useWorkspace();
   const [statusMessage, setStatusMessage] = useState(
     "Preparing the template import...",
   );
@@ -134,13 +135,22 @@ export default function TemplateImportScreen() {
 
   const isImportDisabled = !parsedImport || lastImportKey === importKey;
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (!importUrl || !parsedImport || lastImportKey === importKey) {
       return;
     }
 
+    const restorePointResult = await createRestorePoint({
+      reason: "before-template-import",
+      label: "Before template import",
+    });
     const result = importTemplateFromUrl(importUrl, preferredMethod);
-    setStatusMessage(result.message);
+    setStatusMessage(
+      restorePointResult.status === "created" ||
+        restorePointResult.status === "unavailable"
+        ? `${restorePointResult.message} ${result.message}`
+        : result.message,
+    );
     setTemplateName(result.templateName ?? null);
     setLastImportKey(importKey);
   };
@@ -151,7 +161,7 @@ export default function TemplateImportScreen() {
       hint: parsedImport
         ? `${parsedImport.supportedFieldTypes.length} supported field type${parsedImport.supportedFieldTypes.length === 1 ? "" : "s"} from ${parsedImport.origin ?? "a shared source"}.`
         : "Import unlocks once this route contains a valid TrackItUp template link.",
-      onPress: handleImport,
+      onPress: () => void handleImport(),
       accentColor: palette.tint,
       disabled: isImportDisabled,
     },

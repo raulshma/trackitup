@@ -2,10 +2,12 @@ import { File } from "expo-file-system";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import {
     Button,
     Chip,
+    Dialog,
+    Portal,
     SegmentedButtons,
     Surface,
     TextInput,
@@ -42,6 +44,10 @@ import {
     exportWorkspaceLogsCsvAsync,
     exportWorkspaceSummaryPdfAsync,
 } from "@/services/export/workspaceExport";
+import type {
+    CreateWorkspaceRestorePointResult,
+    WorkspaceRestorePointSummary,
+} from "@/services/offline/workspaceRestorePoints";
 import type { ThemePreference } from "@/services/theme/themePreferences";
 
 const themeOptionLabels: Record<ThemePreference, string> = {
@@ -61,6 +67,43 @@ function formatPermissionSummary(permission: {
   return `Blocked (${permission.status ?? "denied"})`;
 }
 
+function formatRestorePointReasonLabel(
+  restorePoint: WorkspaceRestorePointSummary,
+) {
+  switch (restorePoint.reason) {
+    case "manual":
+      return "Manual";
+    case "before-csv-import":
+      return "Auto: CSV import";
+    case "before-template-import":
+      return "Auto: template import";
+    case "before-template-save":
+      return "Auto: template save";
+    case "before-reset":
+      return "Auto: reset";
+    case "before-restore":
+      return "Auto: restore";
+    case "before-privacy-mode-change":
+      return "Auto: privacy mode";
+    case "before-blocked-recovery":
+      return "Auto: recovery";
+    default:
+      return "Auto";
+  }
+}
+
+function formatRestorePointPrimaryStats(
+  restorePoint: WorkspaceRestorePointSummary,
+) {
+  return `${restorePoint.stats.logs} logs • ${restorePoint.stats.spaces} spaces • ${restorePoint.stats.assets} assets`;
+}
+
+function formatRestorePointSecondaryStats(
+  restorePoint: WorkspaceRestorePointSummary,
+) {
+  return `${restorePoint.stats.reminders} reminders • ${restorePoint.stats.templates} templates • ${restorePoint.stats.expenses} expenses`;
+}
+
 export default function WorkspaceToolsScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
@@ -70,7 +113,15 @@ export default function WorkspaceToolsScreen() {
   );
   const router = useRouter();
   const { themePreference, setThemePreference } = useThemePreference();
-  const { importLogsFromCsv, workspace } = useWorkspace();
+  const {
+    createRestorePoint,
+    deleteRestorePoint,
+    exportRestorePointJson,
+    importLogsFromCsv,
+    restorePoints,
+    restoreWorkspaceFromRestorePoint,
+    workspace,
+  } = useWorkspace();
   const [toolMessage, setToolMessage] = useState<string | null>(null);
   const [csvInput, setCsvInput] = useState("");
   const [templateImportUrl, setTemplateImportUrl] = useState("");
@@ -78,6 +129,11 @@ export default function WorkspaceToolsScreen() {
   const [cameraStatus, setCameraStatus] = useState("Not checked yet");
   const [locationStatus, setLocationStatus] = useState("Not checked yet");
   const [locationPreview, setLocationPreview] = useState<string | null>(null);
+  const [pendingRestorePoint, setPendingRestorePoint] =
+    useState<WorkspaceRestorePointSummary | null>(null);
+  const [pendingDeleteRestorePoint, setPendingDeleteRestorePoint] =
+    useState<WorkspaceRestorePointSummary | null>(null);
+  const latestRestorePoint = restorePoints[0] ?? null;
 
   useEffect(() => {
     void refreshDeviceCapabilities();
@@ -122,6 +178,20 @@ export default function WorkspaceToolsScreen() {
     }
   }
 
+  function describeRestorePointSideEffect(
+    result: CreateWorkspaceRestorePointResult,
+  ) {
+    if (result.status === "created" || result.status === "unavailable") {
+      return `${result.message} `;
+    }
+
+    return "";
+  }
+
+  function formatRestorePointTime(timestamp: string) {
+    return new Date(timestamp).toLocaleString();
+  }
+
   async function handleRequestCamera() {
     await runTool(async () => {
       const permission = await requestCameraPermissionAsync();
@@ -155,21 +225,25 @@ export default function WorkspaceToolsScreen() {
     });
   }
 
-  function handleImportCsv() {
-    const result = importLogsFromCsv(csvInput);
-    const warningSummary = result.warnings.length
-      ? ` ${result.warnings.slice(0, 2).join(" ")}`
-      : "";
+  async function handleImportCsv() {
+    await runTool(async () => {
+      const restorePointResult = await createRestorePoint({
+        reason: "before-csv-import",
+        label: "Before CSV import",
+      });
+      const result = importLogsFromCsv(csvInput);
+      const warningSummary = result.warnings.length
+        ? ` ${result.warnings.slice(0, 2).join(" ")}`
+        : "";
 
-    setToolMessage(
-      result.importedCount > 0
-        ? `Imported ${result.importedCount} log(s) into the local workspace.${warningSummary}`
-        : `No logs were imported.${warningSummary || " Check the required CSV columns and try again."}`,
-    );
+      if (result.importedCount > 0) {
+        setCsvInput("");
+      }
 
-    if (result.importedCount > 0) {
-      setCsvInput("");
-    }
+      return result.importedCount > 0
+        ? `${describeRestorePointSideEffect(restorePointResult)}Imported ${result.importedCount} log(s) into the local workspace.${warningSummary}`
+        : `No logs were imported.${warningSummary || " Check the required CSV columns and try again."}`;
+    });
   }
 
   async function handleImportCsvFile() {
@@ -177,6 +251,10 @@ export default function WorkspaceToolsScreen() {
       const picked = await File.pickFileAsync(undefined, "text/csv");
       const selectedFile = Array.isArray(picked) ? picked[0] : picked;
       const csvText = await selectedFile.text();
+      const restorePointResult = await createRestorePoint({
+        reason: "before-csv-import",
+        label: "Before CSV import",
+      });
       const result = importLogsFromCsv(csvText);
       const warningSummary = result.warnings.length
         ? ` ${result.warnings.slice(0, 2).join(" ")}`
@@ -189,8 +267,48 @@ export default function WorkspaceToolsScreen() {
       }
 
       return result.importedCount > 0
-        ? `Imported ${result.importedCount} log(s) from ${selectedFile.name}.${warningSummary}`
+        ? `${describeRestorePointSideEffect(restorePointResult)}Imported ${result.importedCount} log(s) from ${selectedFile.name}.${warningSummary}`
         : `No logs were imported from ${selectedFile.name}.${warningSummary || " Check the CSV columns and try again."}`;
+    });
+  }
+
+  async function handleCreateRestorePoint() {
+    await runTool(async () => {
+      const result = await createRestorePoint({
+        reason: "manual",
+        label: "Manual restore point",
+        allowEmpty: true,
+      });
+      return result.message;
+    });
+  }
+
+  async function confirmRestorePoint() {
+    if (!pendingRestorePoint) return;
+
+    const restorePointId = pendingRestorePoint.id;
+    setPendingRestorePoint(null);
+    await runTool(async () => {
+      const result = await restoreWorkspaceFromRestorePoint(restorePointId);
+      return result.message;
+    });
+  }
+
+  async function handleExportRestorePoint(restorePointId: string) {
+    await runTool(async () => {
+      const result = await exportRestorePointJson(restorePointId);
+      return result.message;
+    });
+  }
+
+  async function confirmDeleteRestorePoint() {
+    if (!pendingDeleteRestorePoint) return;
+
+    const restorePointId = pendingDeleteRestorePoint.id;
+    setPendingDeleteRestorePoint(null);
+    await runTool(async () => {
+      const result = await deleteRestorePoint(restorePointId);
+      return result.message;
     });
   }
 
@@ -255,6 +373,10 @@ export default function WorkspaceToolsScreen() {
             label: `${workspace.templates.length} templates`,
             backgroundColor: palette.accentSoft,
           },
+          {
+            label: `${restorePoints.length} restore point${restorePoints.length === 1 ? "" : "s"}`,
+            backgroundColor: palette.card,
+          },
         ]}
       />
 
@@ -264,6 +386,127 @@ export default function WorkspaceToolsScreen() {
         description="Export the workspace, move a shared template into review, or refresh device readiness before diving into the longer tool sections below."
         actions={pageQuickActions}
       />
+
+      <SectionSurface
+        palette={palette}
+        label="Local backup vault"
+        title="Create restore points and recover earlier workspace states"
+        style={styles.sectionCardSpacing}
+      >
+        <Text style={[styles.listText, paletteStyles.mutedText]}>
+          Save a checkpoint before risky edits or use the automatic restore
+          points TrackItUp creates ahead of imports, restores, recovery, privacy
+          changes, and resets.
+        </Text>
+        <ChipRow style={styles.statusChipRow}>
+          <Chip compact style={styles.statusChip} icon="content-save-outline">
+            {restorePoints.length} saved
+          </Chip>
+          <Chip compact style={styles.statusChip} icon="history">
+            Most recent first
+          </Chip>
+          <Chip compact style={styles.statusChip} icon="backup-restore">
+            Keeps last 12
+          </Chip>
+        </ChipRow>
+        <Text style={[styles.helperText, paletteStyles.mutedText]}>
+          {latestRestorePoint
+            ? `Latest backup: ${formatRestorePointTime(latestRestorePoint.createdAt)}. Restoring replaces the live workspace and first tries to save a pre-restore checkpoint.`
+            : "Restoring replaces the live workspace and first tries to save a pre-restore checkpoint."}
+        </Text>
+        <ActionButtonRow style={styles.toolButtonRow}>
+          <Button
+            mode="contained"
+            onPress={() => void handleCreateRestorePoint()}
+            style={styles.toolButton}
+            disabled={isWorking}
+          >
+            Save restore point
+          </Button>
+        </ActionButtonRow>
+
+        {restorePoints.length === 0 ? (
+          <Text style={[styles.helperText, paletteStyles.mutedText]}>
+            No restore points yet. Create one now or let TrackItUp add them
+            automatically before supported local-only changes.
+          </Text>
+        ) : (
+          <View style={styles.restorePointList}>
+            {restorePoints.map((restorePoint, index) => (
+              <Surface
+                key={restorePoint.id}
+                style={[styles.restorePointCard, paletteStyles.cardSurface]}
+                elevation={0}
+              >
+                <Text style={styles.restorePointTitle}>
+                  {restorePoint.label}
+                </Text>
+                <ChipRow style={styles.restorePointChipRow}>
+                  {index === 0 ? (
+                    <Chip
+                      compact
+                      style={styles.statusChip}
+                      icon="star-four-points-outline"
+                    >
+                      Latest
+                    </Chip>
+                  ) : null}
+                  <Chip
+                    compact
+                    style={styles.statusChip}
+                    icon="bookmark-outline"
+                  >
+                    {formatRestorePointReasonLabel(restorePoint)}
+                  </Chip>
+                  <Chip
+                    compact
+                    style={styles.statusChip}
+                    icon="shield-check-outline"
+                  >
+                    {restorePoint.protectionMode === "protected"
+                      ? "Protected"
+                      : "Compatibility"}
+                  </Chip>
+                </ChipRow>
+                <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                  Saved {formatRestorePointTime(restorePoint.createdAt)}
+                </Text>
+                <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                  {formatRestorePointPrimaryStats(restorePoint)}
+                </Text>
+                <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                  {formatRestorePointSecondaryStats(restorePoint)}
+                </Text>
+                <ActionButtonRow style={styles.restorePointActions}>
+                  <Button
+                    mode="contained"
+                    onPress={() => setPendingRestorePoint(restorePoint)}
+                    disabled={isWorking}
+                  >
+                    Restore
+                  </Button>
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() =>
+                      void handleExportRestorePoint(restorePoint.id)
+                    }
+                    disabled={isWorking}
+                  >
+                    Export JSON
+                  </Button>
+                  <Button
+                    mode="text"
+                    onPress={() => setPendingDeleteRestorePoint(restorePoint)}
+                    disabled={isWorking}
+                  >
+                    Delete
+                  </Button>
+                </ActionButtonRow>
+              </Surface>
+            ))}
+          </View>
+        )}
+      </SectionSurface>
 
       <SectionSurface
         palette={palette}
@@ -517,6 +760,48 @@ export default function WorkspaceToolsScreen() {
         />
       ) : null}
 
+      <Portal>
+        <Dialog
+          visible={pendingRestorePoint !== null}
+          onDismiss={() => setPendingRestorePoint(null)}
+        >
+          <Dialog.Title>Restore this local backup?</Dialog.Title>
+          <Dialog.Content>
+            <Text>
+              {pendingRestorePoint
+                ? `${pendingRestorePoint.label} from ${formatRestorePointTime(pendingRestorePoint.createdAt)} will replace the current workspace on this device. TrackItUp will try to save your current state first.`
+                : "Restore the selected local backup?"}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setPendingRestorePoint(null)}>Cancel</Button>
+            <Button onPress={() => void confirmRestorePoint()}>Restore</Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog
+          visible={pendingDeleteRestorePoint !== null}
+          onDismiss={() => setPendingDeleteRestorePoint(null)}
+        >
+          <Dialog.Title>Delete this local backup?</Dialog.Title>
+          <Dialog.Content>
+            <Text>
+              {pendingDeleteRestorePoint
+                ? `${pendingDeleteRestorePoint.label} from ${formatRestorePointTime(pendingDeleteRestorePoint.createdAt)} will be removed from this device. This does not change the current live workspace.`
+                : "Delete the selected local backup?"}
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setPendingDeleteRestorePoint(null)}>
+              Cancel
+            </Button>
+            <Button onPress={() => void confirmDeleteRestorePoint()}>
+              Delete
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       <Surface
         style={[styles.footnoteCard, paletteStyles.cardSurface]}
         elevation={1}
@@ -614,4 +899,23 @@ const styles = StyleSheet.create({
   },
   footnoteTitle: { ...uiTypography.titleMd, marginBottom: 6 },
   footnoteCopy: uiTypography.body,
+  restorePointList: {
+    gap: uiSpace.md,
+  },
+  restorePointCard: {
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.lg,
+  },
+  restorePointTitle: {
+    ...uiTypography.bodyStrong,
+    marginBottom: uiSpace.xs,
+  },
+  restorePointChipRow: {
+    marginBottom: uiSpace.sm,
+  },
+  restorePointActions: {
+    marginTop: uiSpace.md,
+    marginBottom: 0,
+  },
 });

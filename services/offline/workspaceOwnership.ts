@@ -9,6 +9,15 @@ const WORKSPACE_ENCRYPTED_SNAPSHOT_FILENAME_PREFIX = "workspace-encrypted-v1";
 const WORKSPACE_ENCRYPTED_STORAGE_KEY_PREFIX =
   "trackitup.workspace.encrypted.v1";
 const WORKSPACE_ENCRYPTION_KEY_ALIAS_PREFIX = "trackitup.workspace.key.v1";
+const WORKSPACE_PRIVACY_MODE_FILENAME_PREFIX = "workspace-privacy-mode-v2";
+const WORKSPACE_PRIVACY_MODE_STORAGE_KEY_PREFIX =
+  "trackitup.workspace.privacy-mode.v2";
+const WORKSPACE_RESTORE_HISTORY_STORAGE_KEY_PREFIX =
+  "trackitup.workspace.restore-history.v1";
+const WORKSPACE_RESTORE_HISTORY_FILENAME_PREFIX =
+  "workspace-restore-history-v1";
+const WORKSPACE_RESTORE_POINT_KEY_ALIAS_PREFIX =
+  "trackitup.workspace.restore-point.key.v1";
 const WORKSPACE_STORAGE_KEY_PREFIX = "trackitup.workspace.snapshot.v2";
 const WORKSPACE_SNAPSHOT_FILENAME_PREFIX = "workspace-snapshot-v2";
 const WORKSPACE_DATABASE_NAME_PREFIX = "trackitup-workspace-v2";
@@ -43,6 +52,14 @@ export function buildEncryptedWorkspaceStorageKey(scopeKey: string) {
   return `${WORKSPACE_ENCRYPTED_STORAGE_KEY_PREFIX}.${scopeKey}`;
 }
 
+export function buildWorkspaceRestoreHistoryStorageKey(scopeKey: string) {
+  return `${WORKSPACE_RESTORE_HISTORY_STORAGE_KEY_PREFIX}.${scopeKey}`;
+}
+
+export function buildWorkspacePrivacyModeStorageKey(scopeKey: string) {
+  return `${WORKSPACE_PRIVACY_MODE_STORAGE_KEY_PREFIX}.${scopeKey}`;
+}
+
 export function buildWorkspaceSnapshotFilename(scopeKey: string) {
   return `${WORKSPACE_SNAPSHOT_FILENAME_PREFIX}-${sanitizeWorkspaceOwnerScopeKey(scopeKey)}.json`;
 }
@@ -51,8 +68,20 @@ export function buildEncryptedWorkspaceSnapshotFilename(scopeKey: string) {
   return `${WORKSPACE_ENCRYPTED_SNAPSHOT_FILENAME_PREFIX}-${sanitizeWorkspaceOwnerScopeKey(scopeKey)}.json`;
 }
 
+export function buildWorkspaceRestoreHistoryFilename(scopeKey: string) {
+  return `${WORKSPACE_RESTORE_HISTORY_FILENAME_PREFIX}-${sanitizeWorkspaceOwnerScopeKey(scopeKey)}.json`;
+}
+
+export function buildWorkspacePrivacyModeFilename(scopeKey: string) {
+  return `${WORKSPACE_PRIVACY_MODE_FILENAME_PREFIX}-${sanitizeWorkspaceOwnerScopeKey(scopeKey)}.json`;
+}
+
 export function buildWorkspaceEncryptionKeyAlias(scopeKey: string) {
   return `${WORKSPACE_ENCRYPTION_KEY_ALIAS_PREFIX}.${sanitizeWorkspaceOwnerScopeKey(scopeKey)}`;
+}
+
+export function buildWorkspaceRestorePointEncryptionKeyAlias(scopeKey: string) {
+  return `${WORKSPACE_RESTORE_POINT_KEY_ALIAS_PREFIX}.${sanitizeWorkspaceOwnerScopeKey(scopeKey)}`;
 }
 
 export function buildWorkspaceDatabaseName(scopeKey: string) {
