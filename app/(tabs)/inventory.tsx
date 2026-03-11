@@ -1,17 +1,13 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import {
-    Button,
-    Chip,
-    Surface,
-    useTheme,
-    type MD3Theme,
-} from "react-native-paper";
+import { Chip, Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
+import { CardActionPill } from "@/components/ui/CardActionPill";
+import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { SectionMessage } from "@/components/ui/SectionMessage";
@@ -371,20 +367,14 @@ export default function InventoryScreen() {
           recurring care logs.
         </Text>
         <View style={styles.summaryActionRow}>
-          <Button
-            mode="contained"
+          <CardActionPill
+            label="Scan barcode / QR"
             onPress={() => router.push("/scanner" as never)}
-            style={styles.inlineButton}
-          >
-            Scan barcode / QR
-          </Button>
-          <Button
-            mode="outlined"
+          />
+          <CardActionPill
+            label="Open photo gallery"
             onPress={() => router.push("/visual-history" as never)}
-            style={styles.inlineButton}
-          >
-            Open photo gallery
-          </Button>
+          />
         </View>
       </Surface>
 
@@ -502,57 +492,49 @@ export default function InventoryScreen() {
                     {source.snippet}
                   </Text>
                   <View style={styles.summaryActionRow}>
-                    <Button
-                      mode="outlined"
-                      textColor={theme.colors.primary}
+                    <CardActionPill
+                      label={formatAiInventoryLifecycleDestinationLabel(
+                        source.route,
+                      )}
                       onPress={() => openInventoryLifecycleSource(source)}
-                    >
-                      {formatAiInventoryLifecycleDestinationLabel(source.route)}
-                    </Button>
+                    />
                   </View>
                 </Surface>
               ))}
           </View>
           <View style={styles.summaryActionRow}>
-            <Button
-              mode="outlined"
+            <CardActionPill
+              label="Clear brief"
               onPress={() => setAppliedInventoryLifecycle(null)}
-            >
-              Clear brief
-            </Button>
-            <Button
-              mode="contained"
-              buttonColor={theme.colors.primary}
-              textColor={theme.colors.onPrimary}
+            />
+            <CardActionPill
+              label={formatAiInventoryLifecycleDestinationLabel(
+                appliedInventoryLifecycle.draft.suggestedDestination ??
+                  "inventory",
+              )}
               onPress={() =>
                 openInventoryLifecycleDestination(
                   appliedInventoryLifecycle.draft.suggestedDestination,
                 )
               }
-            >
-              {formatAiInventoryLifecycleDestinationLabel(
-                appliedInventoryLifecycle.draft.suggestedDestination ??
-                  "inventory",
-              )}
-            </Button>
+            />
           </View>
         </Surface>
       ) : null}
 
       {assetCards.length === 0 ? (
-        <View
-          style={[
-            styles.card,
-            paletteStyles.raisedCardSurface,
-            { borderLeftColor: palette.border },
-          ]}
-        >
-          <Text style={styles.cardTitle}>No tracked assets yet</Text>
-          <Text style={[styles.copy, paletteStyles.mutedText]}>
-            Asset records will appear here once real workspace data is synced,
-            imported, or captured on this device.
-          </Text>
-        </View>
+        <EmptyStateCard
+          palette={palette}
+          icon={{
+            ios: "shippingbox",
+            android: "inventory_2",
+            web: "inventory_2",
+          }}
+          title="No tracked assets yet"
+          message="Asset records will appear here once real workspace data is synced, imported, or captured on this device."
+          actionLabel="Open scanner"
+          onAction={() => router.push("/scanner" as never)}
+        />
       ) : (
         assetCards.map((asset) => (
           <View
@@ -584,17 +566,16 @@ export default function InventoryScreen() {
               {formatCurrency(asset.expenseTotal)}
             </Text>
             <View style={styles.summaryActionRow}>
-              <Button
-                mode="outlined"
+              <CardActionPill
+                label={
+                  asset.photoCount
+                    ? `Photo timeline (${asset.photoCount})`
+                    : "Photo timeline"
+                }
                 onPress={() =>
                   router.push(`/visual-history?assetId=${asset.id}` as never)
                 }
-                style={styles.inlineButton}
-              >
-                {asset.photoCount
-                  ? `Photo timeline (${asset.photoCount})`
-                  : "Photo timeline"}
-              </Button>
+              />
             </View>
             {asset.barcodeValue || asset.qrCodeValue ? (
               <Text style={[styles.copy, paletteStyles.mutedText]}>
@@ -647,8 +628,8 @@ const styles = StyleSheet.create({
   },
   summaryCard: {
     borderWidth: uiBorder.standard,
-    borderRadius: uiRadius.xl,
-    padding: uiSpace.screen,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
   },
   summaryTitle: { ...uiTypography.titleMd, marginBottom: 6 },
   summaryValue: { ...uiTypography.valueLg, marginBottom: 6 },
@@ -656,6 +637,7 @@ const styles = StyleSheet.create({
   summaryActionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: uiSpace.md,
     marginTop: uiSpace.xl,
   },
@@ -691,9 +673,7 @@ const styles = StyleSheet.create({
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-  },
-  inlineButton: {
-    borderRadius: uiRadius.pill,
+    gap: uiSpace.xs,
   },
   card: {
     borderWidth: uiBorder.standard,
@@ -701,10 +681,11 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
     marginBottom: uiSpace.lg,
+    gap: uiSpace.xs,
     ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   cardTitle: { ...uiTypography.titleSection, marginBottom: 6 },
   meta: { ...uiTypography.chip, marginBottom: uiSpace.sm },
-  copy: { ...uiTypography.body, marginBottom: uiSpace.xs },
+  copy: { ...uiTypography.body, marginBottom: 0, lineHeight: 20 },
 });

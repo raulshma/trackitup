@@ -14,11 +14,14 @@ import { MiniMetricChart, type ChartMode } from "@/components/MiniMetricChart";
 import { Text } from "@/components/Themed";
 import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
+import { CardActionPill } from "@/components/ui/CardActionPill";
+import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { uiRadius, uiSpace } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiDashboardPulseCopy } from "@/services/ai/aiConsentCopy";
@@ -197,8 +200,6 @@ export default function TabOneScreen() {
     shadowColor: theme.colors.shadow,
   };
 
-  const toolbarButtonColor = theme.colors.secondaryContainer;
-  const toolbarButtonTextColor = theme.colors.onSecondaryContainer;
   const widgetButtonColor = theme.colors.elevation.level2;
   const widgetButtonTextColor = theme.colors.onSurface;
 
@@ -734,38 +735,30 @@ export default function TabOneScreen() {
                     {source.snippet}
                   </Text>
                 </View>
-                <Button
-                  mode="outlined"
-                  textColor={theme.colors.primary}
-                  onPress={() => openDashboardPulseSource(source)}
-                >
-                  {formatAiDashboardPulseDestinationLabel(source.route)}
-                </Button>
+                <View style={styles.pulseSourceActionRow}>
+                  <CardActionPill
+                    label={formatAiDashboardPulseDestinationLabel(source.route)}
+                    onPress={() => openDashboardPulseSource(source)}
+                  />
+                </View>
               </Surface>
             ))}
           <View style={styles.pulseActionRow}>
-            <Button
-              mode="outlined"
-              textColor={theme.colors.primary}
+            <CardActionPill
+              label="Clear brief"
               onPress={() => setAppliedDashboardPulse(null)}
-            >
-              Clear brief
-            </Button>
-            <Button
-              mode="contained"
-              buttonColor={theme.colors.primary}
-              textColor={theme.colors.onPrimary}
+            />
+            <CardActionPill
+              label={formatAiDashboardPulseDestinationLabel(
+                appliedDashboardPulse.draft.suggestedDestination ??
+                  "action-center",
+              )}
               onPress={() =>
                 openDashboardPulseDestination(
                   appliedDashboardPulse.draft.suggestedDestination,
                 )
               }
-            >
-              {formatAiDashboardPulseDestinationLabel(
-                appliedDashboardPulse.draft.suggestedDestination ??
-                  "action-center",
-              )}
-            </Button>
+            />
           </View>
         </Surface>
       ) : null}
@@ -913,24 +906,19 @@ export default function TabOneScreen() {
         </Text>
       </View>
       {spaceSummaries.length === 0 ? (
-        <Surface style={[styles.spaceCard, baseCardSurfaceStyle]} elevation={1}>
-          <Text style={styles.spaceName}>No tracked spaces yet</Text>
-          <Text style={[styles.spaceNote, { color: palette.muted }]}>
-            Create your first space to give new events, routines, and metrics a
-            home in the workspace.
-          </Text>
-          <View style={styles.widgetToolbar}>
-            <Button
-              onPress={() => router.push("/space-create")}
-              mode="contained"
-              style={styles.toolbarButton}
-              contentStyle={styles.toolbarButtonContent}
-              labelStyle={styles.toolbarButtonLabel}
-            >
-              Create first space
-            </Button>
-          </View>
-        </Surface>
+        <EmptyStateCard
+          palette={palette}
+          icon={{
+            ios: "square.grid.2x2",
+            android: "dashboard",
+            web: "dashboard",
+          }}
+          title="No tracked spaces yet"
+          message="Create your first space to give new events, routines, and metrics a home in the workspace."
+          actionLabel="Create first space"
+          onAction={() => router.push("/space-create")}
+          style={styles.emptyStateCard}
+        />
       ) : (
         spaceSummaries.map((space) => (
           <Surface
@@ -969,21 +957,17 @@ export default function TabOneScreen() {
             </Text>
 
             <View style={styles.widgetToolbar}>
-              <Button
+              <CardActionPill
+                label={
+                  spacePhotoMap.get(space.id)?.photoCount
+                    ? `Visual history (${spacePhotoMap.get(space.id)?.photoCount})`
+                    : "Visual history"
+                }
+                accentColor={space.accent}
                 onPress={() =>
                   router.push(`/visual-history?spaceId=${space.id}` as never)
                 }
-                mode="contained-tonal"
-                buttonColor={toolbarButtonColor}
-                textColor={toolbarButtonTextColor}
-                style={styles.toolbarButton}
-                contentStyle={styles.toolbarButtonContent}
-                labelStyle={styles.toolbarButtonLabel}
-              >
-                {spacePhotoMap.get(space.id)?.photoCount
-                  ? `Visual history (${spacePhotoMap.get(space.id)?.photoCount})`
-                  : "Visual history"}
-              </Button>
+              />
             </View>
 
             <View style={styles.spaceFooter}>
@@ -1089,18 +1073,10 @@ export default function TabOneScreen() {
                   {widget.type} • {widget.size} card
                 </Text>
               </View>
-              <Button
+              <CardActionPill
+                label="Show"
                 onPress={() => toggleDashboardWidgetVisibility(widget.id)}
-                mode="contained-tonal"
-                buttonColor={widgetButtonColor}
-                textColor={widgetButtonTextColor}
-                compact
-                style={styles.widgetButton}
-                contentStyle={styles.widgetButtonContent}
-                labelStyle={styles.widgetButtonLabel}
-              >
-                Show
-              </Button>
+              />
             </View>
           ))}
         </Surface>
@@ -1134,38 +1110,29 @@ export default function TabOneScreen() {
         </Text>
       </View>
       <View style={styles.widgetToolbar}>
-        <Button
+        <CardActionPill
+          label="Build custom schema"
           onPress={() => router.push("/schema-builder")}
-          mode="contained-tonal"
-          buttonColor={toolbarButtonColor}
-          textColor={toolbarButtonTextColor}
-          style={styles.toolbarButton}
-          contentStyle={styles.toolbarButtonContent}
-          labelStyle={styles.toolbarButtonLabel}
-        >
-          Build custom schema
-        </Button>
-        <Button
+        />
+        <CardActionPill
+          label="Import template"
           onPress={() => router.push("/template-import")}
-          mode="contained-tonal"
-          buttonColor={toolbarButtonColor}
-          textColor={toolbarButtonTextColor}
-          style={styles.toolbarButton}
-          contentStyle={styles.toolbarButtonContent}
-          labelStyle={styles.toolbarButtonLabel}
-        >
-          Import template
-        </Button>
+        />
       </View>
       {workspace.templates.length === 0 ? (
-        <Surface style={[styles.spaceCard, baseCardSurfaceStyle]} elevation={1}>
-          <Text style={styles.spaceName}>
-            No templates in this workspace yet
-          </Text>
-          <Text style={[styles.spaceNote, { color: palette.muted }]}>
-            Import a template or build your own schema to populate this catalog.
-          </Text>
-        </Surface>
+        <EmptyStateCard
+          palette={palette}
+          icon={{
+            ios: "square.stack.3d.up",
+            android: "inventory_2",
+            web: "inventory_2",
+          }}
+          title="No templates in this workspace yet"
+          message="Import a template or build your own schema to populate this catalog."
+          actionLabel="Import template"
+          onAction={() => router.push("/template-import")}
+          style={styles.emptyStateCard}
+        />
       ) : (
         workspace.templates.map((template) => (
           <Surface
@@ -1196,22 +1163,15 @@ export default function TabOneScreen() {
             </Text>
             {template.formTemplate ? (
               <View style={styles.widgetToolbar}>
-                <Button
+                <CardActionPill
+                  label="Open form"
                   onPress={() =>
                     router.push({
                       pathname: "/logbook",
                       params: { templateId: template.id },
                     })
                   }
-                  mode="contained-tonal"
-                  buttonColor={toolbarButtonColor}
-                  textColor={toolbarButtonTextColor}
-                  style={styles.toolbarButton}
-                  contentStyle={styles.toolbarButtonContent}
-                  labelStyle={styles.toolbarButtonLabel}
-                >
-                  Open form
-                </Button>
+                />
               </View>
             ) : null}
           </Surface>
@@ -1324,18 +1284,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   sectionHeader: {
-    marginTop: 2,
-    marginBottom: 2,
-    gap: 4,
+    marginTop: uiSpace.xs,
+    marginBottom: uiSpace.sm,
+    gap: uiSpace.xs,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    marginBottom: 4,
+    marginBottom: 0,
   },
   sectionSubtitle: {
     fontSize: 14,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   actionRow: {
     flexDirection: "row",
@@ -1487,8 +1447,12 @@ const styles = StyleSheet.create({
   pulseActionRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: 12,
     marginTop: 16,
+  },
+  pulseSourceActionRow: {
+    alignItems: "flex-end",
   },
   widgetControls: {
     flexDirection: "row",
@@ -1514,8 +1478,9 @@ const styles = StyleSheet.create({
   hiddenWidgetRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   widgetListItem: {
     flexDirection: "row",
@@ -1568,15 +1533,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
+    gap: uiSpace.lg,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
+    borderRadius: uiRadius.panel,
+    paddingHorizontal: uiSpace.surface,
+    paddingVertical: uiSpace.lg,
+    marginBottom: uiSpace.md,
   },
   recommendationAside: {
     alignItems: "flex-end",
+    minWidth: 92,
     gap: 8,
   },
   widgetToolbar: {
@@ -1584,17 +1550,10 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 14,
     flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
-  toolbarButton: {
-    borderRadius: 999,
-  },
-  toolbarButtonContent: {
-    minHeight: 42,
-    paddingHorizontal: 8,
-  },
-  toolbarButtonLabel: {
-    fontSize: 13,
-    fontWeight: "700",
+  emptyStateCard: {
+    marginBottom: uiSpace.md,
   },
   chartModeRow: {
     marginTop: 2,

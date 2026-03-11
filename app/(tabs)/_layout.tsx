@@ -56,7 +56,7 @@ export default function TabLayout() {
   const palette = getAppPalette(colorScheme);
   const theme = useTheme<MD3Theme>();
   const router = useRouter();
-  const activeTabColor = theme.colors.onSecondaryContainer;
+  const activeTabColor = theme.colors.onPrimaryContainer;
   const inactiveTabColor = theme.colors.onSurfaceVariant;
   const homeHeaderActions = React.useMemo<MaterialCompactTopAppBarAction[]>(
     () => [
@@ -98,7 +98,8 @@ export default function TabLayout() {
           style={[
             styles.tabIconContainer,
             focused && {
-              backgroundColor: theme.colors.secondaryContainer,
+              backgroundColor: theme.colors.primaryContainer,
+              borderColor: theme.colors.outlineVariant,
             },
           ]}
         >
@@ -109,7 +110,11 @@ export default function TabLayout() {
           />
         </View>
       ),
-    [activeTabColor, theme.colors.secondaryContainer],
+    [
+      activeTabColor,
+      theme.colors.outlineVariant,
+      theme.colors.primaryContainer,
+    ],
   );
 
   return (
@@ -127,8 +132,7 @@ export default function TabLayout() {
           tabBarLabelPosition: "below-icon",
           tabBarStyle: {
             backgroundColor: theme.colors.surface,
-            borderTopColor: theme.colors.outlineVariant,
-            borderTopWidth: uiBorder.hairline,
+            borderTopWidth: 0,
             height: uiSize.tabBarHeight,
             paddingTop: uiSpace.sm,
             paddingBottom: uiSpace.sm,
@@ -224,6 +228,8 @@ const styles = StyleSheet.create({
     width: uiSize.tabBarActiveIndicatorWidth,
     height: 32,
     borderRadius: uiRadius.pill,
+    borderWidth: uiBorder.hairline,
+    borderColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
   },

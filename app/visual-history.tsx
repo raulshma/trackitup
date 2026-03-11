@@ -22,7 +22,9 @@ import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { BeforeAfterSlider } from "@/components/ui/BeforeAfterSlider";
+import { CardActionPill } from "@/components/ui/CardActionPill";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import {
     PhotoLightbox,
@@ -672,13 +674,43 @@ export default function VisualHistoryScreen() {
               Pick the monthly recap you want narrated, then describe the tone
               or audience for the AI summary.
             </Text>
-            <ChipRow style={styles.aiMonthChipRow}>
+            <Text style={[styles.filterLabel, paletteStyles.mutedText]}>
+              Filter by month
+            </Text>
+            <ChipRow
+              style={[
+                styles.aiMonthChipRow,
+                {
+                  backgroundColor: theme.colors.elevation.level1,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+            >
               {history.monthlyRecaps.map((recap) => (
                 <Chip
                   key={recap.monthKey}
                   compact
                   selected={selectedAiMonthKey === recap.monthKey}
-                  style={styles.infoChip}
+                  showSelectedCheck={false}
+                  style={[
+                    styles.infoChip,
+                    styles.filterChip,
+                    selectedAiMonthKey === recap.monthKey
+                      ? {
+                          backgroundColor: theme.colors.primaryContainer,
+                          borderColor: theme.colors.primary,
+                        }
+                      : {
+                          backgroundColor: theme.colors.surface,
+                          borderColor: theme.colors.outlineVariant,
+                        },
+                  ]}
+                  textStyle={{
+                    color:
+                      selectedAiMonthKey === recap.monthKey
+                        ? theme.colors.onPrimaryContainer
+                        : theme.colors.onSurfaceVariant,
+                  }}
                   onPress={() => setSelectedAiMonthKey(recap.monthKey)}
                 >
                   {formatMonth(recap.monthKey)}
@@ -789,23 +821,20 @@ export default function VisualHistoryScreen() {
                 Next focus: {appliedAiRecap.draft.nextFocus}
               </Text>
             ) : null}
-            <ActionButtonRow style={styles.recapActionRow}>
-              <Button
-                mode="outlined"
-                textColor={theme.colors.primary}
+            <ActionButtonRow
+              separated
+              separatorColor={theme.colors.outlineVariant}
+              style={styles.recapActionRow}
+            >
+              <CardActionPill
+                label="Clear recap"
                 onPress={() => setAppliedAiRecap(null)}
-              >
-                Clear recap
-              </Button>
-              <Button
-                mode="contained"
-                buttonColor={theme.colors.primary}
-                textColor={theme.colors.onPrimary}
+              />
+              <CardActionPill
+                label="Refresh recap"
                 onPress={() => void handleGenerateAiRecap()}
                 disabled={isGeneratingAiRecap}
-              >
-                Refresh recap
-              </Button>
+              />
             </ActionButtonRow>
           </SectionSurface>
         ) : null}
@@ -936,37 +965,33 @@ export default function VisualHistoryScreen() {
                       {source.snippet}
                     </Text>
                   </View>
-                  <Button
-                    mode="outlined"
-                    textColor={theme.colors.primary}
+                  <CardActionPill
+                    label={formatAiCrossSpaceTrendDestinationLabel(
+                      source.route,
+                    )}
                     onPress={() => handleOpenTrendSource(source)}
-                  >
-                    {formatAiCrossSpaceTrendDestinationLabel(source.route)}
-                  </Button>
+                  />
                 </Surface>
               ))}
-            <ActionButtonRow style={styles.recapActionRow}>
-              <Button
-                mode="outlined"
-                textColor={theme.colors.primary}
+            <ActionButtonRow
+              separated
+              separatorColor={theme.colors.outlineVariant}
+              style={styles.recapActionRow}
+            >
+              <CardActionPill
+                label="Clear summary"
                 onPress={() => setAppliedAiTrend(null)}
-              >
-                Clear summary
-              </Button>
-              <Button
-                mode="contained"
-                buttonColor={theme.colors.primary}
-                textColor={theme.colors.onPrimary}
+              />
+              <CardActionPill
+                label={formatAiCrossSpaceTrendDestinationLabel(
+                  appliedAiTrend.draft.suggestedDestination ?? "visual-history",
+                )}
                 onPress={() =>
                   handleOpenTrendDestination(
                     appliedAiTrend.draft.suggestedDestination,
                   )
                 }
-              >
-                {formatAiCrossSpaceTrendDestinationLabel(
-                  appliedAiTrend.draft.suggestedDestination ?? "visual-history",
-                )}
-              </Button>
+              />
             </ActionButtonRow>
           </SectionSurface>
         ) : null}
@@ -975,13 +1000,20 @@ export default function VisualHistoryScreen() {
           <SectionSurface
             palette={palette}
             label="Gallery"
-            title="No photos yet"
+            title="Photo timeline"
           >
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              Photos added to logs will appear here automatically. Use quick
-              logs, routine runs, or reminder completions to build a visual
-              timeline.
-            </Text>
+            <EmptyStateCard
+              palette={palette}
+              icon={{
+                ios: "photo.stack",
+                android: "photo_library",
+                web: "photo_library",
+              }}
+              title="No photos yet"
+              message="Photos added to logs will appear here automatically. Use quick logs, routine runs, or reminder completions to build a visual timeline."
+              actionLabel="Open logbook"
+              onAction={() => router.push("/logbook")}
+            />
           </SectionSurface>
         ) : (
           <>
@@ -1068,17 +1100,14 @@ export default function VisualHistoryScreen() {
                         proof shot(s)
                       </Text>
                     </View>
-                    <Button
-                      mode="outlined"
-                      textColor={theme.colors.primary}
+                    <CardActionPill
+                      label="Open"
                       onPress={() =>
                         router.push(
                           `/visual-history?assetId=${gallery.id}` as never,
                         )
                       }
-                    >
-                      Open
-                    </Button>
+                    />
                   </Surface>
                 ))}
               </SectionSurface>
@@ -1284,10 +1313,9 @@ export default function VisualHistoryScreen() {
                       ))}
                     </View>
                     <ActionButtonRow
-                      style={[
-                        styles.recapActionRow,
-                        { borderTopColor: theme.colors.outlineVariant },
-                      ]}
+                      separated
+                      separatorColor={theme.colors.outlineVariant}
+                      style={styles.recapActionRow}
                     >
                       <Button
                         mode="contained"
@@ -1402,30 +1430,27 @@ export default function VisualHistoryScreen() {
                         Assets: {photo.assetNames.join(" • ")}
                       </Text>
                     ) : null}
-                    <ActionButtonRow>
-                      <Button
-                        mode="outlined"
-                        textColor={theme.colors.primary}
+                    <ActionButtonRow
+                      separated
+                      separatorColor={theme.colors.outlineVariant}
+                    >
+                      <CardActionPill
+                        label="Open log"
                         onPress={() =>
                           router.push(
                             `/logbook?entryId=${photo.logId}` as never,
                           )
                         }
-                      >
-                        Open log
-                      </Button>
+                      />
                       {!assetId && photo.assetIds.length === 1 ? (
-                        <Button
-                          mode="text"
-                          textColor={theme.colors.primary}
+                        <CardActionPill
+                          label="Asset gallery"
                           onPress={() =>
                             router.push(
                               `/visual-history?assetId=${photo.assetIds[0]}` as never,
                             )
                           }
-                        >
-                          Asset gallery
-                        </Button>
+                        />
                       ) : null}
                     </ActionButtonRow>
                   </View>
@@ -1454,7 +1479,17 @@ const styles = StyleSheet.create({
   messageCard: { marginBottom: uiSpace.xl },
   copy: uiTypography.body,
   meta: uiTypography.bodySmall,
-  aiMonthChipRow: { marginTop: uiSpace.md },
+  filterLabel: {
+    ...uiTypography.label,
+    marginTop: uiSpace.md,
+    marginBottom: uiSpace.xs,
+  },
+  aiMonthChipRow: {
+    marginTop: uiSpace.xs,
+    padding: uiSpace.xs,
+    borderWidth: uiBorder.hairline,
+    borderRadius: uiRadius.xl,
+  },
   aiHighlightList: { marginTop: uiSpace.md, gap: uiSpace.xs },
   comparisonMetaRow: {
     flexDirection: "row",
@@ -1473,11 +1508,11 @@ const styles = StyleSheet.create({
   comparisonLabel: { ...uiTypography.label, marginBottom: 4 },
   galleryRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: uiSpace.md,
+    alignItems: "flex-start",
+    gap: uiSpace.lg,
     borderWidth: uiBorder.standard,
-    borderRadius: uiRadius.xl,
-    padding: uiSpace.md,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
     marginBottom: uiSpace.lg,
   },
   galleryThumb: {
@@ -1486,8 +1521,8 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.lg,
     backgroundColor: "#00000014",
   },
-  galleryCopy: { flex: 1 },
-  galleryTitle: uiTypography.titleMd,
+  galleryCopy: { flex: 1, gap: uiSpace.xxs },
+  galleryTitle: { ...uiTypography.titleMd, marginBottom: 2 },
   recapCard: {
     marginBottom: uiSpace.xl,
     borderWidth: uiBorder.standard,
@@ -1547,15 +1582,14 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.88)",
   },
   recapActionRow: {
-    marginTop: uiSpace.md,
-    paddingTop: uiSpace.md,
-    borderTopWidth: uiBorder.hairline,
+    marginTop: uiSpace.lg,
   },
   trendSourceCard: {
     marginTop: uiSpace.md,
     marginBottom: 0,
   },
   infoChip: { borderRadius: uiRadius.md },
+  filterChip: { borderWidth: uiBorder.hairline },
   infoChipText: uiTypography.chip,
   highlightStrip: { flexDirection: "row", flexWrap: "wrap", gap: uiSpace.sm },
   highlightCard: {
@@ -1588,7 +1622,7 @@ const styles = StyleSheet.create({
     height: 220,
     backgroundColor: "#00000014",
   },
-  photoCopy: { padding: uiSpace.surface },
-  photoChipRow: { marginBottom: uiSpace.sm },
+  photoCopy: { padding: uiSpace.surface, gap: uiSpace.xs },
+  photoChipRow: { marginBottom: uiSpace.md },
   photoTitle: { ...uiTypography.titleSection, marginBottom: uiSpace.xs },
 });

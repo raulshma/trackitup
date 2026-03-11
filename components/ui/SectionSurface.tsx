@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -46,15 +46,29 @@ export function SectionSurface({
       ]}
       elevation={elevation}
     >
-      {label ? (
-        <Text style={[styles.label, { color: theme.colors.primary }]}>
-          {label}
-        </Text>
-      ) : null}
-      {title ? (
-        <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-          {title}
-        </Text>
+      {label || title ? (
+        <View style={styles.header}>
+          {label ? (
+            <View
+              style={[
+                styles.labelBadge,
+                {
+                  backgroundColor: palette.accentSoft,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+            >
+              <Text style={[styles.label, { color: theme.colors.primary }]}>
+                {label}
+              </Text>
+            </View>
+          ) : null}
+          {title ? (
+            <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+              {title}
+            </Text>
+          ) : null}
+        </View>
       ) : null}
       {children}
     </Surface>
@@ -64,17 +78,26 @@ export function SectionSurface({
 const styles = StyleSheet.create({
   card: {
     borderWidth: uiBorder.standard,
-    borderRadius: uiRadius.xl,
+    borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
     marginBottom: uiSpace.xxl,
   },
+  header: {
+    marginBottom: uiSpace.md,
+  },
+  labelBadge: {
+    alignSelf: "flex-start",
+    borderRadius: uiRadius.pill,
+    borderWidth: uiBorder.hairline,
+    paddingHorizontal: uiSpace.md,
+    paddingVertical: uiSpace.xs,
+    marginBottom: uiSpace.sm,
+  },
   label: {
     ...uiTypography.label,
-    marginBottom: uiSpace.sm,
     textTransform: "uppercase",
   },
   title: {
     ...uiTypography.titleLg,
-    marginBottom: uiSpace.md,
   },
 });

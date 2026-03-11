@@ -2,18 +2,19 @@ import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
-    Button,
     Chip,
     Surface,
     useTheme,
-    type MD3Theme,
+    type MD3Theme
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
+import { CardActionPill } from "@/components/ui/CardActionPill";
 import { ChipRow } from "@/components/ui/ChipRow";
+import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
@@ -705,10 +706,18 @@ export default function ActionCenterScreen() {
         title="Next best reminder moves"
       >
         {actionCenter.nextBestSteps.length === 0 ? (
-          <Text style={[styles.copy, paletteStyles.mutedText]}>
-            The queue is clear right now. As open reminders appear, TrackItUp
-            will surface the next best moves here.
-          </Text>
+          <EmptyStateCard
+            palette={palette}
+            icon={{
+              ios: "checkmark.circle",
+              android: "task_alt",
+              web: "task_alt",
+            }}
+            title="The queue is clear right now"
+            message="As open reminders appear, TrackItUp will surface the next best moves here."
+            actionLabel="Open planner"
+            onAction={() => router.push("/planner")}
+          />
         ) : (
           actionCenter.nextBestSteps.map((item) => (
             <Surface
@@ -736,28 +745,24 @@ export default function ActionCenterScreen() {
                   {getSuggestedActionLabel(item.suggestedAction)}
                 </Chip>
               </View>
-              <ActionButtonRow style={styles.actionRow}>
-                <Button
-                  mode="contained-tonal"
+              <ActionButtonRow
+                separated
+                separatorColor={theme.colors.outlineVariant}
+                style={styles.actionRow}
+              >
+                <CardActionPill
+                  label={getSuggestedActionLabel(item.suggestedAction)}
                   onPress={() =>
                     handleSuggestedReminderAction(
                       item.reminderId,
                       item.suggestedAction,
                     )
                   }
-                  buttonColor={theme.colors.secondaryContainer}
-                  textColor={theme.colors.onSecondaryContainer}
-                  style={styles.inlineButton}
-                >
-                  {getSuggestedActionLabel(item.suggestedAction)}
-                </Button>
-                <Button
-                  mode="outlined"
+                />
+                <CardActionPill
+                  label="Open planner"
                   onPress={() => router.push("/planner")}
-                  style={styles.inlineButton}
-                >
-                  Open planner
-                </Button>
+                />
               </ActionButtonRow>
             </Surface>
           ))
@@ -770,10 +775,16 @@ export default function ActionCenterScreen() {
         title="Reminder pressure by space"
       >
         {actionCenter.groupedBySpace.length === 0 ? (
-          <Text style={[styles.copy, paletteStyles.mutedText]}>
-            Open reminder groups will appear here once more than one workload
-            bucket is active.
-          </Text>
+          <EmptyStateCard
+            palette={palette}
+            icon={{
+              ios: "square.stack.3d.up",
+              android: "inventory_2",
+              web: "inventory_2",
+            }}
+            title="No grouped workload yet"
+            message="Open reminder groups will appear here once more than one workload bucket is active."
+          />
         ) : (
           actionCenter.groupedBySpace.map((group) => (
             <Surface
@@ -947,52 +958,44 @@ export default function ActionCenterScreen() {
                     {getSuggestedActionLabel(item.action)}
                   </Chip>
                 </View>
-                <ActionButtonRow style={styles.actionRow}>
-                  <Button
-                    mode="contained-tonal"
+                <ActionButtonRow
+                  separated
+                  separatorColor={theme.colors.outlineVariant}
+                  style={styles.actionRow}
+                >
+                  <CardActionPill
+                    label={getSuggestedActionLabel(item.action)}
                     onPress={() =>
                       handleSuggestedReminderAction(
                         item.reminderId,
                         item.action,
                       )
                     }
-                    buttonColor={theme.colors.secondaryContainer}
-                    textColor={theme.colors.onSecondaryContainer}
-                    style={styles.inlineButton}
-                  >
-                    {getSuggestedActionLabel(item.action)}
-                  </Button>
-                  <Button
-                    mode="outlined"
+                  />
+                  <CardActionPill
+                    label="Log proof"
                     onPress={() =>
                       openReminderLogbook(reminder.id, reminder.spaceId)
                     }
-                    style={styles.inlineButton}
-                  >
-                    Log proof
-                  </Button>
+                  />
                 </ActionButtonRow>
               </Surface>
             );
           })}
-          <ActionButtonRow style={styles.actionRow}>
-            <Button
-              mode="outlined"
+          <ActionButtonRow
+            separated
+            separatorColor={theme.colors.outlineVariant}
+            style={styles.actionRow}
+          >
+            <CardActionPill
+              label="Clear explainer"
               onPress={() => setAppliedAiDraft(null)}
-              style={styles.inlineButton}
-            >
-              Clear explainer
-            </Button>
-            <Button
-              mode="contained-tonal"
+            />
+            <CardActionPill
+              label="Refresh explainer"
               onPress={() => void handleGenerateAiDraft()}
-              buttonColor={theme.colors.secondaryContainer}
-              textColor={theme.colors.onSecondaryContainer}
-              style={styles.inlineButton}
               disabled={isGeneratingAiDraft}
-            >
-              Refresh explainer
-            </Button>
+            />
           </ActionButtonRow>
         </SectionSurface>
       ) : null}
@@ -1129,43 +1132,40 @@ export default function ActionCenterScreen() {
                     </Text>
                   </View>
                 </View>
-                <ActionButtonRow style={styles.actionRow}>
-                  <Button
-                    mode="contained-tonal"
+                <ActionButtonRow
+                  separated
+                  separatorColor={theme.colors.outlineVariant}
+                  style={styles.actionRow}
+                >
+                  <CardActionPill
+                    label={formatAiTrackingQualityDestinationLabel(
+                      source.route,
+                    )}
                     onPress={() => handleOpenTrackingQualitySource(source)}
-                    buttonColor={theme.colors.secondaryContainer}
-                    textColor={theme.colors.onSecondaryContainer}
-                    style={styles.inlineButton}
-                  >
-                    {formatAiTrackingQualityDestinationLabel(source.route)}
-                  </Button>
+                  />
                 </ActionButtonRow>
               </Surface>
             ))}
-          <ActionButtonRow style={styles.actionRow}>
-            <Button
-              mode="outlined"
+          <ActionButtonRow
+            separated
+            separatorColor={theme.colors.outlineVariant}
+            style={styles.actionRow}
+          >
+            <CardActionPill
+              label="Clear brief"
               onPress={() => setAppliedTrackingQualityDraft(null)}
-              style={styles.inlineButton}
-            >
-              Clear brief
-            </Button>
-            <Button
-              mode="contained-tonal"
+            />
+            <CardActionPill
+              label={formatAiTrackingQualityDestinationLabel(
+                appliedTrackingQualityDraft.draft.suggestedDestination ??
+                  "action-center",
+              )}
               onPress={() =>
                 handleOpenTrackingQualityDestination(
                   appliedTrackingQualityDraft.draft.suggestedDestination,
                 )
               }
-              buttonColor={theme.colors.secondaryContainer}
-              textColor={theme.colors.onSecondaryContainer}
-              style={styles.inlineButton}
-            >
-              {formatAiTrackingQualityDestinationLabel(
-                appliedTrackingQualityDraft.draft.suggestedDestination ??
-                  "action-center",
-              )}
-            </Button>
+            />
           </ActionButtonRow>
         </SectionSurface>
       ) : null}
@@ -1299,43 +1299,38 @@ export default function ActionCenterScreen() {
                     </Text>
                   </View>
                 </View>
-                <ActionButtonRow style={styles.actionRow}>
-                  <Button
-                    mode="contained-tonal"
+                <ActionButtonRow
+                  separated
+                  separatorColor={theme.colors.outlineVariant}
+                  style={styles.actionRow}
+                >
+                  <CardActionPill
+                    label={formatAiWorkspaceQaDestinationLabel(source.route)}
                     onPress={() => handleOpenWorkspaceQaSource(source)}
-                    buttonColor={theme.colors.secondaryContainer}
-                    textColor={theme.colors.onSecondaryContainer}
-                    style={styles.inlineButton}
-                  >
-                    {formatAiWorkspaceQaDestinationLabel(source.route)}
-                  </Button>
+                  />
                 </ActionButtonRow>
               </Surface>
             ))}
-          <ActionButtonRow style={styles.actionRow}>
-            <Button
-              mode="outlined"
+          <ActionButtonRow
+            separated
+            separatorColor={theme.colors.outlineVariant}
+            style={styles.actionRow}
+          >
+            <CardActionPill
+              label="Clear answer"
               onPress={() => setAppliedWorkspaceQaDraft(null)}
-              style={styles.inlineButton}
-            >
-              Clear answer
-            </Button>
-            <Button
-              mode="contained-tonal"
+            />
+            <CardActionPill
+              label={formatAiWorkspaceQaDestinationLabel(
+                appliedWorkspaceQaDraft.draft.suggestedDestination ??
+                  "action-center",
+              )}
               onPress={() =>
                 handleOpenWorkspaceQaDestination(
                   appliedWorkspaceQaDraft.draft.suggestedDestination,
                 )
               }
-              buttonColor={theme.colors.secondaryContainer}
-              textColor={theme.colors.onSecondaryContainer}
-              style={styles.inlineButton}
-            >
-              {formatAiWorkspaceQaDestinationLabel(
-                appliedWorkspaceQaDraft.draft.suggestedDestination ??
-                  "action-center",
-              )}
-            </Button>
+            />
           </ActionButtonRow>
         </SectionSurface>
       ) : null}
@@ -1346,10 +1341,16 @@ export default function ActionCenterScreen() {
         title="Recommendations"
       >
         {recommendations.length === 0 ? (
-          <Text style={[styles.copy, paletteStyles.mutedText]}>
-            Recommendations will appear here once your reminders, logs, and
-            tracked metrics create enough history.
-          </Text>
+          <EmptyStateCard
+            palette={palette}
+            icon={{
+              ios: "sparkles",
+              android: "auto_awesome",
+              web: "auto_awesome",
+            }}
+            title="Recommendations are still warming up"
+            message="They will appear here once your reminders, logs, and tracked metrics create enough history."
+          />
         ) : (
           recommendations.map((recommendation) => {
             const severityColors = getSeverityChipColors(
@@ -1389,16 +1390,15 @@ export default function ActionCenterScreen() {
                     {recommendation.severity}
                   </Chip>
                 </View>
-                <ActionButtonRow style={styles.actionRow}>
-                  <Button
-                    mode="contained-tonal"
+                <ActionButtonRow
+                  separated
+                  separatorColor={theme.colors.outlineVariant}
+                  style={styles.actionRow}
+                >
+                  <CardActionPill
+                    label={recommendation.action.label}
                     onPress={() => openRecommendation(recommendation)}
-                    buttonColor={theme.colors.secondaryContainer}
-                    textColor={theme.colors.onSecondaryContainer}
-                    style={styles.inlineButton}
-                  >
-                    {recommendation.action.label}
-                  </Button>
+                  />
                 </ActionButtonRow>
               </Surface>
             );
@@ -1414,9 +1414,16 @@ export default function ActionCenterScreen() {
           title={section.label}
         >
           {section.reminders.length === 0 ? (
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              Nothing in this bucket right now.
-            </Text>
+            <EmptyStateCard
+              palette={palette}
+              icon={{
+                ios: "calendar.badge.clock",
+                android: "event",
+                web: "event",
+              }}
+              title="Nothing in this bucket right now"
+              message="This reminder lane will fill automatically as due, scheduled, and snoozed tasks change state."
+            />
           ) : (
             section.reminders.map((reminder) => {
               const space = spacesById.get(reminder.spaceId);
@@ -1460,43 +1467,31 @@ export default function ActionCenterScreen() {
                       {reminder.status}
                     </Chip>
                   </View>
-                  <ActionButtonRow style={styles.actionRow}>
-                    <Button
-                      mode="contained"
+                  <ActionButtonRow
+                    separated
+                    separatorColor={theme.colors.outlineVariant}
+                    style={styles.actionRow}
+                  >
+                    <CardActionPill
+                      label="Complete"
                       onPress={() => completeReminder(reminder.id)}
-                      buttonColor={theme.colors.primary}
-                      textColor={theme.colors.onPrimary}
-                      style={styles.inlineButton}
-                    >
-                      Complete
-                    </Button>
-                    <Button
-                      mode="contained-tonal"
+                    />
+                    <CardActionPill
+                      label="Log proof"
                       onPress={() =>
                         router.push(
                           `/logbook?actionId=quick-log&spaceId=${reminder.spaceId}&reminderId=${reminder.id}` as never,
                         )
                       }
-                      buttonColor={theme.colors.secondaryContainer}
-                      textColor={theme.colors.onSecondaryContainer}
-                      style={styles.inlineButton}
-                    >
-                      Log proof
-                    </Button>
-                    <Button
-                      mode="outlined"
+                    />
+                    <CardActionPill
+                      label="Snooze"
                       onPress={() => snoozeReminder(reminder.id)}
-                      style={styles.inlineButton}
-                    >
-                      Snooze
-                    </Button>
-                    <Button
-                      mode="outlined"
+                    />
+                    <CardActionPill
+                      label="Skip"
                       onPress={() => skipReminder(reminder.id)}
-                      style={styles.inlineButton}
-                    >
-                      Skip
-                    </Button>
+                    />
                   </ActionButtonRow>
                 </Surface>
               );
@@ -1511,9 +1506,18 @@ export default function ActionCenterScreen() {
         title="Reminder activity"
       >
         {actionCenter.recentActivity.length === 0 ? (
-          <Text style={[styles.copy, paletteStyles.mutedText]}>
-            Completed, snoozed, and skipped reminder actions will appear here.
-          </Text>
+          <EmptyStateCard
+            palette={palette}
+            icon={{
+              ios: "clock.arrow.circlepath",
+              android: "history",
+              web: "history",
+            }}
+            title="No recent reminder activity yet"
+            message="Completed, snoozed, and skipped reminder actions will appear here once you start working through the queue."
+            actionLabel="Open planner"
+            onAction={() => router.push("/planner")}
+          />
         ) : (
           actionCenter.recentActivity.map((item) => (
             <Surface
@@ -1567,21 +1571,19 @@ export default function ActionCenterScreen() {
             {workspace.reminders.length} reminders tracked
           </Chip>
         </ChipRow>
-        <ActionButtonRow style={styles.actionRow}>
-          <Button
-            mode="outlined"
+        <ActionButtonRow
+          separated
+          separatorColor={theme.colors.outlineVariant}
+          style={styles.actionRow}
+        >
+          <CardActionPill
+            label="Open planner"
             onPress={() => router.push("/planner")}
-            style={styles.inlineButton}
-          >
-            Open planner
-          </Button>
-          <Button
-            mode="outlined"
+          />
+          <CardActionPill
+            label="Open logbook"
             onPress={() => router.push("/logbook")}
-            style={styles.inlineButton}
-          >
-            Open logbook
-          </Button>
+          />
         </ActionButtonRow>
       </SectionSurface>
     </ScrollView>
@@ -1594,21 +1596,20 @@ const styles = StyleSheet.create({
   copy: { ...uiTypography.body },
   meta: { ...uiTypography.label, marginTop: uiSpace.xxs, lineHeight: 18 },
   listCard: {
-    borderRadius: uiRadius.xl,
-    padding: uiSpace.lg,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
     borderWidth: uiBorder.standard,
-    marginBottom: uiSpace.md,
+    marginBottom: uiSpace.lg,
   },
   listHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: uiSpace.md,
+    gap: uiSpace.lg,
   },
-  listCopy: { flex: 1, gap: uiSpace.xxs },
+  listCopy: { flex: 1, gap: uiSpace.xs },
   listTitle: { ...uiTypography.titleMd },
-  actionRow: { marginTop: uiSpace.md },
-  inlineButton: { flex: 1 },
+  actionRow: { marginTop: uiSpace.lg },
   chipText: uiTypography.chip,
   severityChip: { borderRadius: uiRadius.pill },
   statusChip: { borderRadius: uiRadius.pill },
@@ -1621,6 +1622,6 @@ const styles = StyleSheet.create({
     marginBottom: uiSpace.md,
   },
   historyItem: { ...uiTypography.body },
-  chipRow: { marginTop: uiSpace.md },
+  chipRow: { marginTop: uiSpace.md, marginBottom: uiSpace.xs },
   infoChip: { borderRadius: uiRadius.pill },
 });

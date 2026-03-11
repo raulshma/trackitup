@@ -1,4 +1,4 @@
-const tintColorLight = "#6366f1";
+const tintColorLight = "#1a73e8";
 const tintColorDark = "#a8c7fa";
 
 const Colors = {
@@ -7,8 +7,8 @@ const Colors = {
     background: "#f8fafc",
     tint: tintColorLight,
     onTint: "#ffffff",
-    primaryContainer: "#e0e7ff",
-    onPrimaryContainer: "#312e81",
+    primaryContainer: "#d3e3fd",
+    onPrimaryContainer: "#041e49",
     secondary: "#ec4899",
     onSecondary: "#ffffff",
     secondaryContainer: "#fce7f3",
@@ -24,9 +24,9 @@ const Colors = {
     muted: "#64748b",
     border: "#e2e8f0",
     borderSoft: "#f1f5f9",
-    hero: "#eef2ff",
-    heroBorder: "#c7d2fe",
-    accentSoft: "#e0e7ff",
+    hero: "#e8f0fe",
+    heroBorder: "#c2e7ff",
+    accentSoft: "#edf4ff",
     success: "#10b981",
     warning: "#f59e0b",
     danger: "#ef4444",

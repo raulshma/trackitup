@@ -1,6 +1,8 @@
-import type { ReactNode } from "react";
+import { SymbolView } from "expo-symbols";
+import type { ComponentProps, ReactNode } from "react";
 import {
     StyleSheet,
+    View,
     type StyleProp,
     type TextStyle,
     type ViewStyle,
@@ -8,9 +10,16 @@ import {
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
-import { uiTypography } from "@/constants/UiTokens";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 
 import { SectionSurface } from "./SectionSurface";
+
+type MessageSymbolName = ComponentProps<typeof SymbolView>["name"];
 
 type SectionMessageProps = {
   palette: AppPalette;
@@ -22,6 +31,7 @@ type SectionMessageProps = {
   messageStyle?: StyleProp<TextStyle>;
   messageColor?: string;
   elevation?: 0 | 1 | 2 | 3 | 4 | 5;
+  icon?: MessageSymbolName;
 };
 
 export function SectionMessage({
@@ -34,6 +44,7 @@ export function SectionMessage({
   messageStyle,
   messageColor,
   elevation = 1,
+  icon = { ios: "info.circle.fill", android: "info", web: "info" },
 }: SectionMessageProps) {
   return (
     <SectionSurface
@@ -44,19 +55,43 @@ export function SectionMessage({
       elevation={elevation}
     >
       {children}
-      <Text
-        style={[
-          styles.message,
-          { color: messageColor ?? palette.muted },
-          messageStyle,
-        ]}
-      >
-        {message}
-      </Text>
+      <View style={styles.messageRow}>
+        <View
+          style={[styles.iconBadge, { backgroundColor: palette.accentSoft }]}
+        >
+          <SymbolView name={icon} size={18} tintColor={palette.tint} />
+        </View>
+        <Text
+          style={[
+            styles.message,
+            { color: messageColor ?? palette.muted },
+            messageStyle,
+          ]}
+        >
+          {message}
+        </Text>
+      </View>
     </SectionSurface>
   );
 }
 
 const styles = StyleSheet.create({
-  message: uiTypography.body,
+  messageRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: uiSpace.md,
+  },
+  iconBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: uiRadius.pill,
+    borderWidth: uiBorder.hairline,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  message: {
+    ...uiTypography.body,
+    flex: 1,
+    lineHeight: 21,
+  },
 });
