@@ -49,7 +49,7 @@ const {
 } = await import("../services/dashboard/dashboardWidgets.ts");
 const { getLogKindFormTemplate, getQuickActionFormTemplate } =
   await import("../constants/TrackItUpFormTemplates.ts");
-const { buildTimelineEntriesFromLogs } =
+const { buildTimelineEntriesFromLogs, getSpaceSummaries } =
   await import("../constants/TrackItUpSelectors.ts");
 const { createEmptyWorkspaceSnapshot } =
   await import("../constants/TrackItUpDefaults.ts");
@@ -329,6 +329,7 @@ test("workspace summary export includes overview, reminders, and recent log sect
   assert.match(html, /Recent logbook activity/);
   assert.match(html, /Tracked spend/);
   assert.match(html, /100G Reef Tank/);
+  assert.match(html, /Vehicle Maintenance/);
 });
 
 test("visual recap export content includes monthly highlights and proof counts", () => {
@@ -1077,6 +1078,27 @@ test("workspace spaces helper validates names and avoids duplicate ids", () => {
   assert.equal(duplicate.workspace.spaces[0]?.summary, "Second space");
 });
 
+test("workspace spaces helper supports custom categories and humanized summaries", () => {
+  const snapshot = createEmptyWorkspaceSnapshot("2026-03-10T12:00:00.000Z");
+  const result = createWorkspaceSpace(
+    snapshot,
+    { name: "Home Office", category: "  home office  " },
+    "2026-03-10T13:00:00.000Z",
+  );
+
+  assert.equal(result.status, "created");
+  assert.equal(result.space?.category, "home office");
+  assert.match(result.space?.themeColor ?? "", /^#/);
+  assert.equal(getSpaceSummaries(result.workspace)[0]?.category, "Home Office");
+
+  const invalidCategory = createWorkspaceSpace(snapshot, {
+    name: "Closet",
+    category: "   ",
+  });
+  assert.equal(invalidCategory.status, "invalid");
+  assert.match(invalidCategory.message, /category/i);
+});
+
 test("space creation suggestions map template categories into workspace categories", () => {
   assert.equal(mapTemplateCategoryToSpaceCategory("Aquarium"), "aquarium");
   assert.equal(mapTemplateCategoryToSpaceCategory("Gardening"), "gardening");
@@ -1084,6 +1106,8 @@ test("space creation suggestions map template categories into workspace categori
     mapTemplateCategoryToSpaceCategory("Vehicle Maintenance"),
     "vehicle-maintenance",
   );
+  assert.equal(mapTemplateCategoryToSpaceCategory("Pet care"), "pets");
+  assert.equal(mapTemplateCategoryToSpaceCategory("DIY workshop"), "workshop");
   assert.equal(mapTemplateCategoryToSpaceCategory("Outdoor"), undefined);
 });
 

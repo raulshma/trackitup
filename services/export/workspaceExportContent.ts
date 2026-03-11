@@ -1,4 +1,5 @@
 import type { WorkspaceSnapshot } from "@/types/trackitup";
+import { formatSpaceCategoryLabel } from "../../constants/TrackItUpSpaceCategories.ts";
 
 function escapeHtml(value: string) {
   return value
@@ -140,7 +141,7 @@ export function buildWorkspaceSummaryHtml(snapshot: WorkspaceSnapshot) {
                 (space) => `
                   <tr>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">${escapeHtml(space.name)}</td>
-                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(space.category)}</td>
+                    <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(formatSpaceCategoryLabel(space.category))}</td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(space.status)}</td>
                     <td style="padding: 10px; border-bottom: 1px solid #e2e8f0;">${escapeHtml(space.summary ?? "")}</td>
                   </tr>

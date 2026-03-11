@@ -10,16 +10,10 @@ import type {
     QuickActionKind,
     Reminder,
     Space,
-    SpaceCategory,
     SpaceStatus,
     WorkspaceSnapshot,
 } from "@/types/trackitup";
-
-const categoryLabels: Record<SpaceCategory, string> = {
-  aquarium: "Aquarium",
-  gardening: "Gardening",
-  "vehicle-maintenance": "Vehicle Maintenance",
-};
+import { formatSpaceCategoryLabel } from "./TrackItUpSpaceCategories.ts";
 
 const statusLabels: Record<SpaceStatus, string> = {
   stable: "Stable",
@@ -193,7 +187,7 @@ export function getSpaceSummaries(
     return {
       id: space.id,
       name: space.name,
-      category: categoryLabels[space.category],
+      category: formatSpaceCategoryLabel(space.category),
       status: statusLabels[space.status],
       pendingTasks,
       lastLog: latestLog

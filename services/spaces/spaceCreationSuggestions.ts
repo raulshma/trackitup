@@ -1,9 +1,14 @@
 import type {
-  QuickAction,
-  QuickActionKind,
-  SpaceCategory,
-  TemplateCatalogItem,
+    QuickAction,
+    QuickActionKind,
+    SpaceCategory,
+    TemplateCatalogItem,
 } from "@/types/trackitup";
+import {
+    getSpaceCategoryNamePlaceholder,
+    getSpaceCategorySummaryPlaceholder,
+    mapTemplateCategoryToSpaceCategory,
+} from "../../constants/TrackItUpSpaceCategories.ts";
 
 export type SpaceCreationSuggestion = {
   suggestedCategory?: SpaceCategory;
@@ -15,60 +20,30 @@ export type SpaceCreationSuggestion = {
   badgeLabel?: string;
 };
 
-const categoryPlaceholders: Record<SpaceCategory, string> = {
-  aquarium: "Reef tank, quarantine tank, frag system",
-  gardening: "Vegetable bed, greenhouse, monstera shelf",
-  "vehicle-maintenance": "Daily driver, service bay, project car",
-};
-
 const actionPlaceholders: Record<QuickActionKind, string> = {
   "quick-log": "Reef tank, raised bed, daily driver",
   "metric-entry": "Propagation shelf, reef tank, service bay",
   "routine-run": "Grow tent, reef tank, garage bay",
 };
 
-const summaryPlaceholders: Record<SpaceCategory, string> = {
-  aquarium: "Optional note about the livestock, equipment, or care focus here",
-  gardening: "Optional note about the plants, beds, or growing setup here",
-  "vehicle-maintenance": "Optional note about the vehicle, mileage, or maintenance focus here",
-};
-
-export function mapTemplateCategoryToSpaceCategory(category?: string) {
-  const normalized = category?.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (normalized.includes("aquarium") || normalized.includes("reef")) {
-    return "aquarium" satisfies SpaceCategory;
-  }
-  if (
-    normalized.includes("garden") ||
-    normalized.includes("plant") ||
-    normalized.includes("greenhouse")
-  ) {
-    return "gardening" satisfies SpaceCategory;
-  }
-  if (
-    normalized.includes("vehicle") ||
-    normalized.includes("car") ||
-    normalized.includes("garage") ||
-    normalized.includes("automotive")
-  ) {
-    return "vehicle-maintenance" satisfies SpaceCategory;
-  }
-  return undefined;
-}
+export { mapTemplateCategoryToSpaceCategory };
 
 export function getSpaceCreationSuggestion(
   action?: QuickAction,
   template?: TemplateCatalogItem,
 ): SpaceCreationSuggestion {
-  const suggestedCategory = mapTemplateCategoryToSpaceCategory(template?.category);
+  const suggestedCategory = mapTemplateCategoryToSpaceCategory(
+    template?.category,
+  );
   const namePlaceholder = suggestedCategory
-    ? categoryPlaceholders[suggestedCategory]
+    ? (getSpaceCategoryNamePlaceholder(suggestedCategory) ??
+      "Reef tank, greenhouse, daily driver")
     : action
       ? actionPlaceholders[action.kind]
       : "Reef tank, greenhouse, daily driver";
   const summaryPlaceholder = suggestedCategory
-    ? summaryPlaceholders[suggestedCategory]
+    ? (getSpaceCategorySummaryPlaceholder(suggestedCategory) ??
+      "Optional note about what belongs in this space")
     : "Optional note about what belongs in this space";
   const sourceLabel = action?.label ?? template?.name;
 

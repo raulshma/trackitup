@@ -1,9 +1,13 @@
 import type {
-  Space,
-  SpaceCategory,
-  SpaceStatus,
-  WorkspaceSnapshot,
+    Space,
+    SpaceCategory,
+    SpaceStatus,
+    WorkspaceSnapshot,
 } from "@/types/trackitup";
+import {
+    getDefaultSpaceThemeColor,
+    normalizeSpaceCategoryValue,
+} from "../../constants/TrackItUpSpaceCategories.ts";
 
 export type CreateSpaceDraft = {
   name: string;
@@ -20,12 +24,6 @@ export type CreateWorkspaceSpaceResult = {
   message: string;
   space?: Space;
   workspace: WorkspaceSnapshot;
-};
-
-const defaultSpaceColors: Record<SpaceCategory, string> = {
-  aquarium: "#0f766e",
-  gardening: "#65a30d",
-  "vehicle-maintenance": "#2563eb",
 };
 
 function buildSpaceId(name: string, workspace: WorkspaceSnapshot) {
@@ -56,6 +54,7 @@ export function createWorkspaceSpace(
   createdAt = new Date().toISOString(),
 ): CreateWorkspaceSpaceResult {
   const name = draft.name.trim();
+  const category = normalizeSpaceCategoryValue(draft.category);
   if (!name) {
     return {
       status: "invalid",
@@ -63,13 +62,20 @@ export function createWorkspaceSpace(
       workspace,
     };
   }
+  if (!category) {
+    return {
+      status: "invalid",
+      message: "Choose or add a category before saving it.",
+      workspace,
+    };
+  }
 
   const space: Space = {
     id: buildSpaceId(name, workspace),
     name,
-    category: draft.category,
+    category,
     status: draft.status ?? "planned",
-    themeColor: draft.themeColor ?? defaultSpaceColors[draft.category],
+    themeColor: draft.themeColor ?? getDefaultSpaceThemeColor(category),
     summary: draft.summary?.trim() || buildDefaultSummary(name),
     createdAt,
     parentSpaceId: draft.parentSpaceId,

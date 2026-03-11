@@ -1,4 +1,17 @@
-export type SpaceCategory = "aquarium" | "gardening" | "vehicle-maintenance";
+export const knownSpaceCategories = [
+  "aquarium",
+  "gardening",
+  "vehicle-maintenance",
+  "pets",
+  "home-maintenance",
+  "workshop",
+  "fitness",
+  "storage",
+] as const;
+
+export type KnownSpaceCategory = (typeof knownSpaceCategories)[number];
+
+export type SpaceCategory = KnownSpaceCategory | (string & {});
 
 export type SpaceStatus = "stable" | "watch" | "planned";
 

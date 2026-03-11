@@ -3,10 +3,10 @@ import type {
     LogKind,
     QuickActionKind,
     Reminder,
-    SpaceCategory,
     SpaceStatus,
     WorkspaceSnapshot,
 } from "@/types/trackitup";
+import { formatSpaceCategoryLabel } from "./TrackItUpSpaceCategories.ts";
 import { trackItUpTemplateCatalog } from "./TrackItUpTemplateCatalog.ts";
 
 export type OverviewStat = {
@@ -44,12 +44,6 @@ export type QuickActionCard = {
   description: string;
   target: string;
   accent: string;
-};
-
-const categoryLabels: Record<SpaceCategory, string> = {
-  aquarium: "Aquarium",
-  gardening: "Gardening",
-  "vehicle-maintenance": "Vehicle Maintenance",
 };
 
 const statusLabels: Record<SpaceStatus, string> = {
@@ -813,7 +807,7 @@ export const spaceSummaries: SpaceSummary[] = trackItUpWorkspace.spaces.map(
     return {
       id: space.id,
       name: space.name,
-      category: categoryLabels[space.category],
+      category: formatSpaceCategoryLabel(space.category),
       status: statusLabels[space.status],
       pendingTasks,
       lastLog: latestLog

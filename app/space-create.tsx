@@ -1,32 +1,30 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import {
-    Button,
-    SegmentedButtons,
-    Surface,
-    TextInput,
-} from "react-native-paper";
+import { Button, Chip, Surface, TextInput } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
+import { ChipRow } from "@/components/ui/ChipRow";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import {
+    buildSpaceCategoryOptions,
+    DEFAULT_SPACE_CATEGORY,
+    formatSpaceCategoryLabel,
+    getSpaceCategoryNamePlaceholder,
+    getSpaceCategorySummaryPlaceholder,
+    normalizeSpaceCategoryValue,
+} from "@/constants/TrackItUpSpaceCategories";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import { uiBorder, uiSpace, uiTypography } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { getSpaceCreationSuggestion } from "@/services/spaces/spaceCreationSuggestions";
 import type { SpaceCategory } from "@/types/trackitup";
-
-const categoryLabels: Record<SpaceCategory, string> = {
-  aquarium: "Aquarium",
-  gardening: "Gardening",
-  "vehicle-maintenance": "Vehicle",
-};
 
 function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -57,18 +55,47 @@ export default function SpaceCreateScreen() {
     [action, selectedTemplate],
   );
   const [name, setName] = useState("");
-  const [category, setCategory] = useState<SpaceCategory>(
-    suggestion.suggestedCategory ?? "aquarium",
+  const [selectedCategory, setSelectedCategory] = useState<SpaceCategory>(
+    suggestion.suggestedCategory ?? DEFAULT_SPACE_CATEGORY,
   );
+  const [customCategory, setCustomCategory] = useState("");
+  const [isAddingCustomCategory, setIsAddingCustomCategory] = useState(false);
   const [hasChangedCategory, setHasChangedCategory] = useState(false);
   const [summary, setSummary] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const isFirstSpace = workspace.spaces.length === 0;
+  const categoryOptions = useMemo(
+    () =>
+      buildSpaceCategoryOptions(
+        workspace.spaces.map((space) => space.category),
+      ),
+    [workspace.spaces],
+  );
+  const resolvedCategory = useMemo(
+    () =>
+      normalizeSpaceCategoryValue(
+        isAddingCustomCategory ? customCategory : selectedCategory,
+      ),
+    [customCategory, isAddingCustomCategory, selectedCategory],
+  );
+  const currentCategoryLabel = resolvedCategory
+    ? formatSpaceCategoryLabel(resolvedCategory)
+    : "Add a category";
+  const namePlaceholder =
+    getSpaceCategoryNamePlaceholder(resolvedCategory) ??
+    suggestion.namePlaceholder;
+  const summaryPlaceholder =
+    getSpaceCategorySummaryPlaceholder(resolvedCategory) ??
+    suggestion.summaryPlaceholder;
 
   useEffect(() => {
-    if (!hasChangedCategory && suggestion.suggestedCategory) {
-      setCategory(suggestion.suggestedCategory);
+    if (!hasChangedCategory) {
+      setSelectedCategory(
+        suggestion.suggestedCategory ?? DEFAULT_SPACE_CATEGORY,
+      );
+      setCustomCategory("");
+      setIsAddingCustomCategory(false);
     }
   }, [hasChangedCategory, suggestion.suggestedCategory]);
 
@@ -80,7 +107,7 @@ export default function SpaceCreateScreen() {
         : "Save space";
 
   function handleSave() {
-    const result = createSpace({ name, category, summary });
+    const result = createSpace({ name, category: resolvedCategory, summary });
     setStatusMessage(result.message);
     if (result.status !== "created") return;
 
@@ -119,7 +146,7 @@ export default function SpaceCreateScreen() {
     {
       id: "space-create-save",
       label: primaryActionLabel,
-      hint: `Current category: ${categoryLabels[category]} • ${name.trim().length > 0 ? `name ready as ${name.trim()}` : "choose a clear name to finish setup"}`,
+      hint: `Current category: ${currentCategoryLabel} • ${name.trim().length > 0 ? `name ready as ${name.trim()}` : "choose a clear name to finish setup"}`,
       onPress: handleSave,
       accentColor: palette.tint,
     },
@@ -137,6 +164,18 @@ export default function SpaceCreateScreen() {
       onPress: () => router.push("/schema-builder" as never),
     },
   ];
+
+  function handleSelectCategory(category: SpaceCategory) {
+    setHasChangedCategory(true);
+    setSelectedCategory(category);
+    setCustomCategory("");
+    setIsAddingCustomCategory(false);
+  }
+
+  function handleStartCustomCategory() {
+    setHasChangedCategory(true);
+    setIsAddingCustomCategory(true);
+  }
 
   return (
     <View style={[styles.screen, paletteStyles.screenBackground]}>
@@ -174,29 +213,86 @@ export default function SpaceCreateScreen() {
             label="Space name"
             value={name}
             onChangeText={setName}
-            placeholder={suggestion.namePlaceholder}
+            placeholder={namePlaceholder}
           />
           <Text style={[styles.helperText, paletteStyles.mutedText]}>
             Keep the name short and obvious so it is easy to pick during
             recording.
           </Text>
-          <SegmentedButtons
-            value={category}
-            onValueChange={(value: string) => {
-              setHasChangedCategory(true);
-              setCategory(value as SpaceCategory);
-            }}
-            buttons={Object.entries(categoryLabels).map(([value, label]) => ({
-              value,
-              label,
-            }))}
-          />
+          <Text style={[styles.helperText, paletteStyles.mutedText]}>
+            Pick a suggested category or add a new one for this space.
+          </Text>
+          <ChipRow>
+            {categoryOptions.map((option) => {
+              const isActive =
+                !isAddingCustomCategory && option.value === selectedCategory;
+              return (
+                <Chip
+                  key={String(option.value)}
+                  compact
+                  selected={isActive}
+                  onPress={() => handleSelectCategory(option.value)}
+                  style={[
+                    styles.categoryChip,
+                    {
+                      backgroundColor: isActive
+                        ? palette.accentSoft
+                        : palette.surface2,
+                      borderColor: isActive ? palette.tint : palette.border,
+                    },
+                  ]}
+                  textStyle={[
+                    styles.categoryChipLabel,
+                    { color: isActive ? palette.tint : palette.text },
+                  ]}
+                >
+                  {option.label}
+                </Chip>
+              );
+            })}
+            <Chip
+              compact
+              selected={isAddingCustomCategory}
+              onPress={handleStartCustomCategory}
+              style={[
+                styles.categoryChip,
+                {
+                  backgroundColor: isAddingCustomCategory
+                    ? palette.accentSoft
+                    : palette.surface2,
+                  borderColor: isAddingCustomCategory
+                    ? palette.tint
+                    : palette.border,
+                },
+              ]}
+              textStyle={[
+                styles.categoryChipLabel,
+                { color: isAddingCustomCategory ? palette.tint : palette.text },
+              ]}
+            >
+              + New category
+            </Chip>
+          </ChipRow>
+          {isAddingCustomCategory ? (
+            <TextInput
+              mode="outlined"
+              label="New category"
+              value={customCategory}
+              onChangeText={(value) => {
+                setHasChangedCategory(true);
+                setCustomCategory(value);
+              }}
+              placeholder="Pet room, home office, workshop bench"
+              autoCapitalize="words"
+              style={styles.categoryInput}
+            />
+          ) : null}
           <TextInput
             mode="outlined"
             label="Summary"
             value={summary}
             onChangeText={setSummary}
-            placeholder={suggestion.summaryPlaceholder}
+            placeholder={summaryPlaceholder}
             multiline
             style={styles.summaryInput}
           />
@@ -257,6 +353,13 @@ const styles = StyleSheet.create({
     ...uiTypography.bodySmall,
     marginTop: uiSpace.sm,
     marginBottom: uiSpace.lg,
+  },
+  categoryChip: {
+    borderWidth: uiBorder.standard,
+  },
+  categoryChipLabel: uiTypography.bodySmall,
+  categoryInput: {
+    marginTop: uiSpace.lg,
   },
   summaryInput: {
     marginTop: uiSpace.lg,

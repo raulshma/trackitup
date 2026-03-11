@@ -1,3 +1,4 @@
+import { formatSpaceCategoryLabel } from "../../constants/TrackItUpSpaceCategories.ts";
 import type { WorkspaceSnapshot } from "../../types/trackitup.ts";
 import { getReminderScheduleTimestamp } from "../insights/workspaceInsights.ts";
 import { getWorkspaceRecommendations } from "../insights/workspaceRecommendations.ts";
@@ -166,19 +167,28 @@ export function selectAiWorkspaceQaSources(
   question: string,
   maxSources = 6,
 ) {
-  const spacesById = new Map(workspace.spaces.map((space) => [space.id, space] as const));
+  const spacesById = new Map(
+    workspace.spaces.map((space) => [space.id, space] as const),
+  );
   const normalizedQuestion = compactText(question, 240).toLowerCase();
   const tokens = tokenize(normalizedQuestion);
   const candidates: SourceCandidate[] = [
-    ...workspace.spaces.map((space) => ({
-      id: `space:${space.id}`,
-      kind: "space" as const,
-      title: space.name,
-      snippet: compactText(`${space.category} • ${space.status} • ${space.summary}`, 140),
-      route: "workspace-tools" as const,
-      priority: 1,
-      searchText: `${space.name} ${space.category} ${space.status} ${space.summary}`.toLowerCase(),
-    })),
+    ...workspace.spaces.map((space) => {
+      const categoryLabel = formatSpaceCategoryLabel(space.category);
+      return {
+        id: `space:${space.id}`,
+        kind: "space" as const,
+        title: space.name,
+        snippet: compactText(
+          `${categoryLabel} • ${space.status} • ${space.summary}`,
+          140,
+        ),
+        route: "workspace-tools" as const,
+        priority: 1,
+        searchText:
+          `${space.name} ${categoryLabel} ${space.category} ${space.status} ${space.summary}`.toLowerCase(),
+      };
+    }),
     ...workspace.assets.map((asset) => ({
       id: `asset:${asset.id}`,
       kind: "asset" as const,
@@ -221,24 +231,26 @@ export function selectAiWorkspaceQaSources(
         searchText:
           `${log.title} ${log.note} ${log.kind} ${(log.tags ?? []).join(" ")} ${spacesById.get(log.spaceId)?.name ?? ""}`.toLowerCase(),
       })),
-    ...getWorkspaceRecommendations(workspace).slice(0, 6).map((recommendation) => ({
-      id: `recommendation:${recommendation.id}`,
-      kind: "recommendation" as const,
-      title: recommendation.title,
-      snippet: compactText(
-        `${recommendation.severity} • ${recommendation.explanation} • ${recommendation.action.label}`,
-        160,
-      ),
-      route:
-        recommendation.action.kind === "open-inventory"
-          ? ("inventory" as const)
-          : recommendation.action.kind === "open-logbook"
-            ? ("logbook" as const)
-            : ("planner" as const),
-      priority: 5,
-      searchText:
-        `${recommendation.title} ${recommendation.explanation} ${recommendation.action.label} ${recommendation.severity}`.toLowerCase(),
-    })),
+    ...getWorkspaceRecommendations(workspace)
+      .slice(0, 6)
+      .map((recommendation) => ({
+        id: `recommendation:${recommendation.id}`,
+        kind: "recommendation" as const,
+        title: recommendation.title,
+        snippet: compactText(
+          `${recommendation.severity} • ${recommendation.explanation} • ${recommendation.action.label}`,
+          160,
+        ),
+        route:
+          recommendation.action.kind === "open-inventory"
+            ? ("inventory" as const)
+            : recommendation.action.kind === "open-logbook"
+              ? ("logbook" as const)
+              : ("planner" as const),
+        priority: 5,
+        searchText:
+          `${recommendation.title} ${recommendation.explanation} ${recommendation.action.label} ${recommendation.severity}`.toLowerCase(),
+      })),
     ...workspace.templates.slice(0, 6).map((template) => ({
       id: `template:${template.id}`,
       kind: "template" as const,
@@ -254,7 +266,10 @@ export function selectAiWorkspaceQaSources(
   const scored = candidates
     .map((candidate) => {
       let score = candidate.priority;
-      if (normalizedQuestion && candidate.searchText.includes(normalizedQuestion)) {
+      if (
+        normalizedQuestion &&
+        candidate.searchText.includes(normalizedQuestion)
+      ) {
         score += 8;
       }
       tokens.forEach((token) => {
@@ -271,7 +286,9 @@ export function selectAiWorkspaceQaSources(
       return right.priority - left.priority;
     });
 
-  return scored.slice(0, maxSources).map(({ priority, searchText, score, ...source }) => source);
+  return scored
+    .slice(0, maxSources)
+    .map(({ priority, searchText, score, ...source }) => source);
 }
 
 export function buildAiWorkspaceQaGenerationPrompt(prompt: string) {
@@ -299,7 +316,9 @@ export function parseAiWorkspaceQaDraft(
     .filter((item): item is string => item.length > 0)
     .filter((item, index, list) => list.indexOf(item) === index)
     .slice(0, 5);
-  const citedSourceIds = (Array.isArray(parsed.sourceIds) ? parsed.sourceIds : [])
+  const citedSourceIds = (
+    Array.isArray(parsed.sourceIds) ? parsed.sourceIds : []
+  )
     .filter((item): item is string => typeof item === "string")
     .filter((item) => allowedSourceIds.has(item))
     .filter((item, index, list) => list.indexOf(item) === index)
@@ -328,7 +347,9 @@ export function buildAiWorkspaceQaReviewItems(
   draft: AiWorkspaceQaDraft,
   sources: AiWorkspaceQaSource[],
 ): AiDraftReviewItemInput[] {
-  const sourceMap = new Map(sources.map((source) => [source.id, source] as const));
+  const sourceMap = new Map(
+    sources.map((source) => [source.id, source] as const),
+  );
   return [
     { key: "headline", label: "Headline", value: draft.headline },
     { key: "answer", label: "Answer", value: draft.answer, maxTextLength: 460 },
