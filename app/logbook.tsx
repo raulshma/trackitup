@@ -1,6 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Image, ScrollView, StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -31,7 +31,18 @@ import {
     type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
-import type { QuickActionKind } from "@/types/trackitup";
+import type { QuickActionKind, Reminder } from "@/types/trackitup";
+
+function buildReminderDraftPatch(reminder: Reminder) {
+  return {
+    reminderId: reminder.id,
+    spaceId: reminder.spaceId,
+    title: `${reminder.title} completed`,
+    note: reminder.description
+      ? `Proof captured for reminder completion. ${reminder.description}`
+      : "Proof captured for reminder completion.",
+  };
+}
 
 const actionDescriptions = {
   "quick-log": "Start a flexible event entry using the unified logbook.",
@@ -160,6 +171,7 @@ export default function LogbookScreen() {
     actionId?: string;
     createdSpaceName?: string;
     entryId?: string;
+    reminderId?: string;
     spaceId?: string;
     templateId?: string;
   }>();
@@ -167,6 +179,7 @@ export default function LogbookScreen() {
   const actionId = pickParam(params.actionId);
   const createdSpaceName = pickParam(params.createdSpaceName);
   const entryId = pickParam(params.entryId);
+  const initialReminderId = pickParam(params.reminderId);
   const initialSpaceId = pickParam(params.spaceId);
   const templateId = pickParam(params.templateId);
 
@@ -192,6 +205,10 @@ export default function LogbookScreen() {
   const relatedReminder = entry?.reminderId
     ? workspace.reminders.find((reminder) => reminder.id === entry.reminderId)
     : undefined;
+  const photoAttachments =
+    entry?.attachments?.filter(
+      (attachment) => attachment.mediaType === "photo",
+    ) ?? [];
   const relatedMetrics =
     entry?.metricReadings?.map((reading) => ({
       reading,
@@ -219,6 +236,9 @@ export default function LogbookScreen() {
       (reminder.status === "due" || reminder.status === "scheduled") &&
       (!linkedSpace || reminder.spaceId === linkedSpace.id),
   );
+  const initialReminder = initialReminderId
+    ? workspace.reminders.find((reminder) => reminder.id === initialReminderId)
+    : undefined;
 
   const activeTemplate = action
     ? getQuickActionFormTemplate(action.kind)
@@ -234,21 +254,30 @@ export default function LogbookScreen() {
       entry,
     });
 
-    if (
-      !entry &&
-      initialSpaceId &&
-      workspace.spaces.some((space) => space.id === initialSpaceId)
-    ) {
-      return normalizeFormValues(
-        activeTemplate,
-        workspace,
-        { ...values, spaceId: initialSpaceId },
-        { action, entry },
-      );
-    }
-
-    return values;
-  }, [activeTemplate, action, entry, initialSpaceId, workspace]);
+    return normalizeFormValues(
+      activeTemplate,
+      workspace,
+      {
+        ...values,
+        ...(!entry &&
+        initialSpaceId &&
+        workspace.spaces.some((space) => space.id === initialSpaceId)
+          ? { spaceId: initialSpaceId }
+          : {}),
+        ...(!entry && initialReminder
+          ? buildReminderDraftPatch(initialReminder)
+          : {}),
+      },
+      { action, entry },
+    );
+  }, [
+    activeTemplate,
+    action,
+    entry,
+    initialReminder,
+    initialSpaceId,
+    workspace,
+  ]);
 
   useEffect(() => {
     setFormValues(initialFormValues);
@@ -283,10 +312,26 @@ export default function LogbookScreen() {
         (metric) => metric.id === selectedMetricId,
       )
     : undefined;
+  const draftProofPhotoCount = Array.isArray(formValues.attachments)
+    ? formValues.attachments.filter(
+        (attachment) =>
+          Boolean(attachment) &&
+          typeof attachment === "object" &&
+          "mediaType" in attachment &&
+          attachment.mediaType === "photo",
+      ).length
+    : 0;
   const selectedRoutineId =
     typeof formValues.routineId === "string" ? formValues.routineId : undefined;
   const selectedRoutine = selectedRoutineId
     ? workspace.routines.find((routine) => routine.id === selectedRoutineId)
+    : undefined;
+  const selectedReminderId =
+    typeof formValues.reminderId === "string"
+      ? formValues.reminderId
+      : undefined;
+  const selectedReminder = selectedReminderId
+    ? workspace.reminders.find((reminder) => reminder.id === selectedReminderId)
     : undefined;
   const activeFlowSteps = activeQuickActionKind
     ? actionStepGuidance[activeQuickActionKind]
@@ -328,6 +373,33 @@ export default function LogbookScreen() {
       return nextErrors;
     });
     setFeedbackMessage(null);
+  }
+
+  function handleSelectReminder(reminder: Reminder) {
+    if (!activeTemplate || entry) return;
+
+    setFormValues((currentValues) =>
+      normalizeFormValues(
+        activeTemplate,
+        workspace,
+        {
+          ...currentValues,
+          ...buildReminderDraftPatch(reminder),
+          title:
+            typeof currentValues.title === "string" &&
+            currentValues.title.trim().length > 0
+              ? currentValues.title
+              : buildReminderDraftPatch(reminder).title,
+          note:
+            typeof currentValues.note === "string" &&
+            currentValues.note.trim().length > 0
+              ? currentValues.note
+              : buildReminderDraftPatch(reminder).note,
+        },
+        { action, entry },
+      ),
+    );
+    setFeedbackMessage(`Ready to capture proof for ${reminder.title}.`);
   }
 
   function handleSaveEntry() {
@@ -742,7 +814,10 @@ export default function LogbookScreen() {
               </Surface>
             ) : null}
 
-            {entry.attachmentsCount || entry.locationLabel || entry.cost ? (
+            {entry.attachmentsCount ||
+            entry.attachments?.length ||
+            entry.locationLabel ||
+            entry.cost ? (
               <Surface
                 style={[styles.sectionCard, paletteStyles.cardSurface]}
                 elevation={1}
@@ -763,6 +838,39 @@ export default function LogbookScreen() {
                       .map((item) => item.mediaType)
                       .join(" • ")}
                   </Text>
+                ) : null}
+                {photoAttachments.length > 0 ? (
+                  <>
+                    <View style={styles.photoPreviewRow}>
+                      {photoAttachments.slice(0, 3).map((attachment) => (
+                        <Image
+                          key={attachment.id}
+                          source={{ uri: attachment.uri }}
+                          style={styles.photoPreview}
+                        />
+                      ))}
+                    </View>
+                    {(entry.routineId || entry.reminderId) && (
+                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                        These photos can serve as proof-of-completion for the
+                        linked workflow.
+                      </Text>
+                    )}
+                    <ActionButtonRow>
+                      <Button
+                        mode="outlined"
+                        onPress={() =>
+                          router.push(
+                            (entry.assetIds?.length === 1
+                              ? `/visual-history?assetId=${entry.assetIds[0]}`
+                              : `/visual-history?spaceId=${entry.spaceId}`) as never,
+                          )
+                        }
+                      >
+                        Open visual history
+                      </Button>
+                    </ActionButtonRow>
+                  </>
                 ) : null}
                 {entry.locationLabel ? (
                   <Text style={[styles.listCopy, paletteStyles.mutedText]}>
@@ -910,6 +1018,18 @@ export default function LogbookScreen() {
                       Routine
                     </Text>
                     <Text style={styles.sectionTitle}>Routine steps</Text>
+                    <Text
+                      style={[styles.templateIntro, paletteStyles.mutedText]}
+                    >
+                      Capture a proof photo in the form below before you leave
+                      the space. Attached images will flow into visual history,
+                      completion evidence, and monthly recaps.
+                    </Text>
+                    <ActionButtonRow>
+                      <Chip compact>
+                        {draftProofPhotoCount} proof photo(s) attached
+                      </Chip>
+                    </ActionButtonRow>
                     {suggestedRoutines.map((routine) => (
                       <View key={routine.id} style={styles.listItem}>
                         <Text style={styles.listTitle}>{routine.name}</Text>
@@ -936,6 +1056,21 @@ export default function LogbookScreen() {
                     <Text style={styles.sectionTitle}>
                       Open reminders to capture
                     </Text>
+                    <Text
+                      style={[styles.templateIntro, paletteStyles.mutedText]}
+                    >
+                      Pick a reminder, then capture a proof photo in the form
+                      below so completion evidence stays attached to the
+                      reminder and appears in visual history.
+                    </Text>
+                    <ActionButtonRow>
+                      <Chip compact>
+                        {draftProofPhotoCount} proof photo(s) attached
+                      </Chip>
+                      {selectedReminder ? (
+                        <Chip compact>{selectedReminder.title}</Chip>
+                      ) : null}
+                    </ActionButtonRow>
                     {suggestedReminders.map((reminder) => (
                       <View key={reminder.id} style={styles.listItem}>
                         <Text style={styles.listTitle}>{reminder.title}</Text>
@@ -944,6 +1079,20 @@ export default function LogbookScreen() {
                         >
                           {reminder.description}
                         </Text>
+                        <ActionButtonRow>
+                          <Button
+                            mode={
+                              selectedReminder?.id === reminder.id
+                                ? "contained-tonal"
+                                : "outlined"
+                            }
+                            onPress={() => handleSelectReminder(reminder)}
+                          >
+                            {selectedReminder?.id === reminder.id
+                              ? "Selected for proof"
+                              : "Log with proof"}
+                          </Button>
+                        </ActionButtonRow>
                       </View>
                     ))}
                   </Surface>
@@ -1306,6 +1455,19 @@ const styles = StyleSheet.create({
   listItem: { marginBottom: uiSpace.lg },
   listTitle: { ...uiTypography.titleSm, marginBottom: uiSpace.xs },
   listCopy: uiTypography.body,
+  photoPreviewRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: uiSpace.sm,
+    marginTop: uiSpace.md,
+    marginBottom: uiSpace.md,
+  },
+  photoPreview: {
+    width: 92,
+    height: 92,
+    borderRadius: uiRadius.lg,
+    backgroundColor: "#00000014",
+  },
   footer: {
     minHeight: logbookFooterMinHeight,
     borderTopWidth: uiBorder.standard,

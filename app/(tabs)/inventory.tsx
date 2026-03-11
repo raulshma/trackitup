@@ -18,6 +18,7 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { buildWorkspaceVisualHistory } from "@/services/insights/workspaceVisualHistory";
 
 function formatCurrency(amount: number, currency = "USD") {
   return new Intl.NumberFormat(undefined, {
@@ -37,6 +38,17 @@ export default function InventoryScreen() {
   );
   const router = useRouter();
   const { workspace } = useWorkspace();
+  const visualHistory = useMemo(
+    () => buildWorkspaceVisualHistory(workspace),
+    [workspace],
+  );
+  const assetPhotoMap = useMemo(
+    () =>
+      new Map(
+        visualHistory.assetGalleries.map((gallery) => [gallery.id, gallery]),
+      ),
+    [visualHistory.assetGalleries],
+  );
 
   const assetCards = useMemo(() => {
     const spacesById = new Map(
@@ -57,11 +69,18 @@ export default function InventoryScreen() {
       return {
         ...asset,
         expenseTotal,
+        photoCount: assetPhotoMap.get(asset.id)?.photoCount ?? 0,
         relatedLogCount,
         spaceName: spacesById.get(asset.spaceId)?.name ?? "Unknown space",
       };
     });
-  }, [workspace.assets, workspace.expenses, workspace.logs, workspace.spaces]);
+  }, [
+    assetPhotoMap,
+    workspace.assets,
+    workspace.expenses,
+    workspace.logs,
+    workspace.spaces,
+  ]);
 
   const totalOwnership = workspace.expenses.reduce(
     (sum, expense) => sum + expense.amount,
@@ -70,7 +89,7 @@ export default function InventoryScreen() {
   const inventoryHighlights = [
     `${assetCards.length} tracked assets`,
     `${workspace.expenses.length} expense entries`,
-    `${workspace.logs.filter((log) => (log.assetIds ?? []).length > 0).length} linked logs`,
+    `${visualHistory.photoCount} progress photos`,
   ];
 
   return (
@@ -133,13 +152,22 @@ export default function InventoryScreen() {
           {workspace.expenses.length} expense entries linked to assets and
           recurring care logs.
         </Text>
-        <Button
-          mode="contained"
-          onPress={() => router.push("/scanner" as never)}
-          style={styles.scanButton}
-        >
-          Scan barcode / QR
-        </Button>
+        <View style={styles.summaryActionRow}>
+          <Button
+            mode="contained"
+            onPress={() => router.push("/scanner" as never)}
+            style={styles.inlineButton}
+          >
+            Scan barcode / QR
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={() => router.push("/visual-history" as never)}
+            style={styles.inlineButton}
+          >
+            Open photo gallery
+          </Button>
+        </View>
       </Surface>
 
       {assetCards.length === 0 ? (
@@ -186,6 +214,19 @@ export default function InventoryScreen() {
               Linked logs: {asset.relatedLogCount} • Ownership cost:{" "}
               {formatCurrency(asset.expenseTotal)}
             </Text>
+            <View style={styles.summaryActionRow}>
+              <Button
+                mode="outlined"
+                onPress={() =>
+                  router.push(`/visual-history?assetId=${asset.id}` as never)
+                }
+                style={styles.inlineButton}
+              >
+                {asset.photoCount
+                  ? `Photo timeline (${asset.photoCount})`
+                  : "Photo timeline"}
+              </Button>
+            </View>
             {asset.barcodeValue || asset.qrCodeValue ? (
               <Text style={[styles.copy, paletteStyles.mutedText]}>
                 Codes: {asset.barcodeValue ?? asset.qrCodeValue}
@@ -243,7 +284,15 @@ const styles = StyleSheet.create({
   summaryTitle: { ...uiTypography.titleMd, marginBottom: 6 },
   summaryValue: { ...uiTypography.valueLg, marginBottom: 6 },
   summaryCopy: uiTypography.body,
-  scanButton: { marginTop: uiSpace.xl },
+  summaryActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: uiSpace.md,
+    marginTop: uiSpace.xl,
+  },
+  inlineButton: {
+    borderRadius: uiRadius.pill,
+  },
   card: {
     borderWidth: uiBorder.standard,
     borderLeftWidth: 5,

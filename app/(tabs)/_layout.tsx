@@ -83,7 +83,7 @@ export default function TabLayout() {
           web: "task_alt",
         },
         accessibilityLabel: "Open workspace tools",
-        onPress: () => router.push("/modal"),
+        onPress: () => router.push("/workspace-tools"),
       },
     ],
     [router],

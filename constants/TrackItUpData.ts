@@ -387,6 +387,27 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
   ],
   logs: [
     {
+      id: "log-monstera-progress-start",
+      spaceId: "plants",
+      kind: "asset-update",
+      title: "Monstera support pole installed",
+      note: "Captured an early growth photo before feeding and adding a fresh support pole.",
+      occurredAt: "2026-02-21T17:20:00",
+      assetIds: ["asset-monstera"],
+      tags: ["growth", "photo"],
+      attachmentsCount: 1,
+      attachments: [
+        {
+          id: "attachment-monstera-start-1",
+          uri: "https://picsum.photos/seed/trackitup-monstera-start/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-02-21T17:20:00",
+          width: 900,
+          height: 700,
+        },
+      ],
+    },
+    {
       id: "log-reef-chemistry-baseline",
       spaceId: "reef",
       kind: "metric-reading",
@@ -398,6 +419,17 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
         { metricId: "metric-alkalinity", value: 8.9, unitLabel: "dKH" },
       ],
       tags: ["testing", "baseline"],
+      attachmentsCount: 1,
+      attachments: [
+        {
+          id: "attachment-reef-baseline-1",
+          uri: "https://picsum.photos/seed/trackitup-reef-baseline/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-03-05T08:10:00",
+          width: 900,
+          height: 700,
+        },
+      ],
     },
     {
       id: "log-reef-chemistry-follow-up",
@@ -411,6 +443,17 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
         { metricId: "metric-alkalinity", value: 8.4, unitLabel: "dKH" },
       ],
       tags: ["testing", "trend"],
+      attachmentsCount: 1,
+      attachments: [
+        {
+          id: "attachment-reef-follow-up-1",
+          uri: "https://picsum.photos/seed/trackitup-reef-followup/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-03-07T08:05:00",
+          width: 900,
+          height: 700,
+        },
+      ],
     },
     {
       id: "log-salinity",
@@ -437,6 +480,16 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
       ],
       tags: ["testing", "alert"],
       attachmentsCount: 1,
+      attachments: [
+        {
+          id: "attachment-reef-alert-1",
+          uri: "https://picsum.photos/seed/trackitup-reef-alert/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-03-09T07:40:00",
+          width: 900,
+          height: 700,
+        },
+      ],
     },
     {
       id: "log-plant-routine",
@@ -448,7 +501,25 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
       routineId: "routine-plant-feed",
       assetIds: ["asset-monstera"],
       tags: ["fertilizer", "photo"],
-      attachmentsCount: 1,
+      attachmentsCount: 2,
+      attachments: [
+        {
+          id: "attachment-monstera-feed-1",
+          uri: "https://picsum.photos/seed/trackitup-monstera-feed-1/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-03-08T18:35:00",
+          width: 900,
+          height: 700,
+        },
+        {
+          id: "attachment-monstera-feed-2",
+          uri: "https://picsum.photos/seed/trackitup-monstera-feed-2/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-03-08T18:44:00",
+          width: 900,
+          height: 700,
+        },
+      ],
       cost: 18.5,
     },
     {
@@ -460,6 +531,17 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
       occurredAt: "2026-03-08T13:20:00",
       assetIds: ["asset-filter"],
       tags: ["warranty", "inventory"],
+      attachmentsCount: 1,
+      attachments: [
+        {
+          id: "attachment-filter-lifecycle-1",
+          uri: "https://picsum.photos/seed/trackitup-filter-lifecycle/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-03-08T13:20:00",
+          width: 900,
+          height: 700,
+        },
+      ],
     },
     {
       id: "log-brake-reminder",
@@ -480,6 +562,17 @@ export const trackItUpWorkspace: WorkspaceSnapshot = {
       occurredAt: "2026-03-06T17:15:00",
       assetIds: ["asset-pothos"],
       tags: ["location", "propagation"],
+      attachmentsCount: 1,
+      attachments: [
+        {
+          id: "attachment-pothos-light-1",
+          uri: "https://picsum.photos/seed/trackitup-pothos-light/900/700",
+          mediaType: "photo",
+          capturedAt: "2026-03-06T17:15:00",
+          width: 900,
+          height: 700,
+        },
+      ],
       locationLabel: "Living room west window",
     },
   ],

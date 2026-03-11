@@ -14,6 +14,7 @@ import {
     buildMetricChartPoints,
     getReminderScheduleTimestamp,
 } from "@/services/insights/workspaceInsights";
+import { buildWorkspaceVisualHistory } from "@/services/insights/workspaceVisualHistory";
 import type { WorkspaceRecommendation } from "@/types/trackitup";
 
 export default function TabOneScreen() {
@@ -37,6 +38,16 @@ export default function TabOneScreen() {
   const spacesById = useMemo(
     () => new Map(workspace.spaces.map((space) => [space.id, space] as const)),
     [workspace.spaces],
+  );
+  const spacePhotoMap = useMemo(
+    () =>
+      new Map(
+        buildWorkspaceVisualHistory(workspace).spaceGalleries.map((gallery) => [
+          gallery.id,
+          gallery,
+        ]),
+      ),
+    [workspace],
   );
   const metricDefinitionsById = useMemo(
     () =>
@@ -609,6 +620,22 @@ export default function TabOneScreen() {
             <Text style={[styles.spaceNote, { color: palette.muted }]}>
               {space.note}
             </Text>
+
+            <View style={styles.widgetToolbar}>
+              <Button
+                onPress={() =>
+                  router.push(`/visual-history?spaceId=${space.id}` as never)
+                }
+                mode="outlined"
+                style={[styles.toolbarButton, { borderColor: palette.border }]}
+                contentStyle={styles.toolbarButtonContent}
+                labelStyle={styles.toolbarButtonLabel}
+              >
+                {spacePhotoMap.get(space.id)?.photoCount
+                  ? `Visual history (${spacePhotoMap.get(space.id)?.photoCount})`
+                  : "Visual history"}
+              </Button>
+            </View>
 
             <View style={styles.spaceFooter}>
               <Text style={styles.spaceFooterLabel}>

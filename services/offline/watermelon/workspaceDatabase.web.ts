@@ -8,6 +8,7 @@ import {
     buildWorkspaceDatabaseName,
     LEGACY_WORKSPACE_DATABASE_NAME,
 } from "@/services/offline/workspaceOwnership";
+import { hasIndexedDb } from "./webIndexedDbAvailability";
 
 type WorkspaceDatabaseOptions = {
   useLegacyName?: boolean;
@@ -39,14 +40,7 @@ function createWorkspaceDatabase(dbName: string) {
 }
 
 export function isWatermelonPersistenceAvailable() {
-  try {
-    createWorkspaceDatabase(
-      buildWorkspaceDatabaseName(ANONYMOUS_WORKSPACE_SCOPE_KEY),
-    );
-    return true;
-  } catch {
-    return false;
-  }
+  return hasIndexedDb();
 }
 
 export async function getWorkspaceDatabase(

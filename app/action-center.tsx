@@ -29,7 +29,10 @@ function formatTimestamp(timestamp: string) {
 export default function ActionCenterScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
-  const paletteStyles = useMemo(() => createCommonPaletteStyles(palette), [palette]);
+  const paletteStyles = useMemo(
+    () => createCommonPaletteStyles(palette),
+    [palette],
+  );
   const router = useRouter();
   const {
     completeReminder,
@@ -38,7 +41,10 @@ export default function ActionCenterScreen() {
     snoozeReminder,
     workspace,
   } = useWorkspace();
-  const actionCenter = useMemo(() => buildReminderActionCenter(workspace), [workspace]);
+  const actionCenter = useMemo(
+    () => buildReminderActionCenter(workspace),
+    [workspace],
+  );
   const spacesById = useMemo(
     () => new Map(workspace.spaces.map((space) => [space.id, space] as const)),
     [workspace.spaces],
@@ -57,7 +63,9 @@ export default function ActionCenterScreen() {
           ...(recommendation.action.actionId
             ? { actionId: recommendation.action.actionId }
             : {}),
-          ...(recommendation.spaceId ? { spaceId: recommendation.spaceId } : {}),
+          ...(recommendation.spaceId
+            ? { spaceId: recommendation.spaceId }
+            : {}),
         },
       });
       return;
@@ -82,16 +90,31 @@ export default function ActionCenterScreen() {
         title="Action center"
         subtitle="See what needs attention right now, work through reminder actions quickly, and review the latest planner activity from one place."
         badges={[
-          { label: `${actionCenter.summary.overdueCount} overdue`, backgroundColor: palette.card, textColor: palette.tint },
-          { label: `${actionCenter.summary.dueTodayCount} due today`, backgroundColor: palette.accentSoft },
-          { label: `${recommendations.length} recommendations`, backgroundColor: palette.card },
+          {
+            label: `${actionCenter.summary.overdueCount} overdue`,
+            backgroundColor: palette.card,
+            textColor: palette.tint,
+          },
+          {
+            label: `${actionCenter.summary.dueTodayCount} due today`,
+            backgroundColor: palette.accentSoft,
+          },
+          {
+            label: `${recommendations.length} recommendations`,
+            backgroundColor: palette.card,
+          },
         ]}
       />
 
-      <SectionSurface palette={palette} label="Next best actions" title="Recommendations">
+      <SectionSurface
+        palette={palette}
+        label="Next best actions"
+        title="Recommendations"
+      >
         {recommendations.length === 0 ? (
           <Text style={[styles.copy, paletteStyles.mutedText]}>
-            Recommendations will appear here once your reminders, logs, and tracked metrics create enough history.
+            Recommendations will appear here once your reminders, logs, and
+            tracked metrics create enough history.
           </Text>
         ) : (
           recommendations.map((recommendation) => (
@@ -108,7 +131,11 @@ export default function ActionCenterScreen() {
                 </Chip>
               </View>
               <ActionButtonRow style={styles.actionRow}>
-                <Button mode="contained" onPress={() => openRecommendation(recommendation)} style={styles.inlineButton}>
+                <Button
+                  mode="contained"
+                  onPress={() => openRecommendation(recommendation)}
+                  style={styles.inlineButton}
+                >
                   {recommendation.action.label}
                 </Button>
               </ActionButtonRow>
@@ -118,7 +145,12 @@ export default function ActionCenterScreen() {
       </SectionSurface>
 
       {reminderSections.map((section) => (
-        <SectionSurface key={section.label} palette={palette} label="Planner" title={section.label}>
+        <SectionSurface
+          key={section.label}
+          palette={palette}
+          label="Planner"
+          title={section.label}
+        >
           {section.reminders.length === 0 ? (
             <Text style={[styles.copy, paletteStyles.mutedText]}>
               Nothing in this bucket right now.
@@ -132,22 +164,50 @@ export default function ActionCenterScreen() {
                     <View style={styles.listCopy}>
                       <Text style={styles.listTitle}>{reminder.title}</Text>
                       <Text style={[styles.copy, paletteStyles.mutedText]}>
-                        {space?.name ?? "Unknown space"} • {formatTimestamp(getReminderScheduleTimestamp(reminder))}
+                        {space?.name ?? "Unknown space"} •{" "}
+                        {formatTimestamp(
+                          getReminderScheduleTimestamp(reminder),
+                        )}
                       </Text>
-                      <Text style={[styles.meta, paletteStyles.mutedText]}>{reminder.description}</Text>
+                      <Text style={[styles.meta, paletteStyles.mutedText]}>
+                        {reminder.description}
+                      </Text>
                     </View>
                     <Chip compact style={styles.statusChip}>
                       {reminder.status}
                     </Chip>
                   </View>
                   <ActionButtonRow style={styles.actionRow}>
-                    <Button mode="contained" onPress={() => completeReminder(reminder.id)} style={styles.inlineButton}>
+                    <Button
+                      mode="contained"
+                      onPress={() => completeReminder(reminder.id)}
+                      style={styles.inlineButton}
+                    >
                       Complete
                     </Button>
-                    <Button mode="outlined" onPress={() => snoozeReminder(reminder.id)} style={styles.inlineButton}>
+                    <Button
+                      mode="contained-tonal"
+                      onPress={() =>
+                        router.push(
+                          `/logbook?actionId=quick-log&spaceId=${reminder.spaceId}&reminderId=${reminder.id}` as never,
+                        )
+                      }
+                      style={styles.inlineButton}
+                    >
+                      Log proof
+                    </Button>
+                    <Button
+                      mode="outlined"
+                      onPress={() => snoozeReminder(reminder.id)}
+                      style={styles.inlineButton}
+                    >
                       Snooze
                     </Button>
-                    <Button mode="outlined" onPress={() => skipReminder(reminder.id)} style={styles.inlineButton}>
+                    <Button
+                      mode="outlined"
+                      onPress={() => skipReminder(reminder.id)}
+                      style={styles.inlineButton}
+                    >
                       Skip
                     </Button>
                   </ActionButtonRow>
@@ -158,7 +218,11 @@ export default function ActionCenterScreen() {
         </SectionSurface>
       ))}
 
-      <SectionSurface palette={palette} label="Recent history" title="Reminder activity">
+      <SectionSurface
+        palette={palette}
+        label="Recent history"
+        title="Reminder activity"
+      >
         {actionCenter.recentActivity.length === 0 ? (
           <Text style={[styles.copy, paletteStyles.mutedText]}>
             Completed, snoozed, and skipped reminder actions will appear here.
@@ -171,7 +235,9 @@ export default function ActionCenterScreen() {
                 <Text style={[styles.copy, paletteStyles.mutedText]}>
                   {item.action} • {formatTimestamp(item.at)}
                 </Text>
-                <Text style={[styles.meta, paletteStyles.mutedText]}>{item.note}</Text>
+                <Text style={[styles.meta, paletteStyles.mutedText]}>
+                  {item.note}
+                </Text>
               </View>
             </View>
           ))
@@ -185,10 +251,18 @@ export default function ActionCenterScreen() {
           </Chip>
         </ChipRow>
         <ActionButtonRow style={styles.actionRow}>
-          <Button mode="outlined" onPress={() => router.push("/planner")} style={styles.inlineButton}>
+          <Button
+            mode="outlined"
+            onPress={() => router.push("/planner")}
+            style={styles.inlineButton}
+          >
             Open planner
           </Button>
-          <Button mode="outlined" onPress={() => router.push("/logbook")} style={styles.inlineButton}>
+          <Button
+            mode="outlined"
+            onPress={() => router.push("/logbook")}
+            style={styles.inlineButton}
+          >
             Open logbook
           </Button>
         </ActionButtonRow>

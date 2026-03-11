@@ -31,7 +31,7 @@ export {
 } from "expo-router";
 
 export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
+  // Ensure that reloading on `/workspace-tools` keeps a back button present.
   initialRouteName: "(tabs)",
 };
 
@@ -154,6 +154,10 @@ function RootLayoutNav() {
                     options={{ title: "Action center" }}
                   />
                   <Stack.Screen
+                    name="visual-history"
+                    options={{ title: "Visual history" }}
+                  />
+                  <Stack.Screen
                     name="schema-builder"
                     options={{ title: "Schema builder" }}
                   />
@@ -163,9 +167,10 @@ function RootLayoutNav() {
                     options={{ title: "Template import" }}
                   />
                   <Stack.Screen
-                    name="modal"
-                    options={{ presentation: "modal" }}
+                    name="workspace-tools"
+                    options={{ title: "Workspace tools" }}
                   />
+                  <Stack.Screen name="modal" options={{ headerShown: false }} />
                 </Stack>
               </WorkspaceProvider>
             )}

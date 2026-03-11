@@ -9,11 +9,18 @@ const {
   buildWorkspaceLogsCsv,
   buildWorkspaceSummaryHtml,
 } = await import("../services/export/workspaceExportContent.ts");
+const { buildVisualRecapHtml, buildVisualRecapShareMessage } =
+  await import("../services/export/workspaceVisualRecapContent.ts");
 const {
   buildMetricChartPoints,
   buildReminderCalendar,
   findAssetByScannedCode,
 } = await import("../services/insights/workspaceInsights.ts");
+const {
+  applyVisualRecapCoverSelections,
+  buildWorkspaceVisualHistory,
+  getVisualRecapCoverSelectionKey,
+} = await import("../services/insights/workspaceVisualHistory.ts");
 const { getWorkspaceRecommendations } =
   await import("../services/insights/workspaceRecommendations.ts");
 const {
@@ -30,7 +37,7 @@ const {
   moveDashboardWidgets,
   toggleDashboardWidgetVisibility,
 } = await import("../services/dashboard/dashboardWidgets.ts");
-const { getQuickActionFormTemplate } =
+const { getLogKindFormTemplate, getQuickActionFormTemplate } =
   await import("../constants/TrackItUpFormTemplates.ts");
 const { buildTimelineEntriesFromLogs } =
   await import("../constants/TrackItUpSelectors.ts");
@@ -185,6 +192,23 @@ test("workspace summary export includes overview, reminders, and recent log sect
   assert.match(html, /Recent logbook activity/);
   assert.match(html, /Tracked spend/);
   assert.match(html, /100G Reef Tank/);
+});
+
+test("visual recap export content includes monthly highlights and proof counts", () => {
+  const history = buildWorkspaceVisualHistory(trackItUpWorkspace, {
+    spaceId: "plants",
+  });
+  const recap = history.monthlyRecaps[0];
+  assert.ok(recap);
+
+  const html = buildVisualRecapHtml("Plants", recap);
+  const message = buildVisualRecapShareMessage("Plants", recap);
+
+  assert.match(html, /TrackItUp visual recap/);
+  assert.match(html, /Plants/);
+  assert.match(html, /proof shot/i);
+  assert.match(message, /Plants/);
+  assert.match(message, /TrackItUp/);
 });
 
 test("workspace sync helpers queue and clear pending operations", () => {
@@ -407,6 +431,107 @@ test("action center groups overdue reminders and recent reminder activity", () =
   assert.equal(center.summary.overdueCount, center.overdue.length);
 });
 
+test("visual history derives scoped galleries, proofs, and before-after pairs", () => {
+  const snapshot = createSnapshot({
+    logs: [
+      {
+        id: "log-photo-1",
+        spaceId: "plants",
+        kind: "asset-update",
+        title: "Monstera baseline",
+        note: "Captured the first growth photo.",
+        occurredAt: "2026-02-18T09:00:00",
+        assetIds: ["asset-monstera"],
+        attachmentsCount: 1,
+        attachments: [
+          {
+            id: "attachment-photo-1",
+            uri: "file://photo-1.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-02-18T09:00:00",
+          },
+        ],
+      },
+      {
+        id: "log-photo-2",
+        spaceId: "plants",
+        kind: "routine-run",
+        title: "Weekly feed completed",
+        note: "Fed the plant and logged a proof shot.",
+        occurredAt: "2026-03-02T09:00:00",
+        routineId: "routine-plant-feed",
+        assetIds: ["asset-monstera"],
+        attachmentsCount: 1,
+        attachments: [
+          {
+            id: "attachment-photo-2",
+            uri: "file://photo-2.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-03-02T09:05:00",
+          },
+        ],
+      },
+      {
+        id: "log-photo-3",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: "Filter housing cleaned",
+        note: "Shared one maintenance photo for the filter.",
+        occurredAt: "2026-03-05T07:30:00",
+        assetIds: ["asset-filter"],
+        attachmentsCount: 1,
+        attachments: [
+          {
+            id: "attachment-photo-3",
+            uri: "file://photo-3.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-03-05T07:30:00",
+          },
+        ],
+      },
+    ],
+  });
+
+  const plantsHistory = buildWorkspaceVisualHistory(snapshot, {
+    spaceId: "plants",
+  });
+  assert.equal(plantsHistory.photoCount, 2);
+  assert.equal(plantsHistory.proofCount, 1);
+  assert.equal(plantsHistory.assetGalleries[0].id, "asset-monstera");
+  assert.equal(plantsHistory.monthlyRecaps.length, 2);
+  assert.equal(plantsHistory.beforeAfter?.before.logId, "log-photo-1");
+  assert.equal(plantsHistory.beforeAfter?.after.logId, "log-photo-2");
+
+  const filterHistory = buildWorkspaceVisualHistory(snapshot, {
+    assetId: "asset-filter",
+  });
+  assert.equal(filterHistory.photoCount, 1);
+  assert.equal(filterHistory.beforeAfter, null);
+});
+
+test("visual recap cover selections reorder recap spotlight items", () => {
+  const history = buildWorkspaceVisualHistory(trackItUpWorkspace, {
+    spaceId: "plants",
+  });
+  const recap = history.monthlyRecaps[0];
+
+  assert.ok(recap);
+  assert.ok(recap.items.length >= 2);
+
+  const scope = { spaceId: "plants" };
+  const selectedPhotoId = recap.items[1].id;
+  const keyedHistory = applyVisualRecapCoverSelections(history, scope, {
+    [getVisualRecapCoverSelectionKey(scope, recap.monthKey)]: selectedPhotoId,
+  });
+
+  assert.equal(keyedHistory.monthlyRecaps[0].coverPhotoId, selectedPhotoId);
+  assert.equal(keyedHistory.monthlyRecaps[0].items[0].id, selectedPhotoId);
+  assert.equal(
+    keyedHistory.monthlyRecaps[0].highlightUris[0],
+    keyedHistory.monthlyRecaps[0].coverUri,
+  );
+});
+
 test("notification response intent distinguishes default and action buttons", () => {
   const responseBase = {
     notification: {
@@ -496,6 +621,28 @@ test("dynamic form defaults honor action-linked space and nested fields", () => 
     "step-reef-dose",
   ]);
   assert.equal(values.doseCost, "0.00");
+});
+
+test("routine-run quick action template exposes proof photo capture", () => {
+  const template = getQuickActionFormTemplate("routine-run");
+  const attachmentField = template.sections[1].fields.find(
+    (field) => field.id === "attachments",
+  );
+
+  assert.ok(attachmentField);
+  assert.equal(attachmentField?.type, "media");
+  assert.match(attachmentField?.label ?? "", /proof photo/i);
+});
+
+test("reminder log template exposes proof photo capture", () => {
+  const template = getLogKindFormTemplate("reminder");
+  const attachmentField = template.sections[0].fields.find(
+    (field) => field.id === "attachments",
+  );
+
+  assert.ok(attachmentField);
+  assert.equal(attachmentField?.type, "media");
+  assert.match(attachmentField?.label ?? "", /proof photo/i);
 });
 
 test("dynamic form options and normalization follow selected workspace context", () => {

@@ -145,9 +145,51 @@ export const DynamicFormField = memo(function DynamicFormField({
     case "media": {
       const attachments = isMediaAttachmentArray(value) ? value : [];
       const isActiveField = tools.activeMediaFieldId === field.id;
+      const isAttachmentField = field.id === "attachments";
+      const isRoutineProofField =
+        isAttachmentField &&
+        (action?.kind === "routine-run" ||
+          typeof values.routineId === "string");
+      const isReminderProofField =
+        isAttachmentField &&
+        !isRoutineProofField &&
+        typeof values.reminderId === "string";
+      const openCameraLabel = isRoutineProofField
+        ? isActiveField
+          ? "Proof camera ready"
+          : "Capture proof photo"
+        : isReminderProofField
+          ? isActiveField
+            ? "Reminder proof camera ready"
+            : "Capture reminder proof"
+          : isActiveField
+            ? "Camera open"
+            : "Open camera";
+      const pickFileLabel =
+        isRoutineProofField || isReminderProofField
+          ? "Add existing photo"
+          : "Pick file";
+      const captureLabel = isRoutineProofField
+        ? tools.cameraMode === "picture"
+          ? "Take proof photo"
+          : "Record proof clip"
+        : isReminderProofField
+          ? tools.cameraMode === "picture"
+            ? "Take reminder proof"
+            : "Record reminder proof"
+          : tools.cameraMode === "picture"
+            ? "Capture photo"
+            : "Record clip";
 
       control = (
         <View>
+          {isRoutineProofField || isReminderProofField ? (
+            <Text style={[styles.fieldDescription, { color: palette.muted }]}>
+              {isRoutineProofField
+                ? "TrackItUp will attach these images to the routine log so they appear in visual history and proof-of-completion views."
+                : "Attach proof photos to this reminder log so completion evidence and visual history stay linked to the reminder."}
+            </Text>
+          ) : null}
           <View style={styles.toolButtonRow}>
             <Button
               mode="contained-tonal"
@@ -156,7 +198,7 @@ export const DynamicFormField = memo(function DynamicFormField({
               disabled={readOnly}
               style={styles.toolButton}
             >
-              {isActiveField ? "Camera open" : "Open camera"}
+              {openCameraLabel}
             </Button>
             <Button
               mode="outlined"
@@ -164,7 +206,7 @@ export const DynamicFormField = memo(function DynamicFormField({
               disabled={readOnly || tools.busyFieldId === field.id}
               style={styles.toolButton}
             >
-              Pick file
+              {pickFileLabel}
             </Button>
             <Button
               mode="text"
@@ -224,9 +266,7 @@ export const DynamicFormField = memo(function DynamicFormField({
                     disabled={readOnly}
                     style={styles.toolButton}
                   >
-                    {tools.cameraMode === "picture"
-                      ? "Capture photo"
-                      : "Record clip"}
+                    {captureLabel}
                   </Button>
                 )}
                 <Button

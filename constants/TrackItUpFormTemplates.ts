@@ -235,6 +235,13 @@ const quickActionTemplates: Record<QuickActionKind, FormTemplate> = {
             source: "routines",
           },
           {
+            id: "attachments",
+            label: "Proof photos",
+            type: "media",
+            description:
+              "Optional but recommended: capture a proof photo before you leave the space so visual history and completion evidence stay linked to this routine run.",
+          },
+          {
             id: "assetIds",
             label: "Assets touched",
             type: "multi-select",
@@ -378,6 +385,13 @@ const logKindTemplates: Record<LogKind, FormTemplate> = {
             required: true,
           },
           { id: "note", label: "Notes", type: "rich-text" },
+          {
+            id: "attachments",
+            label: "Proof photos",
+            type: "media",
+            description:
+              "Capture proof photos so reminder completion evidence flows into linked logs and visual history.",
+          },
         ],
       },
     ],

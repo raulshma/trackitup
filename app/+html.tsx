@@ -10,17 +10,26 @@ import {
 // web page during static rendering.
 // The contents of this function only run in Node.js environments and
 // do not have access to the DOM or browser APIs.
+const clerkScriptSource = "https://*.clerk.accounts.dev";
+const clerkImageSource = "https://img.clerk.com";
+const clerkChallengeFrameSource = "https://challenges.cloudflare.com";
+
 const webContentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
-  "frame-ancestors 'none'",
   "form-action 'self'",
-  "img-src 'self' data: blob:",
+  `img-src 'self' data: blob: ${clerkImageSource}`,
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src 'self' 'unsafe-inline' ${clerkScriptSource}`,
+  "worker-src 'self' blob:",
+  `frame-src 'self' ${clerkChallengeFrameSource}`,
   "connect-src 'self' https: ws: wss:",
 ].join("; ");
+
+// Note: `frame-ancestors` is intentionally omitted here.
+// Browsers ignore that directive when CSP is delivered via a <meta> tag;
+// it must be sent as an HTTP response header by the web host instead.
 
 export default function Root({ children }: { children: React.ReactNode }) {
   return (

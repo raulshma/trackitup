@@ -259,7 +259,7 @@ export default function TemplateImportScreen() {
           </Button>
           <Button
             mode="contained-tonal"
-            onPress={() => router.replace("/modal" as never)}
+            onPress={() => router.replace("/workspace-tools" as never)}
             style={styles.footerButton}
             contentStyle={styles.footerButtonContent}
             labelStyle={styles.footerButtonLabel}
