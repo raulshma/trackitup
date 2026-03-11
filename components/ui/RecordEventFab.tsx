@@ -25,10 +25,6 @@ export function RecordEventFab() {
     return null;
   }
 
-  if (pathname === "/" && workspace.spaces.length === 0) {
-    return null;
-  }
-
   function handlePress() {
     if (workspace.spaces.length === 0) {
       router.push({

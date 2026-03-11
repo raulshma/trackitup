@@ -1,12 +1,21 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Image, ScrollView, StyleSheet, View } from "react-native";
-import { Button, Chip, Surface } from "react-native-paper";
+import {
+    Button,
+    Chip,
+    Surface,
+    useTheme,
+    type MD3Theme,
+} from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
+import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -22,6 +31,16 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import { aiLogbookDraftCopy } from "@/services/ai/aiConsentCopy";
+import {
+    buildAiLogbookDraftReviewItems,
+    buildAiLogbookGenerationPrompt,
+    parseAiLogbookDraft,
+    type AiLogbookDraft,
+} from "@/services/ai/aiLogbookDraft";
+import { buildLogbookDraftPrompt } from "@/services/ai/aiPromptBuilders";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
     buildInitialFormValues,
     normalizeFormValues,
@@ -31,7 +50,23 @@ import {
     type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
-import type { QuickActionKind, Reminder } from "@/types/trackitup";
+import type {
+    FormFieldDefinition,
+    QuickActionKind,
+    Reminder,
+} from "@/types/trackitup";
+
+type GeneratedAiLogbookDraft = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  draft: AiLogbookDraft;
+};
 
 function buildReminderDraftPatch(reminder: Reminder) {
   return {
@@ -146,9 +181,27 @@ function formatCustomFieldValue(value: unknown): string {
   return value ? "Captured" : "";
 }
 
+function collectFieldIds(fields: FormFieldDefinition[]): string[] {
+  return fields.flatMap((field) => [
+    field.id,
+    ...(Array.isArray(field.children) ? collectFieldIds(field.children) : []),
+  ]);
+}
+
+function getStringValue(value: FormValue) {
+  return typeof value === "string" ? value : "";
+}
+
+function getStringListValue(value: FormValue) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 export default function LogbookScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const theme = useTheme<MD3Theme>();
   const insets = useSafeAreaInsets();
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
@@ -165,6 +218,10 @@ export default function LogbookScreen() {
     workspace,
   } = useWorkspace();
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [aiRequest, setAiRequest] = useState("");
+  const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
+  const [generatedAiDraft, setGeneratedAiDraft] =
+    useState<GeneratedAiLogbookDraft | null>(null);
   const [formValues, setFormValues] = useState<FormValueMap>({});
   const [formErrors, setFormErrors] = useState<FormValidationErrors>({});
   const params = useLocalSearchParams<{
@@ -333,6 +390,21 @@ export default function LogbookScreen() {
   const selectedReminder = selectedReminderId
     ? workspace.reminders.find((reminder) => reminder.id === selectedReminderId)
     : undefined;
+  const selectedAssetIds = getStringListValue(formValues.assetIds);
+  const activeTemplateFieldIds = activeTemplate
+    ? new Set(
+        activeTemplate.sections.flatMap((section) =>
+          collectFieldIds(section.fields),
+        ),
+      )
+    : new Set<string>();
+  const supportsAiTitle = activeTemplateFieldIds.has("title");
+  const supportsAiNote = activeTemplateFieldIds.has("note");
+  const supportsAiTags = activeTemplateFieldIds.has("tags");
+  const supportsAiDrafting =
+    !entry &&
+    Boolean(activeTemplate) &&
+    (supportsAiTitle || supportsAiNote || supportsAiTags);
   const activeFlowSteps = activeQuickActionKind
     ? actionStepGuidance[activeQuickActionKind]
     : [];
@@ -400,6 +472,132 @@ export default function LogbookScreen() {
       ),
     );
     setFeedbackMessage(`Ready to capture proof for ${reminder.title}.`);
+  }
+
+  async function handleGenerateAiDraft() {
+    if (!activeTemplate || entry) return;
+
+    const trimmedRequest = aiRequest.trim();
+    if (!trimmedRequest) {
+      setFeedbackMessage(
+        "Describe how you want the log entry rewritten before generating a draft.",
+      );
+      return;
+    }
+
+    setIsGeneratingAiDraft(true);
+    const promptDraft = buildLogbookDraftPrompt({
+      workspace,
+      userRequest: trimmedRequest,
+      draftTitle: getStringValue(formValues.title),
+      draftNote: getStringValue(formValues.note),
+      spaceId: selectedSpaceId,
+      assetIds: selectedAssetIds,
+      reminderId: selectedReminderId,
+      routineId: selectedRoutineId,
+    });
+    void recordAiTelemetryEvent({
+      surface: "logbook-draft",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiLogbookGenerationPrompt(promptDraft.prompt, {
+        allowTitle: supportsAiTitle,
+        allowTags: supportsAiTags,
+      }),
+      temperature: 0.35,
+      maxOutputTokens: 900,
+    });
+    setIsGeneratingAiDraft(false);
+
+    if (result.status !== "success") {
+      setGeneratedAiDraft(null);
+      setFeedbackMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "logbook-draft",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiLogbookDraft(result.text, {
+      allowTitle: supportsAiTitle,
+      allowTags: supportsAiTags,
+    });
+
+    if (!parsedDraft) {
+      setGeneratedAiDraft(null);
+      setFeedbackMessage(
+        "TrackItUp received an AI response but could not turn it into a reviewable log draft. Try narrowing the request or keeping it closer to the current entry.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "logbook-draft",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedAiDraft({
+      request: trimmedRequest,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      draft: parsedDraft,
+    });
+    setFeedbackMessage(
+      "Generated an AI log draft. Review it carefully before applying it to the form.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "logbook-draft",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyAiDraft() {
+    if (!activeTemplate || !generatedAiDraft || entry) return;
+
+    setFormValues((currentValues) =>
+      normalizeFormValues(
+        activeTemplate,
+        workspace,
+        {
+          ...currentValues,
+          ...(supportsAiTitle && generatedAiDraft.draft.title
+            ? { title: generatedAiDraft.draft.title }
+            : {}),
+          ...(supportsAiNote && generatedAiDraft.draft.note
+            ? { note: generatedAiDraft.draft.note }
+            : {}),
+          ...(supportsAiTags && generatedAiDraft.draft.tags
+            ? { tags: generatedAiDraft.draft.tags }
+            : {}),
+        },
+        { action, entry },
+      ),
+    );
+    setFormErrors((currentErrors) => {
+      const nextErrors = { ...currentErrors };
+      delete nextErrors.title;
+      delete nextErrors.note;
+      delete nextErrors.tags;
+      return nextErrors;
+    });
+    setGeneratedAiDraft(null);
+    setFeedbackMessage(
+      "Applied the AI writing draft to the form. Review the result and save when you're ready.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "logbook-draft",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissAiDraft() {
+    setGeneratedAiDraft(null);
+    setFeedbackMessage(
+      "Dismissed the AI writing draft. Your current log entry form values were left unchanged.",
+    );
   }
 
   function handleSaveEntry() {
@@ -490,38 +688,35 @@ export default function LogbookScreen() {
       >
         <Stack.Screen options={{ title: screenTitle }} />
 
-        <Surface style={[styles.hero, paletteStyles.heroSurface]} elevation={2}>
-          <View style={styles.heroBadgeRow}>
-            <Chip
-              compact
-              style={[styles.heroBadge, paletteStyles.cardChipSurface]}
-              textStyle={[styles.heroBadgeText, paletteStyles.tintText]}
-            >
-              TrackItUp logbook
-            </Chip>
-            <Chip
-              compact
-              style={[styles.heroBadge, paletteStyles.accentChipSurface]}
-              textStyle={styles.heroBadgeText}
-            >
-              {entry
-                ? "Detail view"
-                : action || selectedTemplate
-                  ? "New entry"
-                  : "Workspace overview"}
-            </Chip>
-          </View>
-          <Text style={styles.title}>{screenTitle}</Text>
-          <Text style={[styles.subtitle, paletteStyles.mutedText]}>
-            {entry
+        <ScreenHero
+          palette={palette}
+          title={screenTitle}
+          subtitle={
+            entry
               ? "Review the selected timeline event and its linked tracking context."
               : action
                 ? actionDescriptions[action.kind]
                 : selectedTemplate
                   ? "Run a saved custom schema and capture the extra fields directly into the workspace logbook."
-                  : "Choose a quick action or timeline item to start this flow."}
-          </Text>
-        </Surface>
+                  : "Choose a quick action or timeline item to start this flow."
+          }
+          badges={[
+            {
+              label: "TrackItUp logbook",
+              backgroundColor: theme.colors.primaryContainer,
+              textColor: theme.colors.onPrimaryContainer,
+            },
+            {
+              label: entry
+                ? "Detail view"
+                : action || selectedTemplate
+                  ? "New entry"
+                  : "Workspace overview",
+              backgroundColor: theme.colors.surface,
+              textColor: theme.colors.onSurface,
+            },
+          ]}
+        />
 
         <Surface
           style={[styles.statusCard, paletteStyles.cardSurface]}
@@ -531,10 +726,13 @@ export default function LogbookScreen() {
             <Text style={styles.sectionTitle}>Workspace persistence</Text>
             <Chip
               compact
-              style={[styles.statusBadge, paletteStyles.primaryChipSurface]}
+              style={[
+                styles.statusBadge,
+                { backgroundColor: theme.colors.primaryContainer },
+              ]}
               textStyle={[
                 styles.statusBadgeText,
-                paletteStyles.onPrimaryChipText,
+                { color: theme.colors.onPrimaryContainer },
               ]}
             >
               {isHydrated ? persistenceLabel : "Hydrating snapshot"}
@@ -614,6 +812,63 @@ export default function LogbookScreen() {
               </View>
             ))}
           </Surface>
+        ) : null}
+
+        {supportsAiDrafting && hasSpaces ? (
+          <AiPromptComposerCard
+            palette={palette}
+            label="AI log drafting"
+            title="Rewrite the current entry draft"
+            value={aiRequest}
+            onChangeText={setAiRequest}
+            onSubmit={() => void handleGenerateAiDraft()}
+            isBusy={isGeneratingAiDraft}
+            contextChips={[
+              action?.label ??
+                selectedTemplate?.name ??
+                activeTemplate?.title ??
+                "Log draft",
+              selectedSpace ? `Space: ${selectedSpace.name}` : "Pick a space",
+              selectedReminder ? "Reminder linked" : "Manual entry",
+            ]}
+            helperText={aiLogbookDraftCopy.helperText}
+            consentLabel={aiLogbookDraftCopy.consentLabel}
+            footerNote={aiLogbookDraftCopy.promptFooterNote}
+            submitLabel="Generate writing draft"
+          />
+        ) : null}
+
+        {generatedAiDraft ? (
+          <AiDraftReviewCard
+            palette={palette}
+            title="Review the AI log draft"
+            draftKindLabel={
+              action?.label ??
+              selectedTemplate?.name ??
+              activeTemplate?.title ??
+              "Log draft"
+            }
+            summary={`Prompt: ${generatedAiDraft.request}`}
+            consentLabel={generatedAiDraft.consentLabel}
+            footerNote={aiLogbookDraftCopy.reviewFooterNote}
+            statusLabel="Draft ready"
+            modelLabel={generatedAiDraft.modelId}
+            usage={generatedAiDraft.usage}
+            contextChips={[
+              selectedSpace
+                ? `Space: ${selectedSpace.name}`
+                : "No space selected",
+              selectedReminder ? "Reminder linked" : "No reminder linked",
+            ]}
+            items={buildAiLogbookDraftReviewItems(generatedAiDraft.draft)}
+            acceptLabel="Apply to form"
+            editLabel="Dismiss draft"
+            regenerateLabel="Generate again"
+            onAccept={handleApplyAiDraft}
+            onEdit={handleDismissAiDraft}
+            onRegenerate={() => void handleGenerateAiDraft()}
+            isBusy={isGeneratingAiDraft}
+          />
         ) : null}
 
         {activeTemplate && (entry || hasSpaces) ? (
@@ -1301,8 +1556,8 @@ export default function LogbookScreen() {
           style={[
             styles.footer,
             {
-              backgroundColor: palette.surface1,
-              borderColor: palette.border,
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.outlineVariant,
               paddingBottom: uiSpace.lg + insets.bottom,
             },
           ]}

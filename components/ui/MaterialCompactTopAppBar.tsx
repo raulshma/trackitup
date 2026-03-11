@@ -223,9 +223,10 @@ const styles = StyleSheet.create({
   },
   content: {
     marginLeft: 0,
+    minWidth: 0,
   },
   contentWithBack: {
-    marginLeft: -uiSpace.xs,
+    marginLeft: uiSpace.sm,
   },
   contentRoot: {
     marginLeft: uiSpace.sm,
@@ -234,6 +235,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: uiSpace.sm,
+    minWidth: 0,
   },
   brandBadge: {
     minWidth: 30,
@@ -253,6 +255,7 @@ const styles = StyleSheet.create({
     ...uiTypography.titleMd,
     fontWeight: "600",
     letterSpacing: 0.15,
+    flexShrink: 1,
   },
   action: {
     marginLeft: uiSpace.sm,

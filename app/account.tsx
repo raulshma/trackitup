@@ -1,13 +1,14 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Linking, Platform, ScrollView, StyleSheet } from "react-native";
 import {
-    ActivityIndicator,
-    Button,
-    Chip,
-    Dialog,
-    Portal,
-    SegmentedButtons,
+  ActivityIndicator,
+  Button,
+  Chip,
+  Dialog,
+  Portal,
+  SegmentedButtons,
+  TextInput,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -21,29 +22,38 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
+import { useAiPreferences } from "@/providers/AiPreferencesProvider";
 import { useAppAuth } from "@/providers/AuthProvider";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { aiAccountSettingsCopy } from "@/services/ai/aiConsentCopy";
+import {
+  AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
+  createEmptyAiTelemetrySummary,
+  formatAiTelemetryLastEventLabel,
+  loadAiTelemetrySummary,
+  recordAiTelemetryEvent,
+} from "@/services/ai/aiTelemetry";
 import { getWorkspaceBiometricDescription } from "@/services/offline/workspaceBiometric";
 import {
-    getWorkspaceBiometricReauthTimeoutDescription,
-    getWorkspaceBiometricReauthTimeoutLabel,
-    WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
-    type WorkspaceBiometricReauthTimeout,
+  getWorkspaceBiometricReauthTimeoutDescription,
+  getWorkspaceBiometricReauthTimeoutLabel,
+  WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
+  type WorkspaceBiometricReauthTimeout,
 } from "@/services/offline/workspaceBiometricSessionPolicy";
 import {
-    getWorkspaceLocalProtectionDescription,
-    getWorkspaceLocalProtectionLabel,
+  getWorkspaceLocalProtectionDescription,
+  getWorkspaceLocalProtectionLabel,
 } from "@/services/offline/workspaceLocalProtection";
 import {
-    getWorkspacePrivacyModeDescription,
-    getWorkspacePrivacyModeLabel,
-    WORKSPACE_PRIVACY_MODE_OPTIONS,
-    type WorkspacePrivacyMode,
+  getWorkspacePrivacyModeDescription,
+  getWorkspacePrivacyModeLabel,
+  WORKSPACE_PRIVACY_MODE_OPTIONS,
+  type WorkspacePrivacyMode,
 } from "@/services/offline/workspacePrivacyMode";
 import {
-    THEME_PREFERENCE_OPTIONS,
-    type ThemePreference,
+  THEME_PREFERENCE_OPTIONS,
+  type ThemePreference,
 } from "@/services/theme/themePreferences";
 
 const themeOptionLabels: Record<ThemePreference, string> = {
@@ -60,11 +70,16 @@ export default function AccountScreen() {
     [palette],
   );
   const router = useRouter();
+  const aiPreferences = useAiPreferences();
   const auth = useAppAuth();
   const workspace = useWorkspace();
   const { themePreference, setThemePreference } = useThemePreference();
   const [statusMessage, setStatusMessage] = useState(auth.note);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [openRouterApiKeyInput, setOpenRouterApiKeyInput] = useState("");
+  const [aiTelemetrySummary, setAiTelemetrySummary] = useState(
+    createEmptyAiTelemetrySummary(),
+  );
   const [pendingPrivacyModeChange, setPendingPrivacyModeChange] =
     useState<WorkspacePrivacyMode | null>(null);
 
@@ -112,6 +127,32 @@ export default function AccountScreen() {
         : workspace.reminderNotificationPermissionStatus === "unsupported"
           ? "Unsupported"
           : "Not enabled";
+  const aiKeyStatusLabel = aiPreferences.hasOpenRouterApiKey
+    ? "Key saved"
+    : "No key saved";
+  const aiStorageStatusLabel = !aiPreferences.isLoaded
+    ? "Checking storage"
+    : aiPreferences.isSecureStorageAvailable
+      ? "Secure storage ready"
+      : "Secure storage unavailable";
+  const aiPromptHistoryValue = aiPreferences.promptHistoryEnabled
+    ? "save"
+    : "dont-save";
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void loadAiTelemetrySummary().then((summary) => {
+      if (isMounted) {
+        setAiTelemetrySummary(summary);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const pageQuickActions = [
     {
       id: "account-sync",
@@ -194,6 +235,56 @@ export default function AccountScreen() {
     }
 
     await runAction(() => workspace.requestReminderNotifications());
+  }
+
+  async function handleSaveOpenRouterKey() {
+    setIsSubmitting(true);
+    const result = await aiPreferences.saveOpenRouterApiKey(
+      openRouterApiKeyInput,
+    );
+    setStatusMessage(result.message);
+    if (result.status === "success") {
+      setOpenRouterApiKeyInput("");
+      setAiTelemetrySummary(
+        await recordAiTelemetryEvent({
+          surface: "account-settings",
+          action: "key-saved",
+        }),
+      );
+    }
+    setIsSubmitting(false);
+  }
+
+  async function handleClearOpenRouterKey() {
+    setIsSubmitting(true);
+    const result = await aiPreferences.clearOpenRouterApiKey();
+    setStatusMessage(result.message);
+    setOpenRouterApiKeyInput("");
+    if (result.status === "success") {
+      setAiTelemetrySummary(
+        await recordAiTelemetryEvent({
+          surface: "account-settings",
+          action: "key-cleared",
+        }),
+      );
+    }
+    setIsSubmitting(false);
+  }
+
+  async function handleAiPromptHistoryChange(value: string) {
+    const enabled = value === "save";
+    aiPreferences.setPromptHistoryEnabled(enabled);
+    setStatusMessage(
+      enabled
+        ? "AI prompt history will be saved on this device until you turn it off."
+        : "AI prompt history will not be saved on this device.",
+    );
+    setAiTelemetrySummary(
+      await recordAiTelemetryEvent({
+        surface: "account-settings",
+        action: enabled ? "prompt-history-enabled" : "prompt-history-disabled",
+      }),
+    );
   }
 
   return (
@@ -282,6 +373,146 @@ export default function AccountScreen() {
           This device keeps anonymous use and each signed-in account in separate
           local workspace storage.
         </Text>
+      </SectionSurface>
+
+      <SectionSurface
+        palette={palette}
+        label="AI"
+        title={aiAccountSettingsCopy.title}
+      >
+        <ChipRow style={styles.themeChipRow}>
+          <Chip compact style={styles.themeChip} icon="brain">
+            OpenRouter BYOK
+          </Chip>
+          <Chip compact style={styles.themeChip}>
+            {aiKeyStatusLabel}
+          </Chip>
+          <Chip compact style={styles.themeChip}>
+            {aiStorageStatusLabel}
+          </Chip>
+        </ChipRow>
+        {!aiPreferences.isLoaded ? (
+          <ActivityIndicator style={styles.loader} />
+        ) : null}
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
+          {aiAccountSettingsCopy.intro}
+        </Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          {aiAccountSettingsCopy.privacySummary}
+        </Text>
+        <SegmentedButtons
+          value={aiPromptHistoryValue}
+          onValueChange={(value: string) =>
+            void handleAiPromptHistoryChange(value)
+          }
+          style={styles.themeSelector}
+          buttons={[
+            {
+              value: "dont-save",
+              label: "Don't save prompts",
+              disabled: isSubmitting,
+            },
+            {
+              value: "save",
+              label: "Save prompts",
+              disabled: isSubmitting,
+            },
+          ]}
+        />
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          {aiAccountSettingsCopy.promptHistoryDefault}
+        </Text>
+        <TextInput
+          label={
+            aiPreferences.hasOpenRouterApiKey
+              ? "Replace OpenRouter API key"
+              : "OpenRouter API key"
+          }
+          value={openRouterApiKeyInput}
+          onChangeText={setOpenRouterApiKeyInput}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="off"
+          secureTextEntry
+          placeholder="sk-or-v1-..."
+          style={styles.aiKeyInput}
+          disabled={isSubmitting || !aiPreferences.isLoaded}
+        />
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          {aiAccountSettingsCopy.keyReplacementNote}
+        </Text>
+        {!aiPreferences.isSecureStorageAvailable && aiPreferences.isLoaded ? (
+          <Text style={[styles.meta, paletteStyles.mutedText]}>
+            {aiAccountSettingsCopy.secureStorageUnavailable}
+          </Text>
+        ) : null}
+        <Text style={[styles.copy, paletteStyles.mutedText]}>
+          {aiAccountSettingsCopy.modelSelectionSummary}
+        </Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          Current model: {aiPreferences.openRouterTextModel}
+        </Text>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          {aiAccountSettingsCopy.modelSelectionDefault}
+        </Text>
+        <Button
+          mode="outlined"
+          onPress={() => router.push("/openrouter-model-picker")}
+          disabled={!aiPreferences.isLoaded || isSubmitting}
+          style={styles.button}
+        >
+          Choose model
+        </Button>
+        <ChipRow style={styles.themeChipRow}>
+          <Chip compact style={styles.themeChip} icon="chart-line">
+            {aiTelemetrySummary.generationRequests} requests
+          </Chip>
+          <Chip compact style={styles.themeChip} icon="check-decagram-outline">
+            {aiTelemetrySummary.draftApplies} applied
+          </Chip>
+          <Chip compact style={styles.themeChip} icon="history">
+            {formatAiTelemetryLastEventLabel(aiTelemetrySummary.lastEventAt)}
+          </Chip>
+        </ChipRow>
+        <Text style={[styles.meta, paletteStyles.mutedText]}>
+          {aiAccountSettingsCopy.telemetrySummary}
+        </Text>
+        <ChipRow style={styles.themeChipRow}>
+          {AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS.map((item) => (
+            <Chip key={item.surface} compact style={styles.themeChip}>
+              {item.label}{" "}
+              {aiTelemetrySummary.surfaces[item.surface].generationSuccesses}
+            </Chip>
+          ))}
+        </ChipRow>
+        <ActionButtonRow style={styles.buttonRow}>
+          <Button
+            mode="contained"
+            onPress={() => void handleSaveOpenRouterKey()}
+            disabled={
+              isSubmitting ||
+              !aiPreferences.isLoaded ||
+              !aiPreferences.isSecureStorageAvailable ||
+              openRouterApiKeyInput.trim().length === 0
+            }
+            loading={isSubmitting}
+            style={styles.inlineButton}
+          >
+            {aiPreferences.hasOpenRouterApiKey ? "Replace key" : "Save key"}
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={() => void handleClearOpenRouterKey()}
+            disabled={
+              isSubmitting ||
+              !aiPreferences.hasOpenRouterApiKey ||
+              !aiPreferences.isSecureStorageAvailable
+            }
+            style={styles.inlineButton}
+          >
+            Remove key
+          </Button>
+        </ActionButtonRow>
       </SectionSurface>
 
       <SectionSurface
@@ -686,6 +917,7 @@ const styles = StyleSheet.create({
   button: { marginTop: uiSpace.md },
   buttonRow: { marginTop: uiSpace.md },
   inlineButton: { flex: 1 },
+  aiKeyInput: { marginTop: uiSpace.md },
   themeSelector: { marginTop: uiSpace.md },
   themeChipRow: {
     marginTop: uiSpace.lg,

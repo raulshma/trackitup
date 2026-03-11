@@ -4,8 +4,14 @@ import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
+import { ChipRow } from "@/components/ui/ChipRow";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
+import { SectionMessage } from "@/components/ui/SectionMessage";
+import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -20,13 +26,65 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import {
+    aiPlannerCopilotCopy,
+    aiPlannerRiskCopy,
+} from "@/services/ai/aiConsentCopy";
+import {
+    buildAiPlannerCopilotGenerationPrompt,
+    buildAiPlannerCopilotReviewItems,
+    parseAiPlannerCopilotDraft,
+    type AiPlannerCopilotDraft,
+} from "@/services/ai/aiPlannerCopilot";
+import {
+    buildAiPlannerRiskGenerationPrompt,
+    buildAiPlannerRiskReviewItems,
+    formatAiPlannerRiskDestinationLabel,
+    formatAiPlannerRiskSourceLabel,
+    parseAiPlannerRiskDraft,
+    type AiPlannerRiskDraft,
+    type AiPlannerRiskSource,
+} from "@/services/ai/aiPlannerRisk";
+import {
+    buildPlannerCopilotPrompt,
+    buildPlannerRiskPrompt,
+} from "@/services/ai/aiPromptBuilders";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
     buildReminderCalendar,
     getReminderDateKey,
     getReminderScheduleTimestamp,
 } from "@/services/insights/workspaceInsights";
+import { buildWorkspacePlannerRiskSummary } from "@/services/insights/workspacePlannerRisk";
 
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+type GeneratedAiPlannerDraft = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  draft: AiPlannerCopilotDraft;
+};
+
+type GeneratedAiPlannerRiskBrief = {
+  request: string;
+  activeDateKey: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  sources: AiPlannerRiskSource[];
+  draft: AiPlannerRiskDraft;
+};
 
 function formatDue(timestamp: string) {
   return new Date(timestamp).toLocaleString([], {
@@ -35,6 +93,24 @@ function formatDue(timestamp: string) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function getPlannerSuggestedActionLabel(
+  action: AiPlannerCopilotDraft["suggestedActions"][number]["action"],
+) {
+  if (action === "do-now") return "Do now";
+  if (action === "log-proof") return "Log proof";
+  if (action === "snooze") return "Snooze";
+  return "Review later";
+}
+
+function getMonthOffsetForDate(referenceTimestamp: string, dateKey: string) {
+  const referenceDate = new Date(referenceTimestamp);
+  const targetDate = new Date(`${dateKey}T00:00:00`);
+  return (
+    (targetDate.getFullYear() - referenceDate.getFullYear()) * 12 +
+    (targetDate.getMonth() - referenceDate.getMonth())
+  );
 }
 
 export default function PlannerScreen() {
@@ -47,10 +123,31 @@ export default function PlannerScreen() {
     [palette],
   );
   const router = useRouter();
-  const { completeReminder, skipReminder, snoozeReminder, workspace } =
-    useWorkspace();
+  const {
+    completeReminder,
+    recommendations,
+    skipReminder,
+    snoozeReminder,
+    workspace,
+  } = useWorkspace();
   const [monthOffset, setMonthOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+  const [aiRequest, setAiRequest] = useState("");
+  const [aiStatusMessage, setAiStatusMessage] = useState<string | null>(null);
+  const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
+  const [generatedAiDraft, setGeneratedAiDraft] =
+    useState<GeneratedAiPlannerDraft | null>(null);
+  const [appliedAiDraft, setAppliedAiDraft] =
+    useState<GeneratedAiPlannerDraft | null>(null);
+  const [riskRequest, setRiskRequest] = useState("");
+  const [riskStatusMessage, setRiskStatusMessage] = useState<string | null>(
+    null,
+  );
+  const [isGeneratingRiskBrief, setIsGeneratingRiskBrief] = useState(false);
+  const [generatedRiskBrief, setGeneratedRiskBrief] =
+    useState<GeneratedAiPlannerRiskBrief | null>(null);
+  const [appliedRiskBrief, setAppliedRiskBrief] =
+    useState<GeneratedAiPlannerRiskBrief | null>(null);
 
   const referenceMonth = useMemo(() => {
     const date = new Date(workspace.generatedAt);
@@ -132,7 +229,30 @@ export default function PlannerScreen() {
     `${selectedDayReminders.length} on the selected day`,
     `${plannerGroups.length} upcoming day groups`,
   ];
+  const reminderTitlesById = useMemo(
+    () =>
+      new Map(
+        workspace.reminders.map((reminder) => [reminder.id, reminder] as const),
+      ),
+    [workspace.reminders],
+  );
+  const allowedPlannerDateKeys = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          activeDateKey,
+          ...workspace.reminders.map((reminder) =>
+            getReminderDateKey(reminder),
+          ),
+        ]),
+      ),
+    [activeDateKey, workspace.reminders],
+  );
   const selectedReminderForQuickAction = selectedDayReminders[0];
+  const plannerRiskSummary = useMemo(
+    () => buildWorkspacePlannerRiskSummary(workspace, activeDateKey),
+    [activeDateKey, workspace],
+  );
   const pageQuickActions = [
     {
       id: "planner-today",
@@ -170,6 +290,239 @@ export default function PlannerScreen() {
       onPress: () => router.push("/action-center" as never),
     },
   ];
+
+  async function handleGenerateAiDraft() {
+    const trimmedRequest = aiRequest.trim();
+    if (!trimmedRequest) {
+      setAiStatusMessage(
+        "Describe the kind of planner help you want before generating a copilot draft.",
+      );
+      return;
+    }
+
+    const promptDraft = buildPlannerCopilotPrompt({
+      workspace,
+      userRequest: trimmedRequest,
+      activeDateKey,
+    });
+    setIsGeneratingAiDraft(true);
+    void recordAiTelemetryEvent({
+      surface: "planner-copilot",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiPlannerCopilotGenerationPrompt(promptDraft.prompt),
+      temperature: 0.35,
+      maxOutputTokens: 950,
+    });
+    setIsGeneratingAiDraft(false);
+
+    if (result.status !== "success") {
+      setGeneratedAiDraft(null);
+      setAiStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "planner-copilot",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiPlannerCopilotDraft(result.text, {
+      allowedDateKeys: allowedPlannerDateKeys,
+      reminders: workspace.reminders.map((reminder) => ({
+        id: reminder.id,
+        title: reminder.title,
+      })),
+    });
+    if (!parsedDraft) {
+      setGeneratedAiDraft(null);
+      setAiStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a reviewable planner draft. Try asking for a smaller, more specific plan.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "planner-copilot",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedAiDraft({
+      request: trimmedRequest,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      draft: parsedDraft,
+    });
+    setAiStatusMessage(
+      "Generated an AI planner draft. Review it carefully before applying it to the planner.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "planner-copilot",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyAiDraft() {
+    if (!generatedAiDraft) return;
+
+    if (generatedAiDraft.draft.focusDateKey) {
+      setSelectedDateKey(generatedAiDraft.draft.focusDateKey);
+      setMonthOffset(
+        getMonthOffsetForDate(
+          workspace.generatedAt,
+          generatedAiDraft.draft.focusDateKey,
+        ),
+      );
+    }
+
+    setAppliedAiDraft(generatedAiDraft);
+    setGeneratedAiDraft(null);
+    setAiStatusMessage(
+      "Applied the AI planner draft. Review the suggested day and actions before changing any reminder state.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "planner-copilot",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissAiDraft() {
+    setGeneratedAiDraft(null);
+    setAiStatusMessage(
+      "Dismissed the AI planner draft. Your current planner state is unchanged.",
+    );
+  }
+
+  function openPlannerRiskDestination(
+    destination?: AiPlannerRiskDraft["suggestedDestination"],
+    source?: Pick<AiPlannerRiskSource, "spaceId" | "reminderId">,
+  ) {
+    if (!destination || destination === "planner") {
+      return;
+    }
+
+    if (destination === "action-center") {
+      router.push("/action-center" as never);
+      return;
+    }
+
+    router.push({
+      pathname: "/logbook",
+      params: source?.reminderId
+        ? {
+            actionId: "quick-log",
+            reminderId: source.reminderId,
+            spaceId: source.spaceId,
+          }
+        : source?.spaceId
+          ? { spaceId: source.spaceId }
+          : { actionId: "quick-log" },
+    });
+  }
+
+  function openPlannerRiskSource(source: AiPlannerRiskSource) {
+    openPlannerRiskDestination(source.route, source);
+  }
+
+  async function handleGenerateRiskBrief() {
+    const trimmedRequest = riskRequest.trim();
+    if (!trimmedRequest) {
+      setRiskStatusMessage(
+        "Describe the planner risk or deferral question you want answered before generating a brief.",
+      );
+      return;
+    }
+
+    const promptDraft = buildPlannerRiskPrompt({
+      workspace,
+      userRequest: trimmedRequest,
+      activeDateKey,
+    });
+    setIsGeneratingRiskBrief(true);
+    void recordAiTelemetryEvent({
+      surface: "planner-risk-brief",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiPlannerRiskGenerationPrompt(promptDraft.prompt),
+      temperature: 0.2,
+      maxOutputTokens: 900,
+    });
+    setIsGeneratingRiskBrief(false);
+
+    if (result.status !== "success") {
+      setGeneratedRiskBrief(null);
+      setRiskStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "planner-risk-brief",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiPlannerRiskDraft(result.text, {
+      allowedSourceIds: promptDraft.context.retrievedSources.map(
+        (source) => source.id,
+      ),
+    });
+    if (!parsedDraft) {
+      setGeneratedRiskBrief(null);
+      setRiskStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a grounded planner risk brief. Try asking a narrower question about what can wait or what keeps slipping.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "planner-risk-brief",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedRiskBrief({
+      request: trimmedRequest,
+      activeDateKey,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      sources: promptDraft.context.retrievedSources,
+      draft: parsedDraft,
+    });
+    setRiskStatusMessage(
+      `Generated a grounded planner risk brief for ${activeDateKey}. Review the cited reminders and deferrals before applying it.`,
+    );
+    void recordAiTelemetryEvent({
+      surface: "planner-risk-brief",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyRiskBrief() {
+    if (!generatedRiskBrief) return;
+
+    setAppliedRiskBrief(generatedRiskBrief);
+    setGeneratedRiskBrief(null);
+    setRiskStatusMessage(
+      "Applied the planner risk brief. Review the cited reminders, deferrals, and hotspots before changing any reminder state.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "planner-risk-brief",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissRiskBrief() {
+    setGeneratedRiskBrief(null);
+    setRiskStatusMessage(
+      "Dismissed the AI planner risk brief. Your current planner state is unchanged.",
+    );
+  }
+
+  const appliedAiReminder = appliedAiDraft?.draft.suggestedActions[0]
+    ? reminderTitlesById.get(
+        appliedAiDraft.draft.suggestedActions[0].reminderId,
+      )
+    : undefined;
 
   return (
     <Animated.ScrollView
@@ -225,6 +578,317 @@ export default function PlannerScreen() {
         description="Jump straight into today’s work, capture proof from the selected day, or move into the action queue without losing planner context."
         actions={pageQuickActions}
       />
+
+      <AiPromptComposerCard
+        palette={palette}
+        label="AI planner copilot"
+        title="Draft the next best plan for the current calendar"
+        value={aiRequest}
+        onChangeText={setAiRequest}
+        onSubmit={() => void handleGenerateAiDraft()}
+        isBusy={isGeneratingAiDraft}
+        contextChips={[
+          activeDateKey,
+          `${selectedDayReminders.length} on selected day`,
+          `${plannerGroups.length} day groups visible`,
+        ]}
+        helperText={aiPlannerCopilotCopy.getHelperText(activeDateKey)}
+        consentLabel={aiPlannerCopilotCopy.consentLabel}
+        footerNote={aiPlannerCopilotCopy.promptFooterNote}
+        placeholder="Example: Prioritize the selected day, call out what I should log proof for, and tell me what can wait until later this week."
+        submitLabel="Generate planner draft"
+      />
+
+      {aiStatusMessage ? (
+        <SectionMessage
+          palette={palette}
+          label="AI planner"
+          title="Latest copilot status"
+          message={aiStatusMessage}
+        />
+      ) : null}
+
+      {generatedAiDraft ? (
+        <AiDraftReviewCard
+          palette={palette}
+          title="Review the AI planner draft"
+          draftKindLabel={`Planner • ${activeDateKey}`}
+          summary={`Prompt: ${generatedAiDraft.request}`}
+          consentLabel={generatedAiDraft.consentLabel}
+          footerNote={aiPlannerCopilotCopy.reviewFooterNote}
+          statusLabel="Draft ready"
+          modelLabel={generatedAiDraft.modelId}
+          usage={generatedAiDraft.usage}
+          contextChips={[
+            generatedAiDraft.draft.focusDateKey ?? activeDateKey,
+            `${generatedAiDraft.draft.suggestedActions.length} suggested action${generatedAiDraft.draft.suggestedActions.length === 1 ? "" : "s"}`,
+          ]}
+          items={buildAiPlannerCopilotReviewItems(generatedAiDraft.draft)}
+          acceptLabel="Apply to planner"
+          editLabel="Dismiss draft"
+          regenerateLabel="Generate again"
+          onAccept={handleApplyAiDraft}
+          onEdit={handleDismissAiDraft}
+          onRegenerate={() => void handleGenerateAiDraft()}
+          isBusy={isGeneratingAiDraft}
+        />
+      ) : null}
+
+      {appliedAiDraft ? (
+        <SectionSurface
+          palette={palette}
+          label="AI plan"
+          title={appliedAiDraft.draft.headline}
+        >
+          <ChipRow style={styles.aiChipRow}>
+            <Chip compact>
+              Focus {appliedAiDraft.draft.focusDateKey ?? activeDateKey}
+            </Chip>
+            <Chip compact>{recommendations.length} recommendations live</Chip>
+          </ChipRow>
+          {appliedAiDraft.draft.summary ? (
+            <Text style={styles.copy}>{appliedAiDraft.draft.summary}</Text>
+          ) : null}
+          {appliedAiDraft.draft.groupedPlan.length > 0 ? (
+            <View style={styles.aiList}>
+              {appliedAiDraft.draft.groupedPlan.map((item) => (
+                <Text key={item} style={styles.historyItem}>
+                  • {item}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {appliedAiDraft.draft.suggestedActions.length > 0 ? (
+            <View style={styles.aiList}>
+              {appliedAiDraft.draft.suggestedActions.map((item) => (
+                <Text key={item.reminderId} style={styles.historyItem}>
+                  • {item.title} — {getPlannerSuggestedActionLabel(item.action)}{" "}
+                  • {item.reason}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {appliedAiDraft.draft.caution ? (
+            <Text style={styles.historyItem}>
+              Caution: {appliedAiDraft.draft.caution}
+            </Text>
+          ) : null}
+          <ActionButtonRow style={styles.buttonRow}>
+            <Button
+              mode="outlined"
+              onPress={() => setAppliedAiDraft(null)}
+              style={styles.button}
+            >
+              Clear plan
+            </Button>
+            {appliedAiDraft.draft.focusDateKey ? (
+              <Button
+                mode="outlined"
+                onPress={() => {
+                  setSelectedDateKey(
+                    appliedAiDraft.draft.focusDateKey ?? activeDateKey,
+                  );
+                  setMonthOffset(
+                    getMonthOffsetForDate(
+                      workspace.generatedAt,
+                      appliedAiDraft.draft.focusDateKey ?? activeDateKey,
+                    ),
+                  );
+                }}
+                style={styles.button}
+              >
+                Focus suggested day
+              </Button>
+            ) : null}
+            <Button
+              mode="outlined"
+              onPress={() => router.push("/action-center" as never)}
+              style={styles.button}
+            >
+              Open action center
+            </Button>
+            {appliedAiReminder ? (
+              <Button
+                mode="contained"
+                onPress={() =>
+                  router.push({
+                    pathname: "/logbook",
+                    params: {
+                      actionId: "quick-log",
+                      reminderId: appliedAiReminder.id,
+                      spaceId: appliedAiReminder.spaceId,
+                    },
+                  })
+                }
+                style={styles.button}
+              >
+                Log proof
+              </Button>
+            ) : null}
+            <Button
+              mode="contained-tonal"
+              onPress={() => void handleGenerateAiDraft()}
+              style={styles.button}
+              disabled={isGeneratingAiDraft}
+            >
+              Refresh plan
+            </Button>
+          </ActionButtonRow>
+        </SectionSurface>
+      ) : null}
+
+      <AiPromptComposerCard
+        palette={palette}
+        label="AI planner risk"
+        title="Explain what looks risky or safely deferrable"
+        value={riskRequest}
+        onChangeText={setRiskRequest}
+        onSubmit={() => void handleGenerateRiskBrief()}
+        isBusy={isGeneratingRiskBrief}
+        contextChips={[
+          activeDateKey,
+          `${plannerRiskSummary.summary.overdueCount} overdue`,
+          `${plannerRiskSummary.summary.deferralCount} recent deferral${plannerRiskSummary.summary.deferralCount === 1 ? "" : "s"}`,
+        ]}
+        helperText={aiPlannerRiskCopy.getHelperText(activeDateKey)}
+        consentLabel={aiPlannerRiskCopy.consentLabel}
+        footerNote={aiPlannerRiskCopy.promptFooterNote}
+        placeholder="Example: Explain what can safely wait until later this week, what is most likely to slip, and whether I should jump to action center or logbook next."
+        submitLabel="Generate risk brief"
+      />
+
+      {riskStatusMessage ? (
+        <SectionMessage
+          palette={palette}
+          label="AI planner risk"
+          title="Latest risk brief status"
+          message={riskStatusMessage}
+        />
+      ) : null}
+
+      {generatedRiskBrief ? (
+        <AiDraftReviewCard
+          palette={palette}
+          title="Review the AI planner risk brief"
+          draftKindLabel={`Planner risk • ${generatedRiskBrief.activeDateKey}`}
+          summary={`Prompt: ${generatedRiskBrief.request}`}
+          consentLabel={generatedRiskBrief.consentLabel}
+          footerNote={aiPlannerRiskCopy.reviewFooterNote}
+          statusLabel="Draft ready"
+          modelLabel={generatedRiskBrief.modelId}
+          usage={generatedRiskBrief.usage}
+          contextChips={[
+            generatedRiskBrief.activeDateKey,
+            `${generatedRiskBrief.draft.citedSourceIds.length} cited source${generatedRiskBrief.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+          ]}
+          items={buildAiPlannerRiskReviewItems(
+            generatedRiskBrief.draft,
+            generatedRiskBrief.sources,
+          )}
+          acceptLabel="Apply brief"
+          editLabel="Dismiss draft"
+          regenerateLabel="Generate again"
+          onAccept={handleApplyRiskBrief}
+          onEdit={handleDismissRiskBrief}
+          onRegenerate={() => void handleGenerateRiskBrief()}
+          isBusy={isGeneratingRiskBrief}
+        />
+      ) : null}
+
+      {appliedRiskBrief ? (
+        <SectionSurface
+          palette={palette}
+          label="AI risk"
+          title={appliedRiskBrief.draft.headline}
+        >
+          <ChipRow style={styles.aiChipRow}>
+            <Chip compact>Day {appliedRiskBrief.activeDateKey}</Chip>
+            <Chip compact>
+              {formatAiPlannerRiskDestinationLabel(
+                appliedRiskBrief.draft.suggestedDestination ?? "planner",
+              )}
+            </Chip>
+          </ChipRow>
+          {appliedRiskBrief.draft.summary ? (
+            <Text style={styles.copy}>{appliedRiskBrief.draft.summary}</Text>
+          ) : null}
+          {appliedRiskBrief.draft.keyRisks.length > 0 ? (
+            <View style={styles.aiList}>
+              {appliedRiskBrief.draft.keyRisks.map((risk) => (
+                <Text key={risk} style={[styles.meta, paletteStyles.mutedText]}>
+                  • {risk}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {appliedRiskBrief.draft.caution ? (
+            <Text style={[styles.meta, paletteStyles.mutedText]}>
+              Caution: {appliedRiskBrief.draft.caution}
+            </Text>
+          ) : null}
+          {appliedRiskBrief.sources
+            .filter((source) =>
+              appliedRiskBrief.draft.citedSourceIds.includes(source.id),
+            )
+            .map((source) => (
+              <Surface
+                key={source.id}
+                style={[
+                  styles.riskSourceCard,
+                  paletteStyles.raisedCardSurface,
+                  { borderColor: palette.border },
+                ]}
+                elevation={uiElevation.raisedCard}
+              >
+                <View>
+                  <Text style={styles.listTitle}>
+                    {formatAiPlannerRiskSourceLabel(source)}
+                  </Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    {source.snippet}
+                  </Text>
+                </View>
+                <Button
+                  mode="outlined"
+                  onPress={() => openPlannerRiskSource(source)}
+                  style={styles.button}
+                >
+                  {formatAiPlannerRiskDestinationLabel(source.route)}
+                </Button>
+              </Surface>
+            ))}
+          <ActionButtonRow style={styles.riskActionRow}>
+            <Button
+              mode="outlined"
+              onPress={() => setAppliedRiskBrief(null)}
+              style={styles.button}
+            >
+              Clear brief
+            </Button>
+            <Button
+              mode="outlined"
+              onPress={() =>
+                openPlannerRiskDestination(
+                  appliedRiskBrief.draft.suggestedDestination,
+                )
+              }
+              style={styles.button}
+            >
+              {formatAiPlannerRiskDestinationLabel(
+                appliedRiskBrief.draft.suggestedDestination ?? "planner",
+              )}
+            </Button>
+            <Button
+              mode="contained-tonal"
+              onPress={() => void handleGenerateRiskBrief()}
+              style={styles.button}
+              disabled={isGeneratingRiskBrief}
+            >
+              Refresh brief
+            </Button>
+          </ActionButtonRow>
+        </SectionSurface>
+      ) : null}
 
       <Surface
         style={[styles.calendarCard, paletteStyles.cardSurface]}
@@ -508,6 +1172,20 @@ const styles = StyleSheet.create({
   sectionTitle: { ...uiTypography.titleMd, fontWeight: "800", marginBottom: 6 },
   selectedDateMeta: { ...uiTypography.chip, marginBottom: uiSpace.md },
   dayAgendaItem: { marginBottom: uiSpace.md },
+  aiChipRow: { marginTop: uiSpace.sm },
+  aiList: { marginTop: uiSpace.md, gap: uiSpace.xs },
+  riskSourceCard: {
+    marginTop: uiSpace.md,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
+    gap: uiSpace.md,
+  },
+  riskActionRow: {
+    marginTop: uiSpace.md,
+    paddingTop: uiSpace.md,
+    borderTopWidth: uiBorder.hairline,
+  },
   group: { marginBottom: uiSpace.xs },
   groupTitle: { ...uiTypography.titleLg, marginBottom: uiSpace.md },
   card: {

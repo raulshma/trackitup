@@ -6,12 +6,16 @@ import { Button, Chip, Surface } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { ChipRow } from "@/components/ui/ChipRow";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
+import { defaultQuickActions } from "@/constants/TrackItUpDefaults";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
     uiBorder,
@@ -21,6 +25,17 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import { aiScannerAssistantCopy } from "@/services/ai/aiConsentCopy";
+import { buildScannerAssistantPrompt } from "@/services/ai/aiPromptBuilders";
+import {
+    buildAiScannerAssistantGenerationPrompt,
+    buildAiScannerAssistantReviewItems,
+    formatAiScannerAssistantDestinationLabel,
+    parseAiScannerAssistantDraft,
+    type AiScannerAssistantDraft,
+} from "@/services/ai/aiScannerAssistant";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
     getCameraPermissionStatusAsync,
     requestCameraPermissionAsync,
@@ -44,6 +59,18 @@ const supportedBarcodeTypes: BarcodeType[] = [
   "itf14",
 ];
 
+type GeneratedAiScannerDraft = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  draft: AiScannerAssistantDraft;
+};
+
 export default function ScannerScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
@@ -59,10 +86,24 @@ export default function ScannerScreen() {
     type: string;
     data: string;
   } | null>(null);
+  const [aiRequest, setAiRequest] = useState("");
+  const [aiStatusMessage, setAiStatusMessage] = useState<string | null>(null);
+  const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
+  const [generatedAiDraft, setGeneratedAiDraft] =
+    useState<GeneratedAiScannerDraft | null>(null);
+  const [appliedAiDraft, setAppliedAiDraft] =
+    useState<GeneratedAiScannerDraft | null>(null);
 
   useEffect(() => {
     void refreshPermission();
   }, []);
+
+  useEffect(() => {
+    setAiRequest("");
+    setAiStatusMessage(null);
+    setGeneratedAiDraft(null);
+    setAppliedAiDraft(null);
+  }, [lastScan?.data, lastScan?.type]);
 
   async function refreshPermission() {
     const permission = await getCameraPermissionStatusAsync();
@@ -86,6 +127,160 @@ export default function ScannerScreen() {
   const looksLikeUrl = Boolean(
     lastScan?.data.match(/^(https?:\/\/|trackitup:\/\/)/i),
   );
+  const matchedSpace = useMemo(
+    () =>
+      matchedAsset
+        ? workspace.spaces.find((space) => space.id === matchedAsset.spaceId)
+        : undefined,
+    [matchedAsset, workspace.spaces],
+  );
+  const quickLogActionId = useMemo(
+    () =>
+      workspace.quickActions.find((action) => action.kind === "quick-log")
+        ?.id ??
+      defaultQuickActions.find((action) => action.kind === "quick-log")?.id ??
+      "quick-log",
+    [workspace.quickActions],
+  );
+  const scanKindLabel = lastScan
+    ? matchedAsset
+      ? "Asset match"
+      : scannedTemplate
+        ? "Template link"
+        : looksLikeUrl
+          ? "External link"
+          : "Unmatched code"
+    : "Waiting for scan";
+
+  function handleOpenQuickLog() {
+    router.push({
+      pathname: "/logbook",
+      params: {
+        actionId: quickLogActionId,
+        ...(matchedAsset ? { spaceId: matchedAsset.spaceId } : {}),
+      },
+    });
+  }
+
+  function handleOpenSuggestedDestination(
+    destination: AiScannerAssistantDraft["suggestedDestination"],
+  ) {
+    if (destination === "inventory") {
+      router.push("/(tabs)/inventory" as never);
+      return;
+    }
+
+    if (destination === "logbook") {
+      handleOpenQuickLog();
+      return;
+    }
+
+    if (destination === "template-import" && scannedTemplate && lastScan) {
+      router.push({
+        pathname: "/template-import",
+        params: { url: lastScan.data, source: "qr-code" },
+      });
+      return;
+    }
+
+    router.push("/workspace-tools" as never);
+  }
+
+  async function handleGenerateAiDraft() {
+    if (!lastScan) {
+      setAiStatusMessage(
+        "Scan a barcode or QR code before requesting AI help.",
+      );
+      return;
+    }
+
+    const trimmedRequest = aiRequest.trim();
+    if (!trimmedRequest) {
+      setAiStatusMessage(
+        "Describe the kind of next-step help you want before generating a scanner suggestion.",
+      );
+      return;
+    }
+
+    const promptDraft = buildScannerAssistantPrompt({
+      workspace,
+      userRequest: trimmedRequest,
+      scan: lastScan,
+      matchedAsset,
+      scannedTemplate,
+    });
+    setIsGeneratingAiDraft(true);
+    void recordAiTelemetryEvent({
+      surface: "scanner-assistant",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiScannerAssistantGenerationPrompt(promptDraft.prompt),
+      temperature: 0.25,
+      maxOutputTokens: 800,
+    });
+    setIsGeneratingAiDraft(false);
+
+    if (result.status !== "success") {
+      setGeneratedAiDraft(null);
+      setAiStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "scanner-assistant",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiScannerAssistantDraft(result.text);
+    if (!parsedDraft) {
+      setGeneratedAiDraft(null);
+      setAiStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a reviewable scanner suggestion. Try asking for a simpler next step.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "scanner-assistant",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedAiDraft({
+      request: trimmedRequest,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      draft: parsedDraft,
+    });
+    setAiStatusMessage(
+      "Generated an AI scanner suggestion. Review it carefully before applying it to this screen.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "scanner-assistant",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyAiDraft() {
+    if (!generatedAiDraft) return;
+    setAppliedAiDraft(generatedAiDraft);
+    setGeneratedAiDraft(null);
+    setAiStatusMessage(
+      "Applied the AI scanner suggestion. Review the destination and any draft log outline before taking the next step.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "scanner-assistant",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissAiDraft() {
+    setGeneratedAiDraft(null);
+    setAiStatusMessage(
+      "Dismissed the AI scanner draft. Your current scan result is unchanged.",
+    );
+  }
+
   const pageQuickActions = [
     {
       id: "scanner-primary",
@@ -138,7 +333,7 @@ export default function ScannerScreen() {
         <ScreenHero
           palette={palette}
           title="Barcode & QR scanner"
-          subtitle="Use the live camera feed to identify tagged assets or scan QR-based template links."
+          subtitle="Use the live camera feed to identify tagged assets, review template links, and get a grounded AI next-step suggestion after each scan."
           badges={[
             {
               label: "QR + barcode",
@@ -155,7 +350,7 @@ export default function ScannerScreen() {
         <PageQuickActions
           palette={palette}
           title="Work the next scan faster"
-          description="Grant access, jump back to inventory, or move a scanned template straight into review without leaving the scanner flow."
+          description="Grant access, jump back to inventory, open a scanned template, or turn the current scan into a review-only AI next-step suggestion without leaving the scanner flow."
           actions={pageQuickActions}
         />
 
@@ -206,19 +401,9 @@ export default function ScannerScreen() {
                 <Chip compact style={styles.resultChip}>
                   {lastScan.type.toUpperCase()}
                 </Chip>
-                {matchedAsset ? (
-                  <Chip compact style={styles.resultChip}>
-                    Asset match
-                  </Chip>
-                ) : scannedTemplate ? (
-                  <Chip compact style={styles.resultChip}>
-                    Template link
-                  </Chip>
-                ) : looksLikeUrl ? (
-                  <Chip compact style={styles.resultChip}>
-                    External link
-                  </Chip>
-                ) : null}
+                <Chip compact style={styles.resultChip}>
+                  {scanKindLabel}
+                </Chip>
               </ChipRow>
               <Text style={[styles.resultValue, paletteStyles.mutedText]}>
                 {lastScan.data}
@@ -267,6 +452,167 @@ export default function ScannerScreen() {
             </Text>
           )}
         </SectionSurface>
+
+        {lastScan ? (
+          <AiPromptComposerCard
+            palette={palette}
+            label="AI scanner assistant"
+            title="Suggest the best next step from this scan"
+            value={aiRequest}
+            onChangeText={setAiRequest}
+            onSubmit={() => void handleGenerateAiDraft()}
+            isBusy={isGeneratingAiDraft}
+            contextChips={[
+              scanKindLabel,
+              matchedAsset
+                ? matchedAsset.name
+                : (scannedTemplate?.name ??
+                  scannedTemplate?.templateId ??
+                  "No named match"),
+              matchedSpace ? `Space: ${matchedSpace.name}` : "No space linked",
+            ]}
+            placeholder="Example: suggest the safest next step and draft a short log outline if I should capture this scan in the logbook."
+            helperText={aiScannerAssistantCopy.getHelperText(scanKindLabel)}
+            consentLabel={aiScannerAssistantCopy.consentLabel}
+            footerNote={aiScannerAssistantCopy.promptFooterNote}
+            submitLabel="Generate next step"
+          />
+        ) : null}
+
+        {aiStatusMessage ? (
+          <SectionMessage
+            palette={palette}
+            label="AI scanner assistant"
+            title="Latest scanner assistant status"
+            message={aiStatusMessage}
+          />
+        ) : null}
+
+        {generatedAiDraft ? (
+          <AiDraftReviewCard
+            palette={palette}
+            title="Review the AI scanner suggestion"
+            draftKindLabel={scanKindLabel}
+            summary={`Prompt: ${generatedAiDraft.request}`}
+            consentLabel={generatedAiDraft.consentLabel}
+            footerNote={aiScannerAssistantCopy.reviewFooterNote}
+            statusLabel="Draft ready"
+            modelLabel={generatedAiDraft.modelId}
+            usage={generatedAiDraft.usage}
+            contextChips={[
+              formatAiScannerAssistantDestinationLabel(
+                generatedAiDraft.draft.suggestedDestination,
+              ),
+              matchedAsset ? matchedAsset.name : "No asset matched",
+            ]}
+            items={buildAiScannerAssistantReviewItems(generatedAiDraft.draft)}
+            acceptLabel="Apply suggestion"
+            editLabel="Dismiss draft"
+            regenerateLabel="Generate again"
+            onAccept={handleApplyAiDraft}
+            onEdit={handleDismissAiDraft}
+            onRegenerate={() => void handleGenerateAiDraft()}
+            isBusy={isGeneratingAiDraft}
+          />
+        ) : null}
+
+        {appliedAiDraft ? (
+          <SectionSurface
+            palette={palette}
+            label="AI scanner assistant"
+            title={appliedAiDraft.draft.headline}
+          >
+            <ChipRow style={styles.resultChipRow}>
+              <Chip compact style={styles.resultChip}>
+                {formatAiScannerAssistantDestinationLabel(
+                  appliedAiDraft.draft.suggestedDestination,
+                )}
+              </Chip>
+              {matchedAsset ? (
+                <Chip compact style={styles.resultChip}>
+                  {matchedAsset.name}
+                </Chip>
+              ) : scannedTemplate ? (
+                <Chip compact style={styles.resultChip}>
+                  {scannedTemplate.name ??
+                    scannedTemplate.templateId ??
+                    "Template"}
+                </Chip>
+              ) : null}
+            </ChipRow>
+            {appliedAiDraft.draft.summary ? (
+              <Text style={styles.resultValue}>
+                {appliedAiDraft.draft.summary}
+              </Text>
+            ) : null}
+            {appliedAiDraft.draft.reasons.length > 0 ? (
+              <View style={styles.aiList}>
+                {appliedAiDraft.draft.reasons.map((reason) => (
+                  <Text
+                    key={reason}
+                    style={[styles.resultValue, paletteStyles.mutedText]}
+                  >
+                    • {reason}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            {appliedAiDraft.draft.suggestedEntry ? (
+              <Surface
+                style={[styles.aiCard, paletteStyles.cardSurface]}
+                elevation={0}
+              >
+                <Text style={styles.matchTitle}>
+                  Suggested quick-log outline
+                </Text>
+                {appliedAiDraft.draft.suggestedEntry.title ? (
+                  <Text style={styles.resultValue}>
+                    Title: {appliedAiDraft.draft.suggestedEntry.title}
+                  </Text>
+                ) : null}
+                {appliedAiDraft.draft.suggestedEntry.note ? (
+                  <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                    Note: {appliedAiDraft.draft.suggestedEntry.note}
+                  </Text>
+                ) : null}
+                {(appliedAiDraft.draft.suggestedEntry.tags?.length ?? 0) > 0 ? (
+                  <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                    Tags: {appliedAiDraft.draft.suggestedEntry.tags?.join(", ")}
+                  </Text>
+                ) : null}
+              </Surface>
+            ) : null}
+            {appliedAiDraft.draft.caution ? (
+              <Text style={[styles.resultValue, paletteStyles.mutedText]}>
+                Caution: {appliedAiDraft.draft.caution}
+              </Text>
+            ) : null}
+            <View style={styles.aiActionRow}>
+              <Button
+                mode="contained"
+                onPress={() =>
+                  handleOpenSuggestedDestination(
+                    appliedAiDraft.draft.suggestedDestination,
+                  )
+                }
+                style={styles.footerButton}
+                contentStyle={styles.footerButtonContent}
+              >
+                {formatAiScannerAssistantDestinationLabel(
+                  appliedAiDraft.draft.suggestedDestination,
+                )}
+              </Button>
+              <Button
+                mode="outlined"
+                onPress={handleOpenQuickLog}
+                style={styles.footerButton}
+                contentStyle={styles.footerButtonContent}
+              >
+                Start quick log
+              </Button>
+            </View>
+          </SectionSurface>
+        ) : null}
       </ScrollView>
 
       <Surface
@@ -355,6 +701,18 @@ const styles = StyleSheet.create({
     marginBottom: uiSpace.xs,
   },
   primaryButton: { marginTop: uiSpace.xs },
+  aiList: { marginBottom: uiSpace.sm },
+  aiCard: {
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.lg,
+    padding: uiSpace.md,
+    marginBottom: uiSpace.md,
+  },
+  aiActionRow: {
+    flexDirection: "row",
+    gap: uiSpace.md,
+    marginTop: uiSpace.sm,
+  },
   footer: {
     borderTopWidth: uiBorder.standard,
     paddingHorizontal: uiSpace.screen,

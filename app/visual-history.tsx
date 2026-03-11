@@ -9,10 +9,18 @@ import {
     StyleSheet,
     View,
 } from "react-native";
-import { Button, Chip } from "react-native-paper";
+import {
+    Button,
+    Chip,
+    Surface,
+    useTheme,
+    type MD3Theme,
+} from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { BeforeAfterSlider } from "@/components/ui/BeforeAfterSlider";
 import { ChipRow } from "@/components/ui/ChipRow";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
@@ -34,6 +42,31 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import {
+    aiCrossSpaceTrendCopy,
+    aiVisualRecapCopy,
+} from "@/services/ai/aiConsentCopy";
+import {
+    buildAiCrossSpaceTrendGenerationPrompt,
+    buildAiCrossSpaceTrendReviewItems,
+    formatAiCrossSpaceTrendDestinationLabel,
+    formatAiCrossSpaceTrendSourceLabel,
+    parseAiCrossSpaceTrendDraft,
+    type AiCrossSpaceTrendDraft,
+    type AiCrossSpaceTrendSource,
+} from "@/services/ai/aiCrossSpaceTrends";
+import {
+    buildCrossSpaceTrendPrompt,
+    buildVisualRecapPrompt,
+} from "@/services/ai/aiPromptBuilders";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
+import {
+    buildAiVisualRecapGenerationPrompt,
+    buildAiVisualRecapReviewItems,
+    parseAiVisualRecapDraft,
+    type AiVisualRecapDraft,
+} from "@/services/ai/aiVisualRecap";
 import {
     buildVisualRecapShareMessage,
     buildVisualRecapTitle,
@@ -43,6 +76,7 @@ import {
     loadVisualRecapCoverSelections,
     persistVisualRecapCoverSelections,
 } from "@/services/insights/visualRecapPreferencePersistence";
+import { buildWorkspaceTrendSummary } from "@/services/insights/workspaceTrendSummary";
 import {
     applyVisualRecapCoverSelections,
     buildWorkspaceVisualHistory,
@@ -54,6 +88,34 @@ import {
 type VisualHistoryParams = {
   assetId?: string | string[];
   spaceId?: string | string[];
+};
+
+type GeneratedAiVisualRecap = {
+  request: string;
+  scopeLabel: string;
+  monthKey: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  draft: AiVisualRecapDraft;
+};
+
+type GeneratedAiCrossSpaceTrend = {
+  request: string;
+  monthKey: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  sources: AiCrossSpaceTrendSource[];
+  draft: AiCrossSpaceTrendDraft;
 };
 
 function pickParam(value: string | string[] | undefined) {
@@ -89,6 +151,7 @@ function buildLightboxItems(photos: VisualHistoryPhotoItem[]): LightboxItem[] {
 export default function VisualHistoryScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const theme = useTheme<MD3Theme>();
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
@@ -129,6 +192,25 @@ export default function VisualHistoryScreen() {
     items: LightboxItem[];
     initialIndex: number;
   } | null>(null);
+  const [aiRequest, setAiRequest] = useState("");
+  const [selectedAiMonthKey, setSelectedAiMonthKey] = useState<string | null>(
+    null,
+  );
+  const [aiStatusMessage, setAiStatusMessage] = useState<string | null>(null);
+  const [isGeneratingAiRecap, setIsGeneratingAiRecap] = useState(false);
+  const [generatedAiRecap, setGeneratedAiRecap] =
+    useState<GeneratedAiVisualRecap | null>(null);
+  const [appliedAiRecap, setAppliedAiRecap] =
+    useState<GeneratedAiVisualRecap | null>(null);
+  const [trendRequest, setTrendRequest] = useState("");
+  const [trendStatusMessage, setTrendStatusMessage] = useState<string | null>(
+    null,
+  );
+  const [isGeneratingAiTrend, setIsGeneratingAiTrend] = useState(false);
+  const [generatedAiTrend, setGeneratedAiTrend] =
+    useState<GeneratedAiCrossSpaceTrend | null>(null);
+  const [appliedAiTrend, setAppliedAiTrend] =
+    useState<GeneratedAiCrossSpaceTrend | null>(null);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
   const [busyRecapKey, setBusyRecapKey] = useState<string | null>(null);
 
@@ -200,8 +282,285 @@ export default function VisualHistoryScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (history.monthlyRecaps.length === 0) {
+      setSelectedAiMonthKey(null);
+      return;
+    }
+
+    setSelectedAiMonthKey((currentMonthKey) =>
+      currentMonthKey &&
+      history.monthlyRecaps.some((recap) => recap.monthKey === currentMonthKey)
+        ? currentMonthKey
+        : (history.monthlyRecaps[0]?.monthKey ?? null),
+    );
+  }, [history.monthlyRecaps]);
+
+  useEffect(() => {
+    setGeneratedAiRecap(null);
+    setAppliedAiRecap(null);
+    setAiStatusMessage(null);
+  }, [scopeLabel, selectedAiMonthKey]);
+
+  useEffect(() => {
+    setGeneratedAiTrend(null);
+    setAppliedAiTrend(null);
+    setTrendStatusMessage(null);
+  }, [scopeLabel, selectedAiMonthKey]);
+
+  const selectedAiRecap = selectedAiMonthKey
+    ? history.monthlyRecaps.find(
+        (recap) => recap.monthKey === selectedAiMonthKey,
+      )
+    : history.monthlyRecaps[0];
+  const selectedAiMonthLabel = selectedAiRecap
+    ? formatMonth(selectedAiRecap.monthKey)
+    : null;
+  const isWorkspaceScope = !asset && !space;
+  const selectedTrendSummary = useMemo(
+    () =>
+      isWorkspaceScope && selectedAiMonthKey
+        ? buildWorkspaceTrendSummary(workspace, selectedAiMonthKey)
+        : null,
+    [isWorkspaceScope, selectedAiMonthKey, workspace],
+  );
+
   function openLightbox(items: LightboxItem[], initialIndex: number) {
     setLightboxState({ items, initialIndex });
+  }
+
+  async function handleGenerateAiRecap() {
+    if (!selectedAiRecap || !selectedAiMonthKey) {
+      setAiStatusMessage(
+        "A monthly recap is required before TrackItUp can draft an AI narration.",
+      );
+      return;
+    }
+
+    const trimmedRequest = aiRequest.trim();
+    if (!trimmedRequest) {
+      setAiStatusMessage(
+        "Describe the kind of recap or narration you want before generating it.",
+      );
+      return;
+    }
+
+    const recapPrompt = buildVisualRecapPrompt({
+      workspace,
+      scopeLabel,
+      scope: historyScope,
+      monthKey: selectedAiMonthKey,
+      request: trimmedRequest,
+    });
+    if (!recapPrompt) {
+      setAiStatusMessage(
+        "TrackItUp could not find enough visual recap data for that request yet.",
+      );
+      return;
+    }
+
+    setIsGeneratingAiRecap(true);
+    void recordAiTelemetryEvent({
+      surface: "visual-recap",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: recapPrompt.system,
+      prompt: buildAiVisualRecapGenerationPrompt(recapPrompt.prompt),
+      temperature: 0.4,
+      maxOutputTokens: 900,
+    });
+    setIsGeneratingAiRecap(false);
+
+    if (result.status !== "success") {
+      setGeneratedAiRecap(null);
+      setAiStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "visual-recap",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiVisualRecapDraft(result.text);
+    if (!parsedDraft) {
+      setGeneratedAiRecap(null);
+      setAiStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a grounded recap draft. Try asking for a shorter, more specific recap.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "visual-recap",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedAiRecap({
+      request: trimmedRequest,
+      scopeLabel,
+      monthKey: selectedAiMonthKey,
+      consentLabel: recapPrompt.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      draft: parsedDraft,
+    });
+    setAiStatusMessage(
+      "Generated an AI visual recap draft. Review it carefully before showing it in this gallery.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "visual-recap",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyAiRecap() {
+    if (!generatedAiRecap) return;
+
+    setAppliedAiRecap(generatedAiRecap);
+    setGeneratedAiRecap(null);
+    setAiStatusMessage(
+      "Applied the AI narrator recap to this visual history view. Review it before sharing it elsewhere.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "visual-recap",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissAiRecapDraft() {
+    setGeneratedAiRecap(null);
+    setAiStatusMessage(
+      "Dismissed the AI recap draft. The current gallery and recaps are unchanged.",
+    );
+  }
+
+  function handleOpenTrendDestination(
+    destination?: AiCrossSpaceTrendDraft["suggestedDestination"],
+    sourceSpaceId?: string,
+  ) {
+    if (!destination || destination === "visual-history") {
+      router.push(
+        sourceSpaceId
+          ? (`/visual-history?spaceId=${sourceSpaceId}` as never)
+          : ("/visual-history" as never),
+      );
+      return;
+    }
+
+    if (destination === "planner") {
+      router.push("/planner" as never);
+      return;
+    }
+
+    if (destination === "inventory") {
+      router.push("/inventory" as never);
+      return;
+    }
+
+    router.push("/workspace-tools" as never);
+  }
+
+  function handleOpenTrendSource(source: AiCrossSpaceTrendSource) {
+    handleOpenTrendDestination(source.route, source.spaceId);
+  }
+
+  async function handleGenerateAiTrend() {
+    if (!isWorkspaceScope || !selectedAiMonthKey || !selectedTrendSummary) {
+      setTrendStatusMessage(
+        "Workspace scope and a selected month are required before TrackItUp can explain cross-space trends.",
+      );
+      return;
+    }
+
+    const trimmedRequest = trendRequest.trim();
+    if (!trimmedRequest) {
+      setTrendStatusMessage(
+        "Describe the cross-space trend or anomaly question you want answered before generating it.",
+      );
+      return;
+    }
+
+    const trendPrompt = buildCrossSpaceTrendPrompt({
+      workspace,
+      monthKey: selectedAiMonthKey,
+      userRequest: trimmedRequest,
+    });
+    setIsGeneratingAiTrend(true);
+    void recordAiTelemetryEvent({
+      surface: "cross-space-trends",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: trendPrompt.system,
+      prompt: buildAiCrossSpaceTrendGenerationPrompt(trendPrompt.prompt),
+      temperature: 0.25,
+      maxOutputTokens: 950,
+    });
+    setIsGeneratingAiTrend(false);
+
+    if (result.status !== "success") {
+      setGeneratedAiTrend(null);
+      setTrendStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "cross-space-trends",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiCrossSpaceTrendDraft(result.text, {
+      allowedSourceIds: trendPrompt.context.retrievedSources.map(
+        (source) => source.id,
+      ),
+    });
+    if (!parsedDraft) {
+      setGeneratedAiTrend(null);
+      setTrendStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a grounded trend summary. Try asking for a narrower month-over-month explanation.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "cross-space-trends",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedAiTrend({
+      request: trimmedRequest,
+      monthKey: selectedAiMonthKey,
+      consentLabel: trendPrompt.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      sources: trendPrompt.context.retrievedSources,
+      draft: parsedDraft,
+    });
+    setTrendStatusMessage(
+      `Generated a grounded trend summary for ${formatMonth(selectedAiMonthKey)}. Review the cited sources before applying it.`,
+    );
+    void recordAiTelemetryEvent({
+      surface: "cross-space-trends",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyAiTrend() {
+    if (!generatedAiTrend) return;
+    setAppliedAiTrend(generatedAiTrend);
+    setGeneratedAiTrend(null);
+    setTrendStatusMessage(
+      "Applied the cross-space trend summary. Review the cited spaces and anomalies before acting on it.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "cross-space-trends",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissAiTrendDraft() {
+    setGeneratedAiTrend(null);
+    setTrendStatusMessage(
+      "Dismissed the AI trend draft. The current gallery and recaps are unchanged.",
+    );
   }
 
   function handlePinRecapCover(monthKey: string, photoId: string) {
@@ -270,17 +629,18 @@ export default function VisualHistoryScreen() {
           badges={[
             {
               label: `${history.photoCount} photo(s)`,
-              backgroundColor: palette.card,
-              textColor: palette.tint,
+              backgroundColor: theme.colors.primaryContainer,
+              textColor: theme.colors.onPrimaryContainer,
             },
             {
               label: `${history.proofCount} proof shot(s)`,
-              backgroundColor: palette.accentSoft,
+              backgroundColor: theme.colors.tertiaryContainer,
+              textColor: theme.colors.onTertiaryContainer,
             },
             {
               label: `${history.monthlyRecaps.length} month recap(s)`,
-              backgroundColor: palette.card,
-              textColor: palette.tint,
+              backgroundColor: theme.colors.surface,
+              textColor: theme.colors.onSurface,
             },
           ]}
         />
@@ -300,6 +660,315 @@ export default function VisualHistoryScreen() {
             message={exportMessage}
             style={styles.messageCard}
           />
+        ) : null}
+
+        {history.monthlyRecaps.length > 0 ? (
+          <SectionSurface
+            palette={palette}
+            label="AI narrator target"
+            title="Choose the recap month"
+          >
+            <Text style={[styles.copy, paletteStyles.mutedText]}>
+              Pick the monthly recap you want narrated, then describe the tone
+              or audience for the AI summary.
+            </Text>
+            <ChipRow style={styles.aiMonthChipRow}>
+              {history.monthlyRecaps.map((recap) => (
+                <Chip
+                  key={recap.monthKey}
+                  compact
+                  selected={selectedAiMonthKey === recap.monthKey}
+                  style={styles.infoChip}
+                  onPress={() => setSelectedAiMonthKey(recap.monthKey)}
+                >
+                  {formatMonth(recap.monthKey)}
+                </Chip>
+              ))}
+            </ChipRow>
+            <Text style={[styles.meta, paletteStyles.mutedText]}>
+              {selectedAiRecap
+                ? `${selectedAiRecap.photoCount} photo(s) and ${selectedAiRecap.proofCount} proof shot(s) will anchor the narration.`
+                : "No recap is selected."}
+            </Text>
+          </SectionSurface>
+        ) : null}
+
+        {selectedAiRecap ? (
+          <AiPromptComposerCard
+            palette={palette}
+            label="AI visual narrator"
+            title="Draft a grounded visual recap"
+            value={aiRequest}
+            onChangeText={setAiRequest}
+            onSubmit={() => void handleGenerateAiRecap()}
+            isBusy={isGeneratingAiRecap}
+            contextChips={[
+              scopeLabel,
+              selectedAiMonthLabel ?? "No month selected",
+            ]}
+            placeholder="Example: Write a concise family update for this month that highlights progress and proof-of-completion moments."
+            helperText={aiVisualRecapCopy.getHelperText(
+              scopeLabel,
+              selectedAiMonthLabel ?? "the selected month",
+            )}
+            consentLabel={aiVisualRecapCopy.consentLabel}
+            footerNote={aiVisualRecapCopy.promptFooterNote}
+            submitLabel="Generate recap"
+          />
+        ) : null}
+
+        {aiStatusMessage ? (
+          <SectionMessage
+            palette={palette}
+            label="AI recap"
+            title="Latest narrator status"
+            message={aiStatusMessage}
+            style={styles.messageCard}
+          />
+        ) : null}
+
+        {generatedAiRecap ? (
+          <AiDraftReviewCard
+            palette={palette}
+            title="Review the AI visual recap"
+            draftKindLabel={`${generatedAiRecap.scopeLabel} • ${formatMonth(generatedAiRecap.monthKey)}`}
+            summary={`Prompt: ${generatedAiRecap.request}`}
+            consentLabel={generatedAiRecap.consentLabel}
+            footerNote={aiVisualRecapCopy.reviewFooterNote}
+            statusLabel="Draft ready"
+            modelLabel={generatedAiRecap.modelId}
+            usage={generatedAiRecap.usage}
+            contextChips={[
+              generatedAiRecap.scopeLabel,
+              formatMonth(generatedAiRecap.monthKey),
+            ]}
+            items={buildAiVisualRecapReviewItems(generatedAiRecap.draft)}
+            acceptLabel="Show in gallery"
+            editLabel="Dismiss draft"
+            regenerateLabel="Generate again"
+            onAccept={handleApplyAiRecap}
+            onEdit={handleDismissAiRecapDraft}
+            onRegenerate={() => void handleGenerateAiRecap()}
+            isBusy={isGeneratingAiRecap}
+          />
+        ) : null}
+
+        {appliedAiRecap ? (
+          <SectionSurface
+            palette={palette}
+            label="AI narrator"
+            title={appliedAiRecap.draft.headline}
+          >
+            <ChipRow style={styles.aiMonthChipRow}>
+              <Chip compact style={styles.infoChip}>
+                {formatMonth(appliedAiRecap.monthKey)}
+              </Chip>
+              <Chip compact style={styles.infoChip}>
+                {appliedAiRecap.scopeLabel}
+              </Chip>
+            </ChipRow>
+            {appliedAiRecap.draft.summary ? (
+              <Text style={[styles.copy, { color: theme.colors.onSurface }]}>
+                {appliedAiRecap.draft.summary}
+              </Text>
+            ) : null}
+            {appliedAiRecap.draft.highlights.length > 0 ? (
+              <View style={styles.aiHighlightList}>
+                {appliedAiRecap.draft.highlights.map((highlight) => (
+                  <Text
+                    key={`${appliedAiRecap.monthKey}-${highlight}`}
+                    style={[styles.meta, { color: theme.colors.onSurface }]}
+                  >
+                    • {highlight}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            {appliedAiRecap.draft.nextFocus ? (
+              <Text style={[styles.meta, paletteStyles.mutedText]}>
+                Next focus: {appliedAiRecap.draft.nextFocus}
+              </Text>
+            ) : null}
+            <ActionButtonRow style={styles.recapActionRow}>
+              <Button
+                mode="outlined"
+                textColor={theme.colors.primary}
+                onPress={() => setAppliedAiRecap(null)}
+              >
+                Clear recap
+              </Button>
+              <Button
+                mode="contained"
+                buttonColor={theme.colors.primary}
+                textColor={theme.colors.onPrimary}
+                onPress={() => void handleGenerateAiRecap()}
+                disabled={isGeneratingAiRecap}
+              >
+                Refresh recap
+              </Button>
+            </ActionButtonRow>
+          </SectionSurface>
+        ) : null}
+
+        {isWorkspaceScope && selectedTrendSummary ? (
+          <AiPromptComposerCard
+            palette={palette}
+            label="AI trend analyst"
+            title="Explain cross-space trends and anomalies"
+            value={trendRequest}
+            onChangeText={setTrendRequest}
+            onSubmit={() => void handleGenerateAiTrend()}
+            isBusy={isGeneratingAiTrend}
+            contextChips={[
+              selectedAiMonthLabel ?? "No month selected",
+              `${selectedTrendSummary.anomalies.length} anomaly${selectedTrendSummary.anomalies.length === 1 ? "" : "ies"}`,
+              `${selectedTrendSummary.totals.activeSpaceCount} active space${selectedTrendSummary.totals.activeSpaceCount === 1 ? "" : "s"}`,
+            ]}
+            placeholder="Example: Summarize the strongest month-over-month changes across spaces and explain which anomalies need follow-up first."
+            helperText={aiCrossSpaceTrendCopy.helperText}
+            consentLabel={aiCrossSpaceTrendCopy.consentLabel}
+            footerNote={aiCrossSpaceTrendCopy.promptFooterNote}
+            submitLabel="Generate trend summary"
+          />
+        ) : null}
+
+        {trendStatusMessage ? (
+          <SectionMessage
+            palette={palette}
+            label="AI trends"
+            title="Latest trend summary status"
+            message={trendStatusMessage}
+            style={styles.messageCard}
+          />
+        ) : null}
+
+        {generatedAiTrend ? (
+          <AiDraftReviewCard
+            palette={palette}
+            title="Review the AI trend summary"
+            draftKindLabel={`Workspace • ${formatMonth(generatedAiTrend.monthKey)}`}
+            summary={`Prompt: ${generatedAiTrend.request}`}
+            consentLabel={generatedAiTrend.consentLabel}
+            footerNote={aiCrossSpaceTrendCopy.reviewFooterNote}
+            statusLabel="Draft ready"
+            modelLabel={generatedAiTrend.modelId}
+            usage={generatedAiTrend.usage}
+            contextChips={[
+              formatMonth(generatedAiTrend.monthKey),
+              `${generatedAiTrend.draft.citedSourceIds.length} cited source${generatedAiTrend.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+            ]}
+            items={buildAiCrossSpaceTrendReviewItems(
+              generatedAiTrend.draft,
+              generatedAiTrend.sources,
+            )}
+            acceptLabel="Apply summary"
+            editLabel="Dismiss draft"
+            regenerateLabel="Generate again"
+            onAccept={handleApplyAiTrend}
+            onEdit={handleDismissAiTrendDraft}
+            onRegenerate={() => void handleGenerateAiTrend()}
+            isBusy={isGeneratingAiTrend}
+          />
+        ) : null}
+
+        {appliedAiTrend ? (
+          <SectionSurface
+            palette={palette}
+            label="AI trends"
+            title={appliedAiTrend.draft.headline}
+          >
+            <ChipRow style={styles.aiMonthChipRow}>
+              <Chip compact style={styles.infoChip}>
+                {formatMonth(appliedAiTrend.monthKey)}
+              </Chip>
+              {appliedAiTrend.draft.suggestedDestination ? (
+                <Chip compact style={styles.infoChip}>
+                  {formatAiCrossSpaceTrendDestinationLabel(
+                    appliedAiTrend.draft.suggestedDestination,
+                  )}
+                </Chip>
+              ) : null}
+            </ChipRow>
+            {appliedAiTrend.draft.summary ? (
+              <Text style={[styles.copy, { color: theme.colors.onSurface }]}>
+                {appliedAiTrend.draft.summary}
+              </Text>
+            ) : null}
+            {appliedAiTrend.draft.keySignals.length > 0 ? (
+              <View style={styles.aiHighlightList}>
+                {appliedAiTrend.draft.keySignals.map((signal) => (
+                  <Text
+                    key={signal}
+                    style={[styles.meta, { color: theme.colors.onSurface }]}
+                  >
+                    • {signal}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+            {appliedAiTrend.draft.caution ? (
+              <Text style={[styles.meta, paletteStyles.mutedText]}>
+                Caution: {appliedAiTrend.draft.caution}
+              </Text>
+            ) : null}
+            {appliedAiTrend.sources
+              .filter((source) =>
+                appliedAiTrend.draft.citedSourceIds.includes(source.id),
+              )
+              .map((source) => (
+                <Surface
+                  key={source.id}
+                  style={[
+                    styles.galleryRow,
+                    styles.trendSourceCard,
+                    {
+                      backgroundColor: theme.colors.elevation.level1,
+                      borderColor: theme.colors.outlineVariant,
+                    },
+                  ]}
+                  elevation={1}
+                >
+                  <View style={styles.galleryCopy}>
+                    <Text style={styles.galleryTitle}>
+                      {formatAiCrossSpaceTrendSourceLabel(source)}
+                    </Text>
+                    <Text style={[styles.meta, paletteStyles.mutedText]}>
+                      {source.snippet}
+                    </Text>
+                  </View>
+                  <Button
+                    mode="outlined"
+                    textColor={theme.colors.primary}
+                    onPress={() => handleOpenTrendSource(source)}
+                  >
+                    {formatAiCrossSpaceTrendDestinationLabel(source.route)}
+                  </Button>
+                </Surface>
+              ))}
+            <ActionButtonRow style={styles.recapActionRow}>
+              <Button
+                mode="outlined"
+                textColor={theme.colors.primary}
+                onPress={() => setAppliedAiTrend(null)}
+              >
+                Clear summary
+              </Button>
+              <Button
+                mode="contained"
+                buttonColor={theme.colors.primary}
+                textColor={theme.colors.onPrimary}
+                onPress={() =>
+                  handleOpenTrendDestination(
+                    appliedAiTrend.draft.suggestedDestination,
+                  )
+                }
+              >
+                {formatAiCrossSpaceTrendDestinationLabel(
+                  appliedAiTrend.draft.suggestedDestination ?? "visual-history",
+                )}
+              </Button>
+            </ActionButtonRow>
+          </SectionSurface>
         ) : null}
 
         {history.photos.length === 0 ? (
@@ -334,9 +1003,13 @@ export default function VisualHistoryScreen() {
                     (item, index) => (
                       <Pressable
                         key={item.id}
-                        style={[
+                        style={({ pressed }) => [
                           styles.comparisonCard,
-                          paletteStyles.cardChipSurface,
+                          {
+                            backgroundColor: theme.colors.elevation.level1,
+                            borderColor: theme.colors.outlineVariant,
+                            opacity: pressed ? 0.94 : 1,
+                          },
                         ]}
                         onPress={() =>
                           openLightbox(
@@ -373,7 +1046,17 @@ export default function VisualHistoryScreen() {
                 title="Progress galleries"
               >
                 {history.assetGalleries.map((gallery) => (
-                  <View key={gallery.id} style={styles.galleryRow}>
+                  <Surface
+                    key={gallery.id}
+                    style={[
+                      styles.galleryRow,
+                      {
+                        backgroundColor: theme.colors.elevation.level1,
+                        borderColor: theme.colors.outlineVariant,
+                      },
+                    ]}
+                    elevation={1}
+                  >
                     <Image
                       source={{ uri: gallery.latestUri }}
                       style={styles.galleryThumb}
@@ -387,6 +1070,7 @@ export default function VisualHistoryScreen() {
                     </View>
                     <Button
                       mode="outlined"
+                      textColor={theme.colors.primary}
                       onPress={() =>
                         router.push(
                           `/visual-history?assetId=${gallery.id}` as never,
@@ -395,7 +1079,7 @@ export default function VisualHistoryScreen() {
                     >
                       Open
                     </Button>
-                  </View>
+                  </Surface>
                 ))}
               </SectionSurface>
             ) : null}
@@ -415,16 +1099,17 @@ export default function VisualHistoryScreen() {
                   ] === recap.coverPhotoId;
 
                 return (
-                  <View
+                  <Surface
                     key={recap.monthKey}
                     style={[
                       styles.recapCard,
                       {
-                        backgroundColor: palette.surface1,
-                        borderColor: palette.border,
-                        shadowColor: palette.shadow,
+                        backgroundColor: theme.colors.elevation.level1,
+                        borderColor: theme.colors.outlineVariant,
+                        shadowColor: theme.colors.shadow,
                       },
                     ]}
+                    elevation={2}
                   >
                     <View style={styles.recapHeaderRow}>
                       <View style={styles.recapHeaderCopy}>
@@ -439,16 +1124,48 @@ export default function VisualHistoryScreen() {
                         </Text>
                       </View>
                       {isPinnedCover ? (
-                        <Chip compact style={styles.infoChip}>
+                        <Chip
+                          compact
+                          style={[
+                            styles.infoChip,
+                            {
+                              backgroundColor: theme.colors.secondaryContainer,
+                            },
+                          ]}
+                          textStyle={[
+                            styles.infoChipText,
+                            { color: theme.colors.onSecondaryContainer },
+                          ]}
+                        >
                           Favorite cover pinned
                         </Chip>
                       ) : null}
                     </View>
                     <ChipRow style={styles.recapChipRow}>
-                      <Chip compact style={styles.infoChip}>
+                      <Chip
+                        compact
+                        style={[
+                          styles.infoChip,
+                          { backgroundColor: theme.colors.surfaceVariant },
+                        ]}
+                        textStyle={[
+                          styles.infoChipText,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
                         {recap.photoCount} photo(s)
                       </Chip>
-                      <Chip compact style={styles.infoChip}>
+                      <Chip
+                        compact
+                        style={[
+                          styles.infoChip,
+                          { backgroundColor: theme.colors.surfaceVariant },
+                        ]}
+                        textStyle={[
+                          styles.infoChipText,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
                         {recap.proofCount} proof shot(s)
                       </Chip>
                     </ChipRow>
@@ -498,12 +1215,12 @@ export default function VisualHistoryScreen() {
                             {
                               backgroundColor:
                                 recap.coverPhotoId === item.id
-                                  ? palette.primaryContainer
-                                  : palette.card,
+                                  ? theme.colors.primaryContainer
+                                  : theme.colors.elevation.level1,
                               borderColor:
                                 recap.coverPhotoId === item.id
-                                  ? palette.tint
-                                  : palette.border,
+                                  ? theme.colors.primary
+                                  : theme.colors.outlineVariant,
                             },
                           ]}
                         >
@@ -544,6 +1261,16 @@ export default function VisualHistoryScreen() {
                                 ? "contained-tonal"
                                 : "text"
                             }
+                            buttonColor={
+                              recap.coverPhotoId === item.id
+                                ? theme.colors.secondaryContainer
+                                : undefined
+                            }
+                            textColor={
+                              recap.coverPhotoId === item.id
+                                ? theme.colors.onSecondaryContainer
+                                : theme.colors.primary
+                            }
                             contentStyle={styles.highlightButtonContent}
                             onPress={() =>
                               handlePinRecapCover(recap.monthKey, item.id)
@@ -556,9 +1283,16 @@ export default function VisualHistoryScreen() {
                         </View>
                       ))}
                     </View>
-                    <ActionButtonRow style={styles.recapActionRow}>
+                    <ActionButtonRow
+                      style={[
+                        styles.recapActionRow,
+                        { borderTopColor: theme.colors.outlineVariant },
+                      ]}
+                    >
                       <Button
                         mode="contained"
+                        buttonColor={theme.colors.primary}
+                        textColor={theme.colors.onPrimary}
                         onPress={() =>
                           void handleExportRecap(recap.monthKey, "share")
                         }
@@ -569,6 +1303,7 @@ export default function VisualHistoryScreen() {
                       </Button>
                       <Button
                         mode="outlined"
+                        textColor={theme.colors.primary}
                         onPress={() =>
                           void handleExportRecap(recap.monthKey, "export")
                         }
@@ -577,7 +1312,7 @@ export default function VisualHistoryScreen() {
                         Export PDF
                       </Button>
                     </ActionButtonRow>
-                  </View>
+                  </Surface>
                 );
               })}
             </SectionSurface>
@@ -588,9 +1323,16 @@ export default function VisualHistoryScreen() {
               title="Progress gallery"
             >
               {history.photos.map((photo) => (
-                <View
+                <Surface
                   key={photo.id}
-                  style={[styles.photoCard, paletteStyles.cardChipSurface]}
+                  style={[
+                    styles.photoCard,
+                    {
+                      backgroundColor: theme.colors.elevation.level1,
+                      borderColor: theme.colors.outlineVariant,
+                    },
+                  ]}
+                  elevation={1}
                 >
                   <Pressable
                     onPress={() =>
@@ -607,14 +1349,46 @@ export default function VisualHistoryScreen() {
                   </Pressable>
                   <View style={styles.photoCopy}>
                     <ChipRow style={styles.photoChipRow}>
-                      <Chip compact style={styles.infoChip}>
+                      <Chip
+                        compact
+                        style={[
+                          styles.infoChip,
+                          { backgroundColor: theme.colors.surfaceVariant },
+                        ]}
+                        textStyle={[
+                          styles.infoChipText,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
                         {photo.spaceName}
                       </Chip>
-                      <Chip compact style={styles.infoChip}>
+                      <Chip
+                        compact
+                        style={[
+                          styles.infoChip,
+                          { backgroundColor: theme.colors.surfaceVariant },
+                        ]}
+                        textStyle={[
+                          styles.infoChipText,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
                         {formatDateTime(photo.capturedAt)}
                       </Chip>
                       {photo.proofLabel ? (
-                        <Chip compact style={styles.infoChip}>
+                        <Chip
+                          compact
+                          style={[
+                            styles.infoChip,
+                            {
+                              backgroundColor: theme.colors.secondaryContainer,
+                            },
+                          ]}
+                          textStyle={[
+                            styles.infoChipText,
+                            { color: theme.colors.onSecondaryContainer },
+                          ]}
+                        >
                           {photo.proofLabel}
                         </Chip>
                       ) : null}
@@ -631,6 +1405,7 @@ export default function VisualHistoryScreen() {
                     <ActionButtonRow>
                       <Button
                         mode="outlined"
+                        textColor={theme.colors.primary}
                         onPress={() =>
                           router.push(
                             `/logbook?entryId=${photo.logId}` as never,
@@ -642,6 +1417,7 @@ export default function VisualHistoryScreen() {
                       {!assetId && photo.assetIds.length === 1 ? (
                         <Button
                           mode="text"
+                          textColor={theme.colors.primary}
                           onPress={() =>
                             router.push(
                               `/visual-history?assetId=${photo.assetIds[0]}` as never,
@@ -653,7 +1429,7 @@ export default function VisualHistoryScreen() {
                       ) : null}
                     </ActionButtonRow>
                   </View>
-                </View>
+                </Surface>
               ))}
             </SectionSurface>
           </>
@@ -678,6 +1454,8 @@ const styles = StyleSheet.create({
   messageCard: { marginBottom: uiSpace.xl },
   copy: uiTypography.body,
   meta: uiTypography.bodySmall,
+  aiMonthChipRow: { marginTop: uiSpace.md },
+  aiHighlightList: { marginTop: uiSpace.md, gap: uiSpace.xs },
   comparisonMetaRow: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -690,12 +1468,16 @@ const styles = StyleSheet.create({
     gap: uiSpace.xs,
     borderRadius: uiRadius.xl,
     padding: uiSpace.surface,
+    borderWidth: uiBorder.standard,
   },
   comparisonLabel: { ...uiTypography.label, marginBottom: 4 },
   galleryRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: uiSpace.md,
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.md,
     marginBottom: uiSpace.lg,
   },
   galleryThumb: {
@@ -768,9 +1550,13 @@ const styles = StyleSheet.create({
     marginTop: uiSpace.md,
     paddingTop: uiSpace.md,
     borderTopWidth: uiBorder.hairline,
-    borderTopColor: "rgba(148, 163, 184, 0.3)",
+  },
+  trendSourceCard: {
+    marginTop: uiSpace.md,
+    marginBottom: 0,
   },
   infoChip: { borderRadius: uiRadius.md },
+  infoChipText: uiTypography.chip,
   highlightStrip: { flexDirection: "row", flexWrap: "wrap", gap: uiSpace.sm },
   highlightCard: {
     width: 112,
@@ -792,6 +1578,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#00000014",
   },
   photoCard: {
+    borderWidth: uiBorder.standard,
     borderRadius: uiRadius.xl,
     marginBottom: uiSpace.xl,
     overflow: "hidden",

@@ -13,6 +13,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { DynamicFormRenderer } from "@/components/DynamicFormRenderer";
 import { Text } from "@/components/Themed";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { ChipRow } from "@/components/ui/ChipRow";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -28,6 +30,15 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import { aiSchemaBuilderCopy } from "@/services/ai/aiConsentCopy";
+import { buildSchemaBuilderPrompt } from "@/services/ai/aiPromptBuilders";
+import {
+    buildAiSchemaDraftReviewItems,
+    buildAiSchemaGenerationPrompt,
+    parseAiSchemaTemplateDraft,
+} from "@/services/ai/aiSchemaDraft";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
     buildInitialFormValues,
     normalizeFormValues,
@@ -44,12 +55,25 @@ import {
     getBuilderFieldTypeLabel,
     hasCustomSchemaFieldLabelConflict,
     type CustomSchemaFieldDraft,
+    type CustomSchemaTemplateDraft,
 } from "@/services/templates/customSchema";
 import type { QuickActionKind } from "@/types/trackitup";
 
 const quickActionKinds = Object.keys(
   customSchemaQuickActionLabels,
 ) as QuickActionKind[];
+
+type GeneratedAiSchemaDraft = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  draft: CustomSchemaTemplateDraft;
+};
 
 export default function SchemaBuilderScreen() {
   const colorScheme = useColorScheme();
@@ -69,6 +93,10 @@ export default function SchemaBuilderScreen() {
   const [quickActionKind, setQuickActionKind] =
     useState<QuickActionKind>("quick-log");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [aiGoal, setAiGoal] = useState("");
+  const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
+  const [generatedAiDraft, setGeneratedAiDraft] =
+    useState<GeneratedAiSchemaDraft | null>(null);
   const [extraFields, setExtraFields] = useState<CustomSchemaFieldDraft[]>([]);
   const [fieldDraft, setFieldDraft] = useState<CustomSchemaFieldDraft>({
     label: "",
@@ -174,6 +202,102 @@ export default function SchemaBuilderScreen() {
     }
   }
 
+  async function handleGenerateAiDraft() {
+    const trimmedGoal = aiGoal.trim();
+    if (!trimmedGoal) {
+      setStatusMessage(
+        "Describe the schema you want before generating a draft.",
+      );
+      return;
+    }
+
+    setIsGeneratingAiDraft(true);
+    const schemaPrompt = buildSchemaBuilderPrompt({
+      workspace,
+      userGoal: trimmedGoal,
+      quickActionKind,
+    });
+    void recordAiTelemetryEvent({
+      surface: "schema-builder",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: schemaPrompt.system,
+      prompt: buildAiSchemaGenerationPrompt(schemaPrompt.prompt),
+      temperature: 0.3,
+      maxOutputTokens: 1_100,
+    });
+    setIsGeneratingAiDraft(false);
+
+    if (result.status !== "success") {
+      setGeneratedAiDraft(null);
+      setStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "schema-builder",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiSchemaTemplateDraft(
+      result.text,
+      quickActionKind,
+    );
+    if (!parsedDraft) {
+      setGeneratedAiDraft(null);
+      setStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a schema draft. Try asking for a smaller, more specific template.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "schema-builder",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedAiDraft({
+      request: trimmedGoal,
+      consentLabel: schemaPrompt.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      draft: parsedDraft,
+    });
+    setStatusMessage(
+      "Generated an AI schema draft. Review it carefully before applying it to the builder.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "schema-builder",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyAiDraft() {
+    if (!generatedAiDraft) return;
+
+    setName(generatedAiDraft.draft.name);
+    setSummary(generatedAiDraft.draft.summary);
+    setCategory(generatedAiDraft.draft.category);
+    setQuickActionKind(generatedAiDraft.draft.quickActionKind);
+    setExtraFields(
+      generatedAiDraft.draft.extraFields.map((field) => ({ ...field })),
+    );
+    setGeneratedAiDraft(null);
+    setStatusMessage(
+      "Applied the AI schema draft to the builder. Review the fields below, then save when you're ready.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "schema-builder",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissAiDraft() {
+    setGeneratedAiDraft(null);
+    setStatusMessage(
+      "Dismissed the AI schema draft. Your current manual builder inputs are unchanged.",
+    );
+  }
+
   const pageQuickActions = [
     {
       id: "schema-builder-save",
@@ -219,6 +343,55 @@ export default function SchemaBuilderScreen() {
           description="Save the current template, jump into the live logbook, or open supporting tools without losing the builder context."
           actions={pageQuickActions}
         />
+
+        <AiPromptComposerCard
+          palette={palette}
+          label="AI schema builder"
+          title="Generate a template from a plain-language goal"
+          value={aiGoal}
+          onChangeText={setAiGoal}
+          onSubmit={() => void handleGenerateAiDraft()}
+          isBusy={isGeneratingAiDraft}
+          contextChips={[
+            customSchemaQuickActionLabels[quickActionKind],
+            `${totalFieldCount} field${totalFieldCount === 1 ? "" : "s"} in preview`,
+          ]}
+          helperText={aiSchemaBuilderCopy.getHelperText(
+            customSchemaQuickActionLabels[quickActionKind],
+          )}
+          consentLabel={aiSchemaBuilderCopy.consentLabel}
+          footerNote={aiSchemaBuilderCopy.promptFooterNote}
+          submitLabel="Generate template"
+        />
+
+        {generatedAiDraft ? (
+          <AiDraftReviewCard
+            palette={palette}
+            title="Review the AI schema draft"
+            draftKindLabel={
+              customSchemaQuickActionLabels[
+                generatedAiDraft.draft.quickActionKind
+              ]
+            }
+            summary={`Prompt: ${generatedAiDraft.request}`}
+            consentLabel={generatedAiDraft.consentLabel}
+            footerNote={aiSchemaBuilderCopy.reviewFooterNote}
+            statusLabel="Draft ready"
+            modelLabel={generatedAiDraft.modelId}
+            usage={generatedAiDraft.usage}
+            contextChips={[
+              `${generatedAiDraft.draft.extraFields.length} custom field${generatedAiDraft.draft.extraFields.length === 1 ? "" : "s"}`,
+            ]}
+            items={buildAiSchemaDraftReviewItems(generatedAiDraft.draft)}
+            acceptLabel="Apply to builder"
+            editLabel="Dismiss draft"
+            regenerateLabel="Generate again"
+            onAccept={handleApplyAiDraft}
+            onEdit={handleDismissAiDraft}
+            onRegenerate={() => void handleGenerateAiDraft()}
+            isBusy={isGeneratingAiDraft}
+          />
+        ) : null}
 
         <SectionSurface
           palette={palette}

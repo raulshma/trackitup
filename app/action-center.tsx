@@ -1,22 +1,112 @@
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { Button, Chip } from "react-native-paper";
+import {
+    Button,
+    Chip,
+    Surface,
+    useTheme,
+    type MD3Theme,
+} from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { ChipRow } from "@/components/ui/ChipRow";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
-import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import {
+    buildAiActionCenterExplainerGenerationPrompt,
+    buildAiActionCenterExplainerReviewItems,
+    parseAiActionCenterExplainerDraft,
+    type AiActionCenterExplainerActionKind,
+    type AiActionCenterExplainerDraft,
+} from "@/services/ai/aiActionCenterExplainer";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import {
+    aiActionCenterExplainerCopy,
+    aiTrackingQualityCopy,
+    aiWorkspaceQaCopy,
+} from "@/services/ai/aiConsentCopy";
+import {
+    buildActionCenterExplainerPrompt,
+    buildTrackingQualityPrompt,
+    buildWorkspaceQaPrompt,
+} from "@/services/ai/aiPromptBuilders";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
+import {
+    buildAiTrackingQualityGenerationPrompt,
+    buildAiTrackingQualityReviewItems,
+    formatAiTrackingQualityDestinationLabel,
+    formatAiTrackingQualitySourceLabel,
+    parseAiTrackingQualityDraft,
+    type AiTrackingQualityDraft,
+    type AiTrackingQualitySource,
+} from "@/services/ai/aiTrackingQuality";
+import {
+    buildAiWorkspaceQaGenerationPrompt,
+    buildAiWorkspaceQaReviewItems,
+    formatAiWorkspaceQaDestinationLabel,
+    formatAiWorkspaceQaSourceLabel,
+    parseAiWorkspaceQaDraft,
+    type AiWorkspaceQaDraft,
+    type AiWorkspaceQaSource,
+} from "@/services/ai/aiWorkspaceQa";
 import { getReminderScheduleTimestamp } from "@/services/insights/workspaceInsights";
+import { buildWorkspaceTrackingQualitySummary } from "@/services/insights/workspaceTrackingQuality";
 import { buildReminderActionCenter } from "@/services/reminders/reminderActionCenter";
 import type { WorkspaceRecommendation } from "@/types/trackitup";
+
+type GeneratedAiActionCenterDraft = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  draft: AiActionCenterExplainerDraft;
+};
+
+type GeneratedAiWorkspaceQaDraft = {
+  question: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  sources: AiWorkspaceQaSource[];
+  draft: AiWorkspaceQaDraft;
+};
+
+type GeneratedAiTrackingQualityDraft = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  sources: AiTrackingQualitySource[];
+  draft: AiTrackingQualityDraft;
+};
 
 function formatTimestamp(timestamp: string) {
   return new Date(timestamp).toLocaleString([], {
@@ -27,9 +117,18 @@ function formatTimestamp(timestamp: string) {
   });
 }
 
+function getSuggestedActionLabel(action: AiActionCenterExplainerActionKind) {
+  if (action === "complete-now") return "Complete now";
+  if (action === "log-proof") return "Log proof";
+  if (action === "snooze") return "Snooze";
+  if (action === "open-planner") return "Open planner";
+  return "Review later";
+}
+
 export default function ActionCenterScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const theme = useTheme<MD3Theme>();
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
@@ -42,13 +141,52 @@ export default function ActionCenterScreen() {
     snoozeReminder,
     workspace,
   } = useWorkspace();
+  const [aiRequest, setAiRequest] = useState("");
+  const [aiStatusMessage, setAiStatusMessage] = useState<string | null>(null);
+  const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
+  const [generatedAiDraft, setGeneratedAiDraft] =
+    useState<GeneratedAiActionCenterDraft | null>(null);
+  const [appliedAiDraft, setAppliedAiDraft] =
+    useState<GeneratedAiActionCenterDraft | null>(null);
+  const [trackingQualityRequest, setTrackingQualityRequest] = useState("");
+  const [trackingQualityStatusMessage, setTrackingQualityStatusMessage] =
+    useState<string | null>(null);
+  const [
+    isGeneratingTrackingQualityDraft,
+    setIsGeneratingTrackingQualityDraft,
+  ] = useState(false);
+  const [generatedTrackingQualityDraft, setGeneratedTrackingQualityDraft] =
+    useState<GeneratedAiTrackingQualityDraft | null>(null);
+  const [appliedTrackingQualityDraft, setAppliedTrackingQualityDraft] =
+    useState<GeneratedAiTrackingQualityDraft | null>(null);
+  const [workspaceQaQuestion, setWorkspaceQaQuestion] = useState("");
+  const [workspaceQaStatusMessage, setWorkspaceQaStatusMessage] = useState<
+    string | null
+  >(null);
+  const [isGeneratingWorkspaceQaDraft, setIsGeneratingWorkspaceQaDraft] =
+    useState(false);
+  const [generatedWorkspaceQaDraft, setGeneratedWorkspaceQaDraft] =
+    useState<GeneratedAiWorkspaceQaDraft | null>(null);
+  const [appliedWorkspaceQaDraft, setAppliedWorkspaceQaDraft] =
+    useState<GeneratedAiWorkspaceQaDraft | null>(null);
   const actionCenter = useMemo(
     () => buildReminderActionCenter(workspace),
+    [workspace],
+  );
+  const trackingQualitySummary = useMemo(
+    () => buildWorkspaceTrackingQualitySummary(workspace),
     [workspace],
   );
   const spacesById = useMemo(
     () => new Map(workspace.spaces.map((space) => [space.id, space] as const)),
     [workspace.spaces],
+  );
+  const remindersById = useMemo(
+    () =>
+      new Map(
+        workspace.reminders.map((reminder) => [reminder.id, reminder] as const),
+      ),
+    [workspace.reminders],
   );
 
   function openRecommendation(recommendation: WorkspaceRecommendation) {
@@ -69,6 +207,147 @@ export default function ActionCenterScreen() {
             : {}),
         },
       });
+      return;
+    }
+
+    router.push("/planner");
+  }
+
+  function getSeverityChipColors(
+    severity: WorkspaceRecommendation["severity"],
+  ) {
+    if (severity === "high") {
+      return {
+        backgroundColor: theme.colors.errorContainer,
+        color: theme.colors.onErrorContainer,
+      };
+    }
+
+    if (severity === "medium") {
+      return {
+        backgroundColor: theme.colors.tertiaryContainer,
+        color: theme.colors.onTertiaryContainer,
+      };
+    }
+
+    return {
+      backgroundColor: theme.colors.secondaryContainer,
+      color: theme.colors.onSecondaryContainer,
+    };
+  }
+
+  function getReminderStatusColors(status: string) {
+    if (status === "overdue") {
+      return {
+        backgroundColor: theme.colors.errorContainer,
+        color: theme.colors.onErrorContainer,
+      };
+    }
+
+    if (status === "due-today") {
+      return {
+        backgroundColor: theme.colors.tertiaryContainer,
+        color: theme.colors.onTertiaryContainer,
+      };
+    }
+
+    return {
+      backgroundColor: theme.colors.secondaryContainer,
+      color: theme.colors.onSecondaryContainer,
+    };
+  }
+
+  function openReminderLogbook(reminderId: string, spaceId: string) {
+    router.push(
+      `/logbook?actionId=quick-log&spaceId=${spaceId}&reminderId=${reminderId}` as never,
+    );
+  }
+
+  function handleOpenTrackingQualityDestination(
+    destination?: AiTrackingQualityDraft["suggestedDestination"],
+    source?: Pick<
+      AiTrackingQualitySource,
+      "actionId" | "spaceId" | "reminderId"
+    >,
+  ) {
+    if (!destination || destination === "action-center") {
+      router.push("/action-center" as never);
+      return;
+    }
+
+    if (destination === "planner") {
+      router.push("/planner" as never);
+      return;
+    }
+
+    if (destination === "workspace-tools") {
+      router.push("/workspace-tools" as never);
+      return;
+    }
+
+    router.push({
+      pathname: "/logbook",
+      params: {
+        ...(source?.actionId ? { actionId: source.actionId } : {}),
+        ...(source?.spaceId ? { spaceId: source.spaceId } : {}),
+        ...(source?.reminderId ? { reminderId: source.reminderId } : {}),
+      },
+    });
+  }
+
+  function handleOpenTrackingQualitySource(source: AiTrackingQualitySource) {
+    handleOpenTrackingQualityDestination(source.route, source);
+  }
+
+  function handleOpenWorkspaceQaDestination(
+    destination?: AiWorkspaceQaDraft["suggestedDestination"],
+  ) {
+    if (!destination || destination === "action-center") {
+      router.push("/action-center" as never);
+      return;
+    }
+
+    if (destination === "planner") {
+      router.push("/planner" as never);
+      return;
+    }
+
+    if (destination === "inventory") {
+      router.push("/inventory" as never);
+      return;
+    }
+
+    if (destination === "logbook") {
+      router.push("/logbook" as never);
+      return;
+    }
+
+    router.push("/workspace-tools" as never);
+  }
+
+  function handleOpenWorkspaceQaSource(source: AiWorkspaceQaSource) {
+    handleOpenWorkspaceQaDestination(source.route);
+  }
+
+  function handleSuggestedReminderAction(
+    reminderId: string,
+    action: AiActionCenterExplainerActionKind,
+  ) {
+    const reminder = remindersById.get(reminderId);
+    if (!reminder) return;
+
+    if (action === "complete-now") {
+      completeReminder(reminder.id);
+      return;
+    }
+
+    if (action === "log-proof") {
+      openReminderLogbook(reminder.id, reminder.spaceId);
+      return;
+    }
+
+    if (action === "snooze") {
+      snoozeReminder(reminder.id);
       return;
     }
 
@@ -114,6 +393,277 @@ export default function ActionCenterScreen() {
     },
   ];
 
+  async function handleGenerateAiDraft() {
+    const trimmedRequest = aiRequest.trim();
+    if (!trimmedRequest) {
+      setAiStatusMessage(
+        "Describe what kind of queue explanation or next-step guidance you want before generating an AI explainer.",
+      );
+      return;
+    }
+
+    const promptDraft = buildActionCenterExplainerPrompt({
+      workspace,
+      userRequest: trimmedRequest,
+    });
+    setIsGeneratingAiDraft(true);
+    void recordAiTelemetryEvent({
+      surface: "action-center-explainer",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiActionCenterExplainerGenerationPrompt(promptDraft.prompt),
+      temperature: 0.35,
+      maxOutputTokens: 950,
+    });
+    setIsGeneratingAiDraft(false);
+
+    if (result.status !== "success") {
+      setGeneratedAiDraft(null);
+      setAiStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "action-center-explainer",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiActionCenterExplainerDraft(
+      result.text,
+      workspace.reminders.map((reminder) => ({
+        id: reminder.id,
+        title: reminder.title,
+      })),
+    );
+    if (!parsedDraft) {
+      setGeneratedAiDraft(null);
+      setAiStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a reviewable action-center explainer. Try asking for a shorter, more specific explanation.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "action-center-explainer",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedAiDraft({
+      request: trimmedRequest,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      draft: parsedDraft,
+    });
+    setAiStatusMessage(
+      "Generated an AI action-center explainer. Review it carefully before applying it to the queue.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "action-center-explainer",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyAiDraft() {
+    if (!generatedAiDraft) return;
+    setAppliedAiDraft(generatedAiDraft);
+    setGeneratedAiDraft(null);
+    setAiStatusMessage(
+      "Applied the AI action-center explainer. Review each suggested move before changing any reminder state.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "action-center-explainer",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissAiDraft() {
+    setGeneratedAiDraft(null);
+    setAiStatusMessage(
+      "Dismissed the AI action-center draft. Your current queue is unchanged.",
+    );
+  }
+
+  async function handleGenerateTrackingQualityDraft() {
+    const trimmedRequest = trackingQualityRequest.trim();
+    if (!trimmedRequest) {
+      setTrackingQualityStatusMessage(
+        "Describe what tracking-quality gap you want explained before generating a brief.",
+      );
+      return;
+    }
+
+    const promptDraft = buildTrackingQualityPrompt({
+      workspace,
+      userRequest: trimmedRequest,
+    });
+    setIsGeneratingTrackingQualityDraft(true);
+    void recordAiTelemetryEvent({
+      surface: "tracking-quality-brief",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiTrackingQualityGenerationPrompt(promptDraft.prompt),
+      temperature: 0.2,
+      maxOutputTokens: 900,
+    });
+    setIsGeneratingTrackingQualityDraft(false);
+
+    if (result.status !== "success") {
+      setGeneratedTrackingQualityDraft(null);
+      setTrackingQualityStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "tracking-quality-brief",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiTrackingQualityDraft(result.text, {
+      allowedSourceIds: promptDraft.context.retrievedSources.map(
+        (source) => source.id,
+      ),
+    });
+    if (!parsedDraft) {
+      setGeneratedTrackingQualityDraft(null);
+      setTrackingQualityStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a grounded tracking-quality brief. Try asking what should be recorded next for one space, reminder group, or metric set.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "tracking-quality-brief",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedTrackingQualityDraft({
+      request: trimmedRequest,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      sources: promptDraft.context.retrievedSources,
+      draft: parsedDraft,
+    });
+    setTrackingQualityStatusMessage(
+      "Generated a grounded tracking-quality brief. Review the cited reminders, logs, spaces, and metrics before applying it.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "tracking-quality-brief",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyTrackingQualityDraft() {
+    if (!generatedTrackingQualityDraft) return;
+    setAppliedTrackingQualityDraft(generatedTrackingQualityDraft);
+    setGeneratedTrackingQualityDraft(null);
+    setTrackingQualityStatusMessage(
+      "Applied the grounded tracking-quality brief. Use the cited destination before recording anything new.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "tracking-quality-brief",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissTrackingQualityDraft() {
+    setGeneratedTrackingQualityDraft(null);
+    setTrackingQualityStatusMessage(
+      "Dismissed the grounded tracking-quality brief. Your workspace is unchanged.",
+    );
+  }
+
+  async function handleGenerateWorkspaceQaDraft() {
+    const trimmedQuestion = workspaceQaQuestion.trim();
+    if (!trimmedQuestion) {
+      setWorkspaceQaStatusMessage(
+        "Ask a specific workspace question before generating a grounded AI answer.",
+      );
+      return;
+    }
+
+    const promptDraft = buildWorkspaceQaPrompt({
+      workspace,
+      question: trimmedQuestion,
+    });
+    setIsGeneratingWorkspaceQaDraft(true);
+    void recordAiTelemetryEvent({
+      surface: "workspace-q-and-a",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiWorkspaceQaGenerationPrompt(promptDraft.prompt),
+      temperature: 0.2,
+      maxOutputTokens: 950,
+    });
+    setIsGeneratingWorkspaceQaDraft(false);
+
+    if (result.status !== "success") {
+      setGeneratedWorkspaceQaDraft(null);
+      setWorkspaceQaStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "workspace-q-and-a",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiWorkspaceQaDraft(result.text, {
+      allowedSourceIds: promptDraft.context.retrievedSources.map(
+        (source) => source.id,
+      ),
+    });
+    if (!parsedDraft) {
+      setGeneratedWorkspaceQaDraft(null);
+      setWorkspaceQaStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a grounded reviewable answer. Try asking a narrower question that points to a specific asset, reminder, space, or recent log.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "workspace-q-and-a",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedWorkspaceQaDraft({
+      question: trimmedQuestion,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      sources: promptDraft.context.retrievedSources,
+      draft: parsedDraft,
+    });
+    setWorkspaceQaStatusMessage(
+      "Generated a grounded AI workspace answer. Review the cited sources before applying it.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "workspace-q-and-a",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyWorkspaceQaDraft() {
+    if (!generatedWorkspaceQaDraft) return;
+    setAppliedWorkspaceQaDraft(generatedWorkspaceQaDraft);
+    setGeneratedWorkspaceQaDraft(null);
+    setWorkspaceQaStatusMessage(
+      "Applied the grounded workspace answer. Review the cited sources before acting on it.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "workspace-q-and-a",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissWorkspaceQaDraft() {
+    setGeneratedWorkspaceQaDraft(null);
+    setWorkspaceQaStatusMessage(
+      "Dismissed the grounded workspace answer draft. Your queue is unchanged.",
+    );
+  }
+
   return (
     <ScrollView
       style={[styles.screen, paletteStyles.screenBackground]}
@@ -126,16 +676,18 @@ export default function ActionCenterScreen() {
         badges={[
           {
             label: `${actionCenter.summary.overdueCount} overdue`,
-            backgroundColor: palette.card,
-            textColor: palette.tint,
+            backgroundColor: theme.colors.errorContainer,
+            textColor: theme.colors.onErrorContainer,
           },
           {
             label: `${actionCenter.summary.dueTodayCount} due today`,
-            backgroundColor: palette.accentSoft,
+            backgroundColor: theme.colors.tertiaryContainer,
+            textColor: theme.colors.onTertiaryContainer,
           },
           {
             label: `${recommendations.length} recommendations`,
-            backgroundColor: palette.card,
+            backgroundColor: theme.colors.surface,
+            textColor: theme.colors.onSurface,
           },
         ]}
       />
@@ -149,6 +701,647 @@ export default function ActionCenterScreen() {
 
       <SectionSurface
         palette={palette}
+        label="Priority queue"
+        title="Next best reminder moves"
+      >
+        {actionCenter.nextBestSteps.length === 0 ? (
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
+            The queue is clear right now. As open reminders appear, TrackItUp
+            will surface the next best moves here.
+          </Text>
+        ) : (
+          actionCenter.nextBestSteps.map((item) => (
+            <Surface
+              key={item.reminderId}
+              style={[
+                styles.listCard,
+                {
+                  backgroundColor: theme.colors.elevation.level1,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+              elevation={1}
+            >
+              <View style={styles.listHeader}>
+                <View style={styles.listCopy}>
+                  <Text style={styles.listTitle}>{item.reminderTitle}</Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    {item.spaceName} • {formatTimestamp(item.dueAt)}
+                  </Text>
+                  <Text style={[styles.meta, paletteStyles.mutedText]}>
+                    {item.reason}
+                  </Text>
+                </View>
+                <Chip compact style={styles.infoChip}>
+                  {getSuggestedActionLabel(item.suggestedAction)}
+                </Chip>
+              </View>
+              <ActionButtonRow style={styles.actionRow}>
+                <Button
+                  mode="contained-tonal"
+                  onPress={() =>
+                    handleSuggestedReminderAction(
+                      item.reminderId,
+                      item.suggestedAction,
+                    )
+                  }
+                  buttonColor={theme.colors.secondaryContainer}
+                  textColor={theme.colors.onSecondaryContainer}
+                  style={styles.inlineButton}
+                >
+                  {getSuggestedActionLabel(item.suggestedAction)}
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => router.push("/planner")}
+                  style={styles.inlineButton}
+                >
+                  Open planner
+                </Button>
+              </ActionButtonRow>
+            </Surface>
+          ))
+        )}
+      </SectionSurface>
+
+      <SectionSurface
+        palette={palette}
+        label="Grouped workload"
+        title="Reminder pressure by space"
+      >
+        {actionCenter.groupedBySpace.length === 0 ? (
+          <Text style={[styles.copy, paletteStyles.mutedText]}>
+            Open reminder groups will appear here once more than one workload
+            bucket is active.
+          </Text>
+        ) : (
+          actionCenter.groupedBySpace.map((group) => (
+            <Surface
+              key={group.spaceId}
+              style={[
+                styles.listCard,
+                {
+                  backgroundColor: theme.colors.elevation.level1,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+              elevation={1}
+            >
+              <View style={styles.listHeader}>
+                <View style={styles.listCopy}>
+                  <Text style={styles.listTitle}>{group.spaceName}</Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    {group.reminderCount} open reminder
+                    {group.reminderCount === 1 ? "" : "s"}
+                    {group.nextDueAt
+                      ? ` • next ${formatTimestamp(group.nextDueAt)}`
+                      : ""}
+                  </Text>
+                  <Text style={[styles.meta, paletteStyles.mutedText]}>
+                    {group.reminderTitles.join(" • ")}
+                  </Text>
+                </View>
+              </View>
+              <ChipRow style={styles.chipRow}>
+                <Chip compact style={styles.infoChip}>
+                  {group.overdueCount} overdue
+                </Chip>
+                <Chip compact style={styles.infoChip}>
+                  {group.dueTodayCount} due today
+                </Chip>
+              </ChipRow>
+            </Surface>
+          ))
+        )}
+      </SectionSurface>
+
+      <AiPromptComposerCard
+        palette={palette}
+        label="AI action center"
+        title="Explain what matters most in the queue"
+        value={aiRequest}
+        onChangeText={setAiRequest}
+        onSubmit={() => void handleGenerateAiDraft()}
+        isBusy={isGeneratingAiDraft}
+        contextChips={[
+          `${actionCenter.summary.overdueCount} overdue`,
+          `${actionCenter.summary.groupedSpaceCount} grouped spaces`,
+          `${actionCenter.summary.nextBestStepCount} next steps`,
+        ]}
+        helperText={aiActionCenterExplainerCopy.helperText}
+        consentLabel={aiActionCenterExplainerCopy.consentLabel}
+        footerNote={aiActionCenterExplainerCopy.promptFooterNote}
+        placeholder="Example: Explain what is truly urgent, summarize which spaces are creating the most pressure, and tell me the best next three reminder moves."
+        submitLabel="Generate action-center explainer"
+      />
+
+      {aiStatusMessage ? (
+        <SectionMessage
+          palette={palette}
+          label="AI action center"
+          title="Latest explainer status"
+          message={aiStatusMessage}
+        />
+      ) : null}
+
+      {generatedAiDraft ? (
+        <AiDraftReviewCard
+          palette={palette}
+          title="Review the AI action-center explainer"
+          draftKindLabel="Action center"
+          summary={`Prompt: ${generatedAiDraft.request}`}
+          consentLabel={generatedAiDraft.consentLabel}
+          footerNote={aiActionCenterExplainerCopy.reviewFooterNote}
+          statusLabel="Draft ready"
+          modelLabel={generatedAiDraft.modelId}
+          usage={generatedAiDraft.usage}
+          contextChips={[
+            `${generatedAiDraft.draft.suggestedActions.length} suggested action${generatedAiDraft.draft.suggestedActions.length === 1 ? "" : "s"}`,
+            `${actionCenter.summary.overdueCount} overdue live`,
+          ]}
+          items={buildAiActionCenterExplainerReviewItems(
+            generatedAiDraft.draft,
+          )}
+          acceptLabel="Apply explainer"
+          editLabel="Dismiss draft"
+          regenerateLabel="Generate again"
+          onAccept={handleApplyAiDraft}
+          onEdit={handleDismissAiDraft}
+          onRegenerate={() => void handleGenerateAiDraft()}
+          isBusy={isGeneratingAiDraft}
+        />
+      ) : null}
+
+      {appliedAiDraft ? (
+        <SectionSurface
+          palette={palette}
+          label="AI explainer"
+          title={appliedAiDraft.draft.headline}
+        >
+          <ChipRow style={styles.chipRow}>
+            <Chip compact style={styles.infoChip}>
+              {appliedAiDraft.draft.suggestedActions.length} suggested action
+              {appliedAiDraft.draft.suggestedActions.length === 1 ? "" : "s"}
+            </Chip>
+            <Chip compact style={styles.infoChip}>
+              {actionCenter.summary.overdueCount} overdue live
+            </Chip>
+          </ChipRow>
+          {appliedAiDraft.draft.summary ? (
+            <Text style={styles.copy}>{appliedAiDraft.draft.summary}</Text>
+          ) : null}
+          {appliedAiDraft.draft.groupedInsights.length > 0 ? (
+            <View style={styles.aiList}>
+              {appliedAiDraft.draft.groupedInsights.map((item) => (
+                <Text key={item} style={styles.historyItem}>
+                  • {item}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {appliedAiDraft.draft.recommendationTakeaways.length > 0 ? (
+            <View style={styles.aiList}>
+              {appliedAiDraft.draft.recommendationTakeaways.map((item) => (
+                <Text key={item} style={styles.historyItem}>
+                  • {item}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {appliedAiDraft.draft.caution ? (
+            <Text style={[styles.meta, paletteStyles.mutedText]}>
+              Caution: {appliedAiDraft.draft.caution}
+            </Text>
+          ) : null}
+          {appliedAiDraft.draft.suggestedActions.map((item) => {
+            const reminder = remindersById.get(item.reminderId);
+            if (!reminder) return null;
+
+            return (
+              <Surface
+                key={item.reminderId}
+                style={[
+                  styles.listCard,
+                  styles.aiActionCard,
+                  {
+                    backgroundColor: theme.colors.elevation.level1,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+                elevation={1}
+              >
+                <View style={styles.listHeader}>
+                  <View style={styles.listCopy}>
+                    <Text style={styles.listTitle}>{item.title}</Text>
+                    <Text style={[styles.copy, paletteStyles.mutedText]}>
+                      {spacesById.get(reminder.spaceId)?.name ??
+                        "Unknown space"}{" "}
+                      •{" "}
+                      {formatTimestamp(getReminderScheduleTimestamp(reminder))}
+                    </Text>
+                    <Text style={[styles.meta, paletteStyles.mutedText]}>
+                      {item.reason}
+                    </Text>
+                  </View>
+                  <Chip compact style={styles.infoChip}>
+                    {getSuggestedActionLabel(item.action)}
+                  </Chip>
+                </View>
+                <ActionButtonRow style={styles.actionRow}>
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() =>
+                      handleSuggestedReminderAction(
+                        item.reminderId,
+                        item.action,
+                      )
+                    }
+                    buttonColor={theme.colors.secondaryContainer}
+                    textColor={theme.colors.onSecondaryContainer}
+                    style={styles.inlineButton}
+                  >
+                    {getSuggestedActionLabel(item.action)}
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    onPress={() =>
+                      openReminderLogbook(reminder.id, reminder.spaceId)
+                    }
+                    style={styles.inlineButton}
+                  >
+                    Log proof
+                  </Button>
+                </ActionButtonRow>
+              </Surface>
+            );
+          })}
+          <ActionButtonRow style={styles.actionRow}>
+            <Button
+              mode="outlined"
+              onPress={() => setAppliedAiDraft(null)}
+              style={styles.inlineButton}
+            >
+              Clear explainer
+            </Button>
+            <Button
+              mode="contained-tonal"
+              onPress={() => void handleGenerateAiDraft()}
+              buttonColor={theme.colors.secondaryContainer}
+              textColor={theme.colors.onSecondaryContainer}
+              style={styles.inlineButton}
+              disabled={isGeneratingAiDraft}
+            >
+              Refresh explainer
+            </Button>
+          </ActionButtonRow>
+        </SectionSurface>
+      ) : null}
+
+      <AiPromptComposerCard
+        palette={palette}
+        label="AI tracking quality"
+        title="Explain what to record next to improve tracking quality"
+        value={trackingQualityRequest}
+        onChangeText={setTrackingQualityRequest}
+        onSubmit={() => void handleGenerateTrackingQualityDraft()}
+        isBusy={isGeneratingTrackingQualityDraft}
+        contextChips={[
+          `${trackingQualitySummary.summary.reminderGapCount} reminder gap${trackingQualitySummary.summary.reminderGapCount === 1 ? "" : "s"}`,
+          `${trackingQualitySummary.summary.metricGapCount} metric gap${trackingQualitySummary.summary.metricGapCount === 1 ? "" : "s"}`,
+          `${trackingQualitySummary.summary.sparseLogCount} sparse log${trackingQualitySummary.summary.sparseLogCount === 1 ? "" : "s"}`,
+        ]}
+        helperText={aiTrackingQualityCopy.helperText}
+        consentLabel={aiTrackingQualityCopy.consentLabel}
+        footerNote={aiTrackingQualityCopy.promptFooterNote}
+        placeholder="Example: Explain which reminders, spaces, or metrics need better recording next, and tell me whether I should jump to planner, logbook, or workspace tools first."
+        submitLabel="Generate tracking-quality brief"
+      />
+
+      {trackingQualityStatusMessage ? (
+        <SectionMessage
+          palette={palette}
+          label="AI tracking quality"
+          title="Latest tracking-quality status"
+          message={trackingQualityStatusMessage}
+        />
+      ) : null}
+
+      {generatedTrackingQualityDraft ? (
+        <AiDraftReviewCard
+          palette={palette}
+          title="Review the AI tracking-quality brief"
+          draftKindLabel="Tracking quality"
+          summary={`Prompt: ${generatedTrackingQualityDraft.request}`}
+          consentLabel={generatedTrackingQualityDraft.consentLabel}
+          footerNote={aiTrackingQualityCopy.reviewFooterNote}
+          statusLabel="Draft ready"
+          modelLabel={generatedTrackingQualityDraft.modelId}
+          usage={generatedTrackingQualityDraft.usage}
+          contextChips={[
+            `${generatedTrackingQualityDraft.draft.citedSourceIds.length} cited source${generatedTrackingQualityDraft.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+            generatedTrackingQualityDraft.draft.suggestedDestination
+              ? formatAiTrackingQualityDestinationLabel(
+                  generatedTrackingQualityDraft.draft.suggestedDestination,
+                )
+              : "No route suggestion",
+          ]}
+          items={buildAiTrackingQualityReviewItems(
+            generatedTrackingQualityDraft.draft,
+            generatedTrackingQualityDraft.sources,
+          )}
+          acceptLabel="Apply brief"
+          editLabel="Dismiss draft"
+          regenerateLabel="Generate again"
+          onAccept={handleApplyTrackingQualityDraft}
+          onEdit={handleDismissTrackingQualityDraft}
+          onRegenerate={() => void handleGenerateTrackingQualityDraft()}
+          isBusy={isGeneratingTrackingQualityDraft}
+        />
+      ) : null}
+
+      {appliedTrackingQualityDraft ? (
+        <SectionSurface
+          palette={palette}
+          label="AI tracking quality"
+          title={appliedTrackingQualityDraft.draft.headline}
+        >
+          <ChipRow style={styles.chipRow}>
+            <Chip compact style={styles.infoChip}>
+              {appliedTrackingQualityDraft.draft.citedSourceIds.length} cited
+              source
+              {appliedTrackingQualityDraft.draft.citedSourceIds.length === 1
+                ? ""
+                : "s"}
+            </Chip>
+            {appliedTrackingQualityDraft.draft.suggestedDestination ? (
+              <Chip compact style={styles.infoChip}>
+                {formatAiTrackingQualityDestinationLabel(
+                  appliedTrackingQualityDraft.draft.suggestedDestination,
+                )}
+              </Chip>
+            ) : null}
+          </ChipRow>
+          {appliedTrackingQualityDraft.draft.summary ? (
+            <Text style={styles.copy}>
+              {appliedTrackingQualityDraft.draft.summary}
+            </Text>
+          ) : null}
+          {appliedTrackingQualityDraft.draft.keyGaps.length > 0 ? (
+            <View style={styles.aiList}>
+              {appliedTrackingQualityDraft.draft.keyGaps.map((gap) => (
+                <Text key={gap} style={styles.historyItem}>
+                  • {gap}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {appliedTrackingQualityDraft.draft.caution ? (
+            <Text style={[styles.meta, paletteStyles.mutedText]}>
+              Caution: {appliedTrackingQualityDraft.draft.caution}
+            </Text>
+          ) : null}
+          {appliedTrackingQualityDraft.sources
+            .filter((source) =>
+              appliedTrackingQualityDraft.draft.citedSourceIds.includes(
+                source.id,
+              ),
+            )
+            .map((source) => (
+              <Surface
+                key={source.id}
+                style={[
+                  styles.listCard,
+                  styles.aiActionCard,
+                  {
+                    backgroundColor: theme.colors.elevation.level1,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+                elevation={1}
+              >
+                <View style={styles.listHeader}>
+                  <View style={styles.listCopy}>
+                    <Text style={styles.listTitle}>
+                      {formatAiTrackingQualitySourceLabel(source)}
+                    </Text>
+                    <Text style={[styles.meta, paletteStyles.mutedText]}>
+                      {source.snippet}
+                    </Text>
+                  </View>
+                </View>
+                <ActionButtonRow style={styles.actionRow}>
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() => handleOpenTrackingQualitySource(source)}
+                    buttonColor={theme.colors.secondaryContainer}
+                    textColor={theme.colors.onSecondaryContainer}
+                    style={styles.inlineButton}
+                  >
+                    {formatAiTrackingQualityDestinationLabel(source.route)}
+                  </Button>
+                </ActionButtonRow>
+              </Surface>
+            ))}
+          <ActionButtonRow style={styles.actionRow}>
+            <Button
+              mode="outlined"
+              onPress={() => setAppliedTrackingQualityDraft(null)}
+              style={styles.inlineButton}
+            >
+              Clear brief
+            </Button>
+            <Button
+              mode="contained-tonal"
+              onPress={() =>
+                handleOpenTrackingQualityDestination(
+                  appliedTrackingQualityDraft.draft.suggestedDestination,
+                )
+              }
+              buttonColor={theme.colors.secondaryContainer}
+              textColor={theme.colors.onSecondaryContainer}
+              style={styles.inlineButton}
+            >
+              {formatAiTrackingQualityDestinationLabel(
+                appliedTrackingQualityDraft.draft.suggestedDestination ??
+                  "action-center",
+              )}
+            </Button>
+          </ActionButtonRow>
+        </SectionSurface>
+      ) : null}
+
+      <AiPromptComposerCard
+        palette={palette}
+        label="AI workspace Q&A"
+        title="Ask a grounded question about this workspace"
+        value={workspaceQaQuestion}
+        onChangeText={setWorkspaceQaQuestion}
+        onSubmit={() => void handleGenerateWorkspaceQaDraft()}
+        isBusy={isGeneratingWorkspaceQaDraft}
+        contextChips={[
+          `${workspace.reminders.length} reminders`,
+          `${workspace.logs.length} logs`,
+          `${recommendations.length} recommendations`,
+        ]}
+        helperText={aiWorkspaceQaCopy.helperText}
+        consentLabel={aiWorkspaceQaCopy.consentLabel}
+        footerNote={aiWorkspaceQaCopy.promptFooterNote}
+        placeholder="Example: What do the current reminders and recent logs suggest I should prioritize for the reef setup this week?"
+        submitLabel="Generate grounded answer"
+      />
+
+      {workspaceQaStatusMessage ? (
+        <SectionMessage
+          palette={palette}
+          label="AI workspace Q&A"
+          title="Latest grounded answer status"
+          message={workspaceQaStatusMessage}
+        />
+      ) : null}
+
+      {generatedWorkspaceQaDraft ? (
+        <AiDraftReviewCard
+          palette={palette}
+          title="Review the grounded workspace answer"
+          draftKindLabel="Workspace Q&A"
+          summary={`Question: ${generatedWorkspaceQaDraft.question}`}
+          consentLabel={generatedWorkspaceQaDraft.consentLabel}
+          footerNote={aiWorkspaceQaCopy.reviewFooterNote}
+          statusLabel="Draft ready"
+          modelLabel={generatedWorkspaceQaDraft.modelId}
+          usage={generatedWorkspaceQaDraft.usage}
+          contextChips={[
+            `${generatedWorkspaceQaDraft.draft.citedSourceIds.length} source${generatedWorkspaceQaDraft.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+            generatedWorkspaceQaDraft.draft.suggestedDestination
+              ? formatAiWorkspaceQaDestinationLabel(
+                  generatedWorkspaceQaDraft.draft.suggestedDestination,
+                )
+              : "No route suggestion",
+          ]}
+          items={buildAiWorkspaceQaReviewItems(
+            generatedWorkspaceQaDraft.draft,
+            generatedWorkspaceQaDraft.sources,
+          )}
+          acceptLabel="Apply answer"
+          editLabel="Dismiss draft"
+          regenerateLabel="Generate again"
+          onAccept={handleApplyWorkspaceQaDraft}
+          onEdit={handleDismissWorkspaceQaDraft}
+          onRegenerate={() => void handleGenerateWorkspaceQaDraft()}
+          isBusy={isGeneratingWorkspaceQaDraft}
+        />
+      ) : null}
+
+      {appliedWorkspaceQaDraft ? (
+        <SectionSurface
+          palette={palette}
+          label="AI workspace Q&A"
+          title={appliedWorkspaceQaDraft.draft.headline}
+        >
+          <ChipRow style={styles.chipRow}>
+            <Chip compact style={styles.infoChip}>
+              {appliedWorkspaceQaDraft.draft.citedSourceIds.length} cited source
+              {appliedWorkspaceQaDraft.draft.citedSourceIds.length === 1
+                ? ""
+                : "s"}
+            </Chip>
+            {appliedWorkspaceQaDraft.draft.suggestedDestination ? (
+              <Chip compact style={styles.infoChip}>
+                {formatAiWorkspaceQaDestinationLabel(
+                  appliedWorkspaceQaDraft.draft.suggestedDestination,
+                )}
+              </Chip>
+            ) : null}
+          </ChipRow>
+          {appliedWorkspaceQaDraft.draft.answer ? (
+            <Text style={styles.copy}>
+              {appliedWorkspaceQaDraft.draft.answer}
+            </Text>
+          ) : null}
+          {appliedWorkspaceQaDraft.draft.keyPoints.length > 0 ? (
+            <View style={styles.aiList}>
+              {appliedWorkspaceQaDraft.draft.keyPoints.map((point) => (
+                <Text key={point} style={styles.historyItem}>
+                  • {point}
+                </Text>
+              ))}
+            </View>
+          ) : null}
+          {appliedWorkspaceQaDraft.draft.caution ? (
+            <Text style={[styles.meta, paletteStyles.mutedText]}>
+              Caution: {appliedWorkspaceQaDraft.draft.caution}
+            </Text>
+          ) : null}
+          {appliedWorkspaceQaDraft.sources
+            .filter((source) =>
+              appliedWorkspaceQaDraft.draft.citedSourceIds.includes(source.id),
+            )
+            .map((source) => (
+              <Surface
+                key={source.id}
+                style={[
+                  styles.listCard,
+                  styles.aiActionCard,
+                  {
+                    backgroundColor: theme.colors.elevation.level1,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+                elevation={1}
+              >
+                <View style={styles.listHeader}>
+                  <View style={styles.listCopy}>
+                    <Text style={styles.listTitle}>
+                      {formatAiWorkspaceQaSourceLabel(source)}
+                    </Text>
+                    <Text style={[styles.meta, paletteStyles.mutedText]}>
+                      {source.snippet}
+                    </Text>
+                  </View>
+                </View>
+                <ActionButtonRow style={styles.actionRow}>
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() => handleOpenWorkspaceQaSource(source)}
+                    buttonColor={theme.colors.secondaryContainer}
+                    textColor={theme.colors.onSecondaryContainer}
+                    style={styles.inlineButton}
+                  >
+                    {formatAiWorkspaceQaDestinationLabel(source.route)}
+                  </Button>
+                </ActionButtonRow>
+              </Surface>
+            ))}
+          <ActionButtonRow style={styles.actionRow}>
+            <Button
+              mode="outlined"
+              onPress={() => setAppliedWorkspaceQaDraft(null)}
+              style={styles.inlineButton}
+            >
+              Clear answer
+            </Button>
+            <Button
+              mode="contained-tonal"
+              onPress={() =>
+                handleOpenWorkspaceQaDestination(
+                  appliedWorkspaceQaDraft.draft.suggestedDestination,
+                )
+              }
+              buttonColor={theme.colors.secondaryContainer}
+              textColor={theme.colors.onSecondaryContainer}
+              style={styles.inlineButton}
+            >
+              {formatAiWorkspaceQaDestinationLabel(
+                appliedWorkspaceQaDraft.draft.suggestedDestination ??
+                  "action-center",
+              )}
+            </Button>
+          </ActionButtonRow>
+        </SectionSurface>
+      ) : null}
+
+      <SectionSurface
+        palette={palette}
         label="Next best actions"
         title="Recommendations"
       >
@@ -158,30 +1351,58 @@ export default function ActionCenterScreen() {
             tracked metrics create enough history.
           </Text>
         ) : (
-          recommendations.map((recommendation) => (
-            <View key={recommendation.id} style={styles.listCard}>
-              <View style={styles.listHeader}>
-                <View style={styles.listCopy}>
-                  <Text style={styles.listTitle}>{recommendation.title}</Text>
-                  <Text style={[styles.copy, paletteStyles.mutedText]}>
-                    {recommendation.explanation}
-                  </Text>
+          recommendations.map((recommendation) => {
+            const severityColors = getSeverityChipColors(
+              recommendation.severity,
+            );
+
+            return (
+              <Surface
+                key={recommendation.id}
+                style={[
+                  styles.listCard,
+                  {
+                    backgroundColor: theme.colors.elevation.level1,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+                elevation={1}
+              >
+                <View style={styles.listHeader}>
+                  <View style={styles.listCopy}>
+                    <Text style={styles.listTitle}>{recommendation.title}</Text>
+                    <Text style={[styles.copy, paletteStyles.mutedText]}>
+                      {recommendation.explanation}
+                    </Text>
+                  </View>
+                  <Chip
+                    compact
+                    style={[
+                      styles.severityChip,
+                      { backgroundColor: severityColors.backgroundColor },
+                    ]}
+                    textStyle={[
+                      styles.chipText,
+                      { color: severityColors.color },
+                    ]}
+                  >
+                    {recommendation.severity}
+                  </Chip>
                 </View>
-                <Chip compact style={styles.severityChip}>
-                  {recommendation.severity}
-                </Chip>
-              </View>
-              <ActionButtonRow style={styles.actionRow}>
-                <Button
-                  mode="contained"
-                  onPress={() => openRecommendation(recommendation)}
-                  style={styles.inlineButton}
-                >
-                  {recommendation.action.label}
-                </Button>
-              </ActionButtonRow>
-            </View>
-          ))
+                <ActionButtonRow style={styles.actionRow}>
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() => openRecommendation(recommendation)}
+                    buttonColor={theme.colors.secondaryContainer}
+                    textColor={theme.colors.onSecondaryContainer}
+                    style={styles.inlineButton}
+                  >
+                    {recommendation.action.label}
+                  </Button>
+                </ActionButtonRow>
+              </Surface>
+            );
+          })
         )}
       </SectionSurface>
 
@@ -199,8 +1420,19 @@ export default function ActionCenterScreen() {
           ) : (
             section.reminders.map((reminder) => {
               const space = spacesById.get(reminder.spaceId);
+              const statusColors = getReminderStatusColors(reminder.status);
               return (
-                <View key={reminder.id} style={styles.listCard}>
+                <Surface
+                  key={reminder.id}
+                  style={[
+                    styles.listCard,
+                    {
+                      backgroundColor: theme.colors.elevation.level1,
+                      borderColor: theme.colors.outlineVariant,
+                    },
+                  ]}
+                  elevation={1}
+                >
                   <View style={styles.listHeader}>
                     <View style={styles.listCopy}>
                       <Text style={styles.listTitle}>{reminder.title}</Text>
@@ -214,7 +1446,17 @@ export default function ActionCenterScreen() {
                         {reminder.description}
                       </Text>
                     </View>
-                    <Chip compact style={styles.statusChip}>
+                    <Chip
+                      compact
+                      style={[
+                        styles.statusChip,
+                        { backgroundColor: statusColors.backgroundColor },
+                      ]}
+                      textStyle={[
+                        styles.chipText,
+                        { color: statusColors.color },
+                      ]}
+                    >
                       {reminder.status}
                     </Chip>
                   </View>
@@ -222,6 +1464,8 @@ export default function ActionCenterScreen() {
                     <Button
                       mode="contained"
                       onPress={() => completeReminder(reminder.id)}
+                      buttonColor={theme.colors.primary}
+                      textColor={theme.colors.onPrimary}
                       style={styles.inlineButton}
                     >
                       Complete
@@ -233,6 +1477,8 @@ export default function ActionCenterScreen() {
                           `/logbook?actionId=quick-log&spaceId=${reminder.spaceId}&reminderId=${reminder.id}` as never,
                         )
                       }
+                      buttonColor={theme.colors.secondaryContainer}
+                      textColor={theme.colors.onSecondaryContainer}
                       style={styles.inlineButton}
                     >
                       Log proof
@@ -252,7 +1498,7 @@ export default function ActionCenterScreen() {
                       Skip
                     </Button>
                   </ActionButtonRow>
-                </View>
+                </Surface>
               );
             })
           )}
@@ -270,7 +1516,17 @@ export default function ActionCenterScreen() {
           </Text>
         ) : (
           actionCenter.recentActivity.map((item) => (
-            <View key={item.id} style={styles.activityRow}>
+            <Surface
+              key={item.id}
+              style={[
+                styles.activityRow,
+                {
+                  backgroundColor: theme.colors.elevation.level1,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+              elevation={1}
+            >
               <View style={styles.listCopy}>
                 <Text style={styles.listTitle}>{item.reminderTitle}</Text>
                 <Text style={[styles.copy, paletteStyles.mutedText]}>
@@ -280,14 +1536,34 @@ export default function ActionCenterScreen() {
                   {item.note}
                 </Text>
               </View>
-            </View>
+            </Surface>
           ))
         )}
         <ChipRow style={styles.chipRow}>
-          <Chip compact style={styles.infoChip}>
+          <Chip
+            compact
+            style={[
+              styles.infoChip,
+              { backgroundColor: theme.colors.secondaryContainer },
+            ]}
+            textStyle={[
+              styles.chipText,
+              { color: theme.colors.onSecondaryContainer },
+            ]}
+          >
             {actionCenter.summary.recentActivityCount} recent actions
           </Chip>
-          <Chip compact style={styles.infoChip}>
+          <Chip
+            compact
+            style={[
+              styles.infoChip,
+              { backgroundColor: theme.colors.surfaceVariant },
+            ]}
+            textStyle={[
+              styles.chipText,
+              { color: theme.colors.onSurfaceVariant },
+            ]}
+          >
             {workspace.reminders.length} reminders tracked
           </Chip>
         </ChipRow>
@@ -319,9 +1595,9 @@ const styles = StyleSheet.create({
   meta: { ...uiTypography.label, marginTop: uiSpace.xxs, lineHeight: 18 },
   listCard: {
     borderRadius: uiRadius.xl,
-    paddingVertical: uiSpace.md,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(148, 163, 184, 0.2)",
+    padding: uiSpace.lg,
+    borderWidth: uiBorder.standard,
+    marginBottom: uiSpace.md,
   },
   listHeader: {
     flexDirection: "row",
@@ -333,13 +1609,18 @@ const styles = StyleSheet.create({
   listTitle: { ...uiTypography.titleMd },
   actionRow: { marginTop: uiSpace.md },
   inlineButton: { flex: 1 },
+  chipText: uiTypography.chip,
   severityChip: { borderRadius: uiRadius.pill },
   statusChip: { borderRadius: uiRadius.pill },
+  aiList: { marginTop: uiSpace.md, gap: uiSpace.xs },
+  aiActionCard: { marginTop: uiSpace.md, marginBottom: 0 },
   activityRow: {
-    borderTopWidth: 1,
-    borderTopColor: "rgba(148, 163, 184, 0.2)",
-    paddingVertical: uiSpace.md,
+    borderRadius: uiRadius.xl,
+    borderWidth: uiBorder.standard,
+    padding: uiSpace.lg,
+    marginBottom: uiSpace.md,
   },
+  historyItem: { ...uiTypography.body },
   chipRow: { marginTop: uiSpace.md },
   infoChip: { borderRadius: uiRadius.pill },
 });

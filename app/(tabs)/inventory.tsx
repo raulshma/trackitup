@@ -1,11 +1,20 @@
 import { useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
-import { Button, Chip, Surface } from "react-native-paper";
+import {
+    Button,
+    Chip,
+    Surface,
+    useTheme,
+    type MD3Theme,
+} from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
+import { SectionMessage } from "@/components/ui/SectionMessage";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -19,7 +28,34 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import { aiInventoryLifecycleCopy } from "@/services/ai/aiConsentCopy";
+import {
+    buildAiInventoryLifecycleGenerationPrompt,
+    buildAiInventoryLifecycleReviewItems,
+    formatAiInventoryLifecycleDestinationLabel,
+    formatAiInventoryLifecycleSourceLabel,
+    parseAiInventoryLifecycleDraft,
+    type AiInventoryLifecycleDraft,
+    type AiInventoryLifecycleSource,
+} from "@/services/ai/aiInventoryLifecycle";
+import { buildInventoryLifecyclePrompt } from "@/services/ai/aiPromptBuilders";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
+import { buildWorkspaceInventoryLifecycleSummary } from "@/services/insights/workspaceInventoryLifecycle";
 import { buildWorkspaceVisualHistory } from "@/services/insights/workspaceVisualHistory";
+
+type GeneratedAiInventoryLifecycle = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  sources: AiInventoryLifecycleSource[];
+  draft: AiInventoryLifecycleDraft;
+};
 
 function formatCurrency(amount: number, currency = "USD") {
   return new Intl.NumberFormat(undefined, {
@@ -31,6 +67,7 @@ function formatCurrency(amount: number, currency = "USD") {
 export default function InventoryScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const theme = useTheme<MD3Theme>();
   const headerHeight = useMaterialCompactTopAppBarHeight();
   const headerScroll = useTabHeaderScroll("inventory");
   const paletteStyles = useMemo(
@@ -39,8 +76,22 @@ export default function InventoryScreen() {
   );
   const router = useRouter();
   const { workspace } = useWorkspace();
+  const [inventoryLifecycleRequest, setInventoryLifecycleRequest] =
+    useState("");
+  const [inventoryLifecycleStatusMessage, setInventoryLifecycleStatusMessage] =
+    useState<string | null>(null);
+  const [isGeneratingInventoryLifecycle, setIsGeneratingInventoryLifecycle] =
+    useState(false);
+  const [generatedInventoryLifecycle, setGeneratedInventoryLifecycle] =
+    useState<GeneratedAiInventoryLifecycle | null>(null);
+  const [appliedInventoryLifecycle, setAppliedInventoryLifecycle] =
+    useState<GeneratedAiInventoryLifecycle | null>(null);
   const visualHistory = useMemo(
     () => buildWorkspaceVisualHistory(workspace),
+    [workspace],
+  );
+  const inventoryLifecycle = useMemo(
+    () => buildWorkspaceInventoryLifecycleSummary(workspace),
     [workspace],
   );
   const assetPhotoMap = useMemo(
@@ -95,6 +146,11 @@ export default function InventoryScreen() {
   const preferredQuickLogAction =
     workspace.quickActions.find((action) => action.kind === "quick-log") ??
     workspace.quickActions[0];
+  const inventoryLifecycleContextChips = [
+    `${inventoryLifecycle.summary.warrantyRiskCount} warranty risk${inventoryLifecycle.summary.warrantyRiskCount === 1 ? "" : "s"}`,
+    `${inventoryLifecycle.summary.documentationGapCount} documentation gap${inventoryLifecycle.summary.documentationGapCount === 1 ? "" : "s"}`,
+    `${inventoryLifecycle.attentionAssets.length} attention asset${inventoryLifecycle.attentionAssets.length === 1 ? "" : "s"}`,
+  ];
   const pageQuickActions = [
     {
       id: "inventory-scan",
@@ -123,6 +179,129 @@ export default function InventoryScreen() {
         }),
     },
   ];
+
+  function openInventoryLifecycleDestination(
+    destination?: "inventory" | "logbook" | "visual-history",
+    source?: AiInventoryLifecycleSource,
+  ) {
+    if (destination === "logbook") {
+      router.push({
+        pathname: "/logbook",
+        params: {
+          ...(preferredQuickLogAction
+            ? { actionId: preferredQuickLogAction.id }
+            : {}),
+          ...(source?.spaceId ? { spaceId: source.spaceId } : {}),
+        },
+      });
+      return;
+    }
+    if (destination === "visual-history") {
+      router.push(
+        (source?.assetId
+          ? `/visual-history?assetId=${source.assetId}`
+          : source?.spaceId
+            ? `/visual-history?spaceId=${source.spaceId}`
+            : "/visual-history") as never,
+      );
+      return;
+    }
+    router.push("/inventory" as never);
+  }
+
+  function openInventoryLifecycleSource(source: AiInventoryLifecycleSource) {
+    openInventoryLifecycleDestination(source.route, source);
+  }
+
+  async function handleGenerateInventoryLifecycle() {
+    const trimmedRequest = inventoryLifecycleRequest.trim();
+    if (!trimmedRequest) {
+      setInventoryLifecycleStatusMessage(
+        "Describe the inventory lifecycle question you want answered before generating a brief.",
+      );
+      return;
+    }
+
+    const promptDraft = buildInventoryLifecyclePrompt({
+      workspace,
+      userRequest: trimmedRequest,
+    });
+    setIsGeneratingInventoryLifecycle(true);
+    void recordAiTelemetryEvent({
+      surface: "inventory-lifecycle-brief",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: promptDraft.system,
+      prompt: buildAiInventoryLifecycleGenerationPrompt(promptDraft.prompt),
+      temperature: 0.25,
+      maxOutputTokens: 900,
+    });
+    setIsGeneratingInventoryLifecycle(false);
+
+    if (result.status !== "success") {
+      setGeneratedInventoryLifecycle(null);
+      setInventoryLifecycleStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "inventory-lifecycle-brief",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsed = parseAiInventoryLifecycleDraft(result.text, {
+      allowedSourceIds: promptDraft.context.retrievedSources.map(
+        (source) => source.id,
+      ),
+    });
+    if (!parsed) {
+      setGeneratedInventoryLifecycle(null);
+      setInventoryLifecycleStatusMessage(
+        "The AI response could not be grounded in the provided inventory sources. Try a narrower inventory question.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "inventory-lifecycle-brief",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedInventoryLifecycle({
+      request: trimmedRequest,
+      consentLabel: promptDraft.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      sources: promptDraft.context.retrievedSources,
+      draft: parsed,
+    });
+    setInventoryLifecycleStatusMessage(
+      "Review the AI inventory lifecycle brief before applying it to this screen.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "inventory-lifecycle-brief",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyInventoryLifecycle() {
+    if (!generatedInventoryLifecycle) return;
+    setAppliedInventoryLifecycle(generatedInventoryLifecycle);
+    setGeneratedInventoryLifecycle(null);
+    setInventoryLifecycleStatusMessage(
+      "Applied the inventory lifecycle brief. Review the cited assets before acting on it.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "inventory-lifecycle-brief",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissInventoryLifecycle() {
+    setGeneratedInventoryLifecycle(null);
+    setInventoryLifecycleStatusMessage(
+      "Dismissed the AI inventory lifecycle draft. Inventory records remain unchanged.",
+    );
+  }
 
   return (
     <Animated.ScrollView
@@ -208,6 +387,157 @@ export default function InventoryScreen() {
           </Button>
         </View>
       </Surface>
+
+      <AiPromptComposerCard
+        palette={palette}
+        label="AI inventory lifecycle"
+        title="Generate a grounded inventory brief"
+        value={inventoryLifecycleRequest}
+        onChangeText={setInventoryLifecycleRequest}
+        onSubmit={() => void handleGenerateInventoryLifecycle()}
+        isBusy={isGeneratingInventoryLifecycle}
+        contextChips={inventoryLifecycleContextChips}
+        placeholder="Example: Which tracked assets need documentation or warranty review next, and which screen should I open?"
+        helperText={aiInventoryLifecycleCopy.helperText}
+        consentLabel={aiInventoryLifecycleCopy.consentLabel}
+        footerNote={aiInventoryLifecycleCopy.promptFooterNote}
+        submitLabel="Generate inventory brief"
+      />
+
+      {inventoryLifecycleStatusMessage ? (
+        <SectionMessage
+          palette={palette}
+          label="AI inventory lifecycle"
+          title="Latest inventory brief status"
+          message={inventoryLifecycleStatusMessage}
+        />
+      ) : null}
+
+      {generatedInventoryLifecycle ? (
+        <AiDraftReviewCard
+          palette={palette}
+          title="Review the AI inventory brief"
+          draftKindLabel="Inventory lifecycle"
+          summary={`Prompt: ${generatedInventoryLifecycle.request}`}
+          consentLabel={generatedInventoryLifecycle.consentLabel}
+          footerNote={aiInventoryLifecycleCopy.reviewFooterNote}
+          statusLabel="Draft ready"
+          modelLabel={generatedInventoryLifecycle.modelId}
+          usage={generatedInventoryLifecycle.usage}
+          contextChips={[
+            `${generatedInventoryLifecycle.draft.citedSourceIds.length} cited source${generatedInventoryLifecycle.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+          ]}
+          items={buildAiInventoryLifecycleReviewItems(
+            generatedInventoryLifecycle.draft,
+            generatedInventoryLifecycle.sources,
+          )}
+          acceptLabel="Apply brief"
+          editLabel="Dismiss draft"
+          regenerateLabel="Generate again"
+          onAccept={handleApplyInventoryLifecycle}
+          onEdit={handleDismissInventoryLifecycle}
+          onRegenerate={() => void handleGenerateInventoryLifecycle()}
+          isBusy={isGeneratingInventoryLifecycle}
+        />
+      ) : null}
+
+      {appliedInventoryLifecycle ? (
+        <Surface
+          style={[styles.summaryCard, paletteStyles.cardSurface]}
+          elevation={uiElevation.card}
+        >
+          <View style={styles.briefTitleRow}>
+            <Text style={styles.summaryTitle}>
+              {appliedInventoryLifecycle.draft.headline}
+            </Text>
+            {appliedInventoryLifecycle.draft.suggestedDestination ? (
+              <Chip
+                compact
+                style={[styles.highlightPill, paletteStyles.cardChipSurface]}
+              >
+                {formatAiInventoryLifecycleDestinationLabel(
+                  appliedInventoryLifecycle.draft.suggestedDestination,
+                )}
+              </Chip>
+            ) : null}
+          </View>
+          {appliedInventoryLifecycle.draft.summary ? (
+            <Text style={[styles.summaryCopy, paletteStyles.mutedText]}>
+              {appliedInventoryLifecycle.draft.summary}
+            </Text>
+          ) : null}
+          {appliedInventoryLifecycle.draft.priorities.map((priority) => (
+            <View key={priority} style={styles.priorityRow}>
+              <View
+                style={[styles.priorityDot, { backgroundColor: palette.tint }]}
+              />
+              <Text style={[styles.copy, styles.priorityCopy]}>{priority}</Text>
+            </View>
+          ))}
+          {appliedInventoryLifecycle.draft.caution ? (
+            <Text style={[styles.copy, paletteStyles.mutedText]}>
+              Caution: {appliedInventoryLifecycle.draft.caution}
+            </Text>
+          ) : null}
+          <View style={styles.appliedSourceList}>
+            {appliedInventoryLifecycle.draft.citedSourceIds
+              .map((sourceId) =>
+                appliedInventoryLifecycle.sources.find(
+                  (source) => source.id === sourceId,
+                ),
+              )
+              .filter((source): source is AiInventoryLifecycleSource =>
+                Boolean(source),
+              )
+              .map((source) => (
+                <Surface
+                  key={source.id}
+                  style={[styles.sourceCard, paletteStyles.raisedCardSurface]}
+                  elevation={uiElevation.raisedCard}
+                >
+                  <Text style={styles.cardTitle}>
+                    {formatAiInventoryLifecycleSourceLabel(source)}
+                  </Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    {source.snippet}
+                  </Text>
+                  <View style={styles.summaryActionRow}>
+                    <Button
+                      mode="outlined"
+                      textColor={theme.colors.primary}
+                      onPress={() => openInventoryLifecycleSource(source)}
+                    >
+                      {formatAiInventoryLifecycleDestinationLabel(source.route)}
+                    </Button>
+                  </View>
+                </Surface>
+              ))}
+          </View>
+          <View style={styles.summaryActionRow}>
+            <Button
+              mode="outlined"
+              onPress={() => setAppliedInventoryLifecycle(null)}
+            >
+              Clear brief
+            </Button>
+            <Button
+              mode="contained"
+              buttonColor={theme.colors.primary}
+              textColor={theme.colors.onPrimary}
+              onPress={() =>
+                openInventoryLifecycleDestination(
+                  appliedInventoryLifecycle.draft.suggestedDestination,
+                )
+              }
+            >
+              {formatAiInventoryLifecycleDestinationLabel(
+                appliedInventoryLifecycle.draft.suggestedDestination ??
+                  "inventory",
+              )}
+            </Button>
+          </View>
+        </Surface>
+      ) : null}
 
       {assetCards.length === 0 ? (
         <View
@@ -328,6 +658,39 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: uiSpace.md,
     marginTop: uiSpace.xl,
+  },
+  briefTitleRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: uiSpace.md,
+    marginBottom: uiSpace.sm,
+  },
+  priorityRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: uiSpace.sm,
+    marginTop: uiSpace.sm,
+  },
+  priorityDot: {
+    width: 10,
+    height: 10,
+    borderRadius: uiRadius.pill,
+    marginTop: 7,
+  },
+  priorityCopy: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  appliedSourceList: {
+    gap: uiSpace.md,
+    marginTop: uiSpace.lg,
+  },
+  sourceCard: {
+    borderWidth: uiBorder.standard,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.surface,
   },
   inlineButton: {
     borderRadius: uiRadius.pill,

@@ -15,6 +15,7 @@ import { MaterialCompactTopAppBar } from "@/components/ui/MaterialCompactTopAppB
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
 import { uiSpace, uiTypography } from "@/constants/UiTokens";
+import { AiPreferencesProvider } from "@/providers/AiPreferencesProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import {
     OnboardingProvider,
@@ -54,11 +55,13 @@ export default function RootLayout() {
 
   return (
     <ThemePreferenceProvider>
-      <OnboardingProvider>
-        <WorkspacePrivacyModeProvider>
-          <RootLayoutNav />
-        </WorkspacePrivacyModeProvider>
-      </OnboardingProvider>
+      <AiPreferencesProvider>
+        <OnboardingProvider>
+          <WorkspacePrivacyModeProvider>
+            <RootLayoutNav />
+          </WorkspacePrivacyModeProvider>
+        </OnboardingProvider>
+      </AiPreferencesProvider>
     </ThemePreferenceProvider>
   );
 }
@@ -169,6 +172,13 @@ function RootLayoutNav() {
                   <Stack.Screen
                     name="workspace-tools"
                     options={{ title: "Workspace tools" }}
+                  />
+                  <Stack.Screen
+                    name="openrouter-model-picker"
+                    options={{
+                      title: "OpenRouter models",
+                      presentation: "modal",
+                    }}
                   />
                   <Stack.Screen name="modal" options={{ headerShown: false }} />
                 </Stack>

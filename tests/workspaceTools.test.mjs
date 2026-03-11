@@ -21,6 +21,16 @@ const {
   buildWorkspaceVisualHistory,
   getVisualRecapCoverSelectionKey,
 } = await import("../services/insights/workspaceVisualHistory.ts");
+const { buildWorkspaceTrendSummary } =
+  await import("../services/insights/workspaceTrendSummary.ts");
+const { buildWorkspaceDashboardPulse } =
+  await import("../services/insights/workspaceDashboardPulse.ts");
+const { buildWorkspaceInventoryLifecycleSummary } =
+  await import("../services/insights/workspaceInventoryLifecycle.ts");
+const { buildWorkspacePlannerRiskSummary } =
+  await import("../services/insights/workspacePlannerRisk.ts");
+const { buildWorkspaceTrackingQualitySummary } =
+  await import("../services/insights/workspaceTrackingQuality.ts");
 const { getWorkspaceRecommendations } =
   await import("../services/insights/workspaceRecommendations.ts");
 const {
@@ -52,7 +62,7 @@ const {
   pullWorkspaceSync,
   resolvePulledWorkspaceSnapshot,
 } = await import("../services/offline/workspaceSync.ts");
-const { appendDictationTranscript } =
+const { appendDictationTranscript, captureDictationAsync } =
   await import("../services/device/dictation.ts");
 const { applyReminderTriggerRules, getNextReminderDate } =
   await import("../services/reminders/reminderRules.ts");
@@ -83,6 +93,133 @@ const {
   isDarkThemePreference,
   normalizeThemePreference,
 } = await import("../services/theme/themePreferences.ts");
+const {
+  DEFAULT_AI_PROMPT_HISTORY_ENABLED,
+  normalizeAiPromptHistoryEnabled,
+  normalizeOpenRouterApiKey,
+} = await import("../services/ai/aiPreferences.ts");
+const {
+  DEFAULT_AI_MAX_OUTPUT_TOKENS,
+  DEFAULT_AI_TIMEOUT_MS,
+  buildTrackItUpAiHeaders,
+  formatAiServiceError,
+  normalizeOpenRouterTextGenerationOptions,
+  normalizeOpenRouterTextModel,
+} = await import("../services/ai/aiClient.ts");
+const {
+  DEFAULT_OPENROUTER_MODEL_SORT,
+  classifyOpenRouterModelTier,
+  filterOpenRouterSelectableModels,
+  formatOpenRouterModelPricingLabel,
+  getOpenRouterSearchHighlightParts,
+  getDefaultOpenRouterModelTier,
+  normalizeOpenRouterSelectableModels,
+  normalizeOpenRouterModelSort,
+  sortOpenRouterSelectableModels,
+  supportsOpenRouterTextModel,
+} = await import("../services/ai/openRouterModels.ts");
+const {
+  buildDashboardPulsePrompt,
+  buildCrossSpaceTrendPrompt,
+  buildInventoryLifecyclePrompt,
+  buildActionCenterExplainerPrompt,
+  buildTrackingQualityPrompt,
+  buildPlannerCopilotPrompt,
+  buildPlannerRiskPrompt,
+  buildLogbookDraftPrompt,
+  buildSchemaBuilderPrompt,
+  buildVisualRecapPrompt,
+} = await import("../services/ai/aiPromptBuilders.ts");
+const {
+  buildAiDraftReviewItems,
+  formatAiDraftReviewValue,
+  formatAiDraftUsageLabel,
+} = await import("../services/ai/aiDraftReview.ts");
+const {
+  DEFAULT_AI_TRANSCRIPT_PREVIEW_MAX_LENGTH,
+  canSubmitAiPrompt,
+  compactAiTranscriptPreview,
+  getAiPromptCharacterCountLabel,
+  getAiTranscriptSourceLabel,
+} = await import("../services/ai/aiTextInput.ts");
+const {
+  buildAiDashboardPulseGenerationPrompt,
+  buildAiDashboardPulseReviewItems,
+  parseAiDashboardPulseDraft,
+} = await import("../services/ai/aiDashboardPulse.ts");
+const {
+  buildAiInventoryLifecycleGenerationPrompt,
+  buildAiInventoryLifecycleReviewItems,
+  parseAiInventoryLifecycleDraft,
+} = await import("../services/ai/aiInventoryLifecycle.ts");
+const {
+  buildAiCrossSpaceTrendGenerationPrompt,
+  buildAiCrossSpaceTrendReviewItems,
+  parseAiCrossSpaceTrendDraft,
+} = await import("../services/ai/aiCrossSpaceTrends.ts");
+const {
+  buildAiActionCenterExplainerGenerationPrompt,
+  buildAiActionCenterExplainerReviewItems,
+  parseAiActionCenterExplainerDraft,
+} = await import("../services/ai/aiActionCenterExplainer.ts");
+const {
+  buildAiPlannerCopilotGenerationPrompt,
+  buildAiPlannerCopilotReviewItems,
+  parseAiPlannerCopilotDraft,
+} = await import("../services/ai/aiPlannerCopilot.ts");
+const {
+  buildAiPlannerRiskGenerationPrompt,
+  buildAiPlannerRiskReviewItems,
+  parseAiPlannerRiskDraft,
+} = await import("../services/ai/aiPlannerRisk.ts");
+const {
+  buildAiTrackingQualityGenerationPrompt,
+  buildAiTrackingQualityReviewItems,
+  parseAiTrackingQualityDraft,
+} = await import("../services/ai/aiTrackingQuality.ts");
+const {
+  buildAiSchemaDraftReviewItems,
+  buildAiSchemaGenerationPrompt,
+  parseAiSchemaTemplateDraft,
+} = await import("../services/ai/aiSchemaDraft.ts");
+const {
+  buildAiLogbookDraftReviewItems,
+  buildAiLogbookGenerationPrompt,
+  parseAiLogbookDraft,
+} = await import("../services/ai/aiLogbookDraft.ts");
+const {
+  buildAiVisualRecapGenerationPrompt,
+  buildAiVisualRecapReviewItems,
+  parseAiVisualRecapDraft,
+} = await import("../services/ai/aiVisualRecap.ts");
+const {
+  buildAiWorkspaceQaGenerationPrompt,
+  buildAiWorkspaceQaReviewItems,
+  parseAiWorkspaceQaDraft,
+} = await import("../services/ai/aiWorkspaceQa.ts");
+const {
+  aiActionCenterExplainerCopy,
+  aiDashboardPulseCopy,
+  aiCrossSpaceTrendCopy,
+  aiInventoryLifecycleCopy,
+  aiLogbookDraftCopy,
+  aiPlannerRiskCopy,
+  aiSchemaBuilderCopy,
+  aiTrackingQualityCopy,
+  aiWorkspaceQaCopy,
+  aiVisualRecapCopy,
+} = await import("../services/ai/aiConsentCopy.ts");
+const { aiAccountSettingsCopy, aiPlannerCopilotCopy } =
+  await import("../services/ai/aiConsentCopy.ts");
+const {
+  AI_TELEMETRY_SURFACES,
+  AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
+  applyAiTelemetryEvent,
+  createEmptyAiTelemetrySummary,
+  formatAiTelemetryLastEventLabel,
+} = await import("../services/ai/aiTelemetry.ts");
+const { buildWorkspaceQaPrompt } =
+  await import("../services/ai/aiPromptBuilders.ts");
 
 function createSnapshot(overrides = {}) {
   return {
@@ -355,6 +492,84 @@ test("dictation transcript helper appends speech cleanly", () => {
   );
 });
 
+test("browser dictation streams live transcript updates before returning final text", async () => {
+  const originalDocument = globalThis.document;
+  const originalSpeechRecognition = globalThis.SpeechRecognition;
+  const originalWebkitSpeechRecognition = globalThis.webkitSpeechRecognition;
+  const transcriptUpdates = [];
+  let observedInterimResults = null;
+  let stopCalled = false;
+
+  function createRecognitionResult(transcript, isFinal = false) {
+    const alternatives = [{ transcript }];
+    alternatives.isFinal = isFinal;
+    return alternatives;
+  }
+
+  class MockSpeechRecognition {
+    continuous = false;
+    interimResults = false;
+    lang = undefined;
+    onend = null;
+    onerror = null;
+    onresult = null;
+
+    start() {
+      observedInterimResults = this.interimResults;
+      this.onresult?.({
+        results: [createRecognitionResult("reef maintenance", false)],
+      });
+      this.onresult?.({
+        results: [createRecognitionResult("reef maintenance note", true)],
+      });
+    }
+
+    stop() {
+      stopCalled = true;
+      this.onend?.();
+    }
+  }
+
+  globalThis.document = {};
+  globalThis.SpeechRecognition = MockSpeechRecognition;
+  Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
+
+  try {
+    const result = await captureDictationAsync({
+      onTranscript: (transcript) => {
+        transcriptUpdates.push(transcript);
+      },
+    });
+
+    assert.equal(observedInterimResults, true);
+    assert.equal(stopCalled, true);
+    assert.deepEqual(transcriptUpdates, [
+      "reef maintenance",
+      "reef maintenance note",
+    ]);
+    assert.equal(result.mode, "speech-recognition");
+    assert.equal(result.transcript, "reef maintenance note");
+  } finally {
+    if (originalDocument === undefined) {
+      Reflect.deleteProperty(globalThis, "document");
+    } else {
+      globalThis.document = originalDocument;
+    }
+
+    if (originalSpeechRecognition === undefined) {
+      Reflect.deleteProperty(globalThis, "SpeechRecognition");
+    } else {
+      globalThis.SpeechRecognition = originalSpeechRecognition;
+    }
+
+    if (originalWebkitSpeechRecognition === undefined) {
+      Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
+    } else {
+      globalThis.webkitSpeechRecognition = originalWebkitSpeechRecognition;
+    }
+  }
+});
+
 test("metric chart points keep chronology and overlay values", () => {
   const snapshot = createSnapshot({
     logs: [
@@ -428,7 +643,10 @@ test("action center groups overdue reminders and recent reminder activity", () =
 
   assert.ok(center.overdue.length > 0);
   assert.ok(center.recentActivity.length > 0);
+  assert.ok(center.nextBestSteps.length > 0);
+  assert.ok(center.groupedBySpace.length > 0);
   assert.equal(center.summary.overdueCount, center.overdue.length);
+  assert.equal(center.summary.nextBestStepCount, center.nextBestSteps.length);
 });
 
 test("visual history derives scoped galleries, proofs, and before-after pairs", () => {
@@ -1000,6 +1218,1597 @@ test("theme preferences default to dark and support oled selection", () => {
   assert.equal(getThemeBackgroundColor("light"), "#f8fafc");
   assert.equal(getThemeBackgroundColor("dark"), "#111318");
   assert.equal(getThemeBackgroundColor("oled"), "#000000");
+});
+
+test("ai preferences default to privacy-first prompt history and normalize BYOK input", () => {
+  assert.equal(DEFAULT_AI_PROMPT_HISTORY_ENABLED, false);
+  assert.equal(normalizeAiPromptHistoryEnabled(true), true);
+  assert.equal(normalizeAiPromptHistoryEnabled("true"), true);
+  assert.equal(normalizeAiPromptHistoryEnabled("false"), false);
+  assert.equal(normalizeAiPromptHistoryEnabled(null), false);
+  assert.equal(normalizeOpenRouterApiKey("  sk-or-v1-demo  "), "sk-or-v1-demo");
+  assert.equal(normalizeOpenRouterApiKey("   "), null);
+  assert.equal(normalizeOpenRouterApiKey(undefined), null);
+});
+
+test("ai client helpers normalize model, bounds, and headers safely", () => {
+  assert.equal(
+    normalizeOpenRouterTextModel("  google/gemini-2.5-flash  "),
+    "google/gemini-2.5-flash",
+  );
+  assert.equal(normalizeOpenRouterTextModel("   "), "openai/gpt-4.1-mini");
+
+  const normalized = normalizeOpenRouterTextGenerationOptions({
+    prompt: "  Draft a concise summary.  ",
+    model: "",
+    user: "  demo-user  ",
+    temperature: 3,
+    maxOutputTokens: 10_000,
+    timeoutMs: 1_000,
+    headers: { "HTTP-Referer": "https://trackitup.app", Empty: "" },
+  });
+
+  assert.equal(normalized.prompt, "Draft a concise summary.");
+  assert.equal(normalized.model, "openai/gpt-4.1-mini");
+  assert.equal(normalized.user, "demo-user");
+  assert.equal(normalized.temperature, 2);
+  assert.equal(normalized.maxOutputTokens, 4096);
+  assert.equal(normalized.timeoutMs, 5000);
+  assert.deepEqual(normalized.headers, {
+    "X-Title": "TrackItUp",
+    "HTTP-Referer": "https://trackitup.app",
+  });
+
+  const defaults = normalizeOpenRouterTextGenerationOptions({
+    prompt: "go",
+  });
+  assert.equal(defaults.maxOutputTokens, DEFAULT_AI_MAX_OUTPUT_TOKENS);
+  assert.equal(defaults.timeoutMs, DEFAULT_AI_TIMEOUT_MS);
+});
+
+test("openrouter model helpers group free and paid text models safely", () => {
+  const normalizedModels = normalizeOpenRouterSelectableModels([
+    {
+      id: "  free/model  ",
+      name: " Free Model ",
+      description: " Free-tier text model ",
+      context_length: 8192,
+      pricing: { prompt: "0", completion: "0" },
+      architecture: {
+        input_modalities: ["text"],
+        output_modalities: ["text"],
+      },
+    },
+    {
+      id: "paid/model",
+      name: "Paid Model",
+      pricing: { prompt: "0.000001", completion: "0.000002" },
+      architecture: {
+        input_modalities: ["text"],
+        output_modalities: ["text"],
+      },
+    },
+    {
+      id: "image/model",
+      name: "Image Model",
+      pricing: { prompt: "0", completion: "0" },
+      architecture: {
+        input_modalities: ["image"],
+        output_modalities: ["image"],
+      },
+    },
+  ]);
+
+  assert.deepEqual(
+    normalizedModels.map((model) => [model.id, model.tier]),
+    [
+      ["free/model", "free"],
+      ["paid/model", "paid"],
+    ],
+  );
+  assert.equal(normalizedModels[0].name, "Free Model");
+  assert.equal(normalizedModels[0].description, "Free-tier text model");
+  assert.equal(formatOpenRouterModelPricingLabel(normalizedModels[0]), "Free");
+  assert.match(
+    formatOpenRouterModelPricingLabel(normalizedModels[1]),
+    /Input \$1\.00\/M • Output \$2\.00\/M/,
+  );
+  assert.equal(
+    classifyOpenRouterModelTier({ pricing: { prompt: "0", completion: "0" } }),
+    "free",
+  );
+  assert.equal(
+    classifyOpenRouterModelTier({
+      pricing: { prompt: "0.000001", completion: "0.000002" },
+    }),
+    "paid",
+  );
+  assert.equal(
+    supportsOpenRouterTextModel({
+      id: "text/model",
+      architecture: {
+        input_modalities: ["text"],
+        output_modalities: ["text"],
+      },
+    }),
+    true,
+  );
+  assert.equal(
+    supportsOpenRouterTextModel({
+      id: "audio/model",
+      architecture: {
+        input_modalities: ["audio"],
+        output_modalities: ["audio"],
+      },
+    }),
+    false,
+  );
+});
+
+test("openrouter model helpers filter, sort, and pick a sensible default tier", () => {
+  const models = [
+    {
+      id: "free/compact",
+      name: "Compact Free",
+      description: "Fast starter model",
+      createdAt: 1_700_000_000,
+      contextLength: 4096,
+      pricing: { prompt: "0", completion: "0" },
+      tier: "free",
+    },
+    {
+      id: "paid/cheap",
+      name: "Affordable Paid",
+      description: "Budget paid model",
+      createdAt: 1_720_000_000,
+      contextLength: 16000,
+      pricing: { prompt: "0.000001", completion: "0.000001" },
+      tier: "paid",
+    },
+    {
+      id: "paid/large-context",
+      name: "Large Context",
+      description: "High-context paid model",
+      createdAt: 1_710_000_000,
+      contextLength: 128000,
+      pricing: { prompt: "0.000005", completion: "0.000007" },
+      tier: "paid",
+    },
+  ];
+
+  assert.deepEqual(
+    filterOpenRouterSelectableModels(models, "budget").map((model) => model.id),
+    ["paid/cheap"],
+  );
+  assert.deepEqual(
+    filterOpenRouterSelectableModels(models, "compact").map(
+      (model) => model.id,
+    ),
+    ["free/compact"],
+  );
+  assert.deepEqual(
+    sortOpenRouterSelectableModels(models, "context-length").map(
+      (model) => model.id,
+    ),
+    ["paid/large-context", "paid/cheap", "free/compact"],
+  );
+  assert.deepEqual(
+    sortOpenRouterSelectableModels(models, "price").map((model) => model.id),
+    ["free/compact", "paid/cheap", "paid/large-context"],
+  );
+  assert.deepEqual(
+    sortOpenRouterSelectableModels(models, "release-date").map(
+      (model) => model.id,
+    ),
+    ["paid/cheap", "paid/large-context", "free/compact"],
+  );
+  assert.equal(getDefaultOpenRouterModelTier(models, "paid/cheap"), "paid");
+  assert.equal(getDefaultOpenRouterModelTier(models, "missing/model"), "free");
+  assert.equal(
+    formatOpenRouterModelPricingLabel({
+      tier: "paid",
+      pricing: { prompt: "0.000001", completion: undefined },
+    }),
+    "Input $1.00/M",
+  );
+});
+
+test("openrouter model helpers normalize saved sorts and split search highlights", () => {
+  assert.equal(DEFAULT_OPENROUTER_MODEL_SORT, "recommended");
+  assert.equal(normalizeOpenRouterModelSort("price"), "price");
+  assert.equal(normalizeOpenRouterModelSort("release-date"), "release-date");
+  assert.equal(
+    normalizeOpenRouterModelSort("context-length"),
+    "context-length",
+  );
+  assert.equal(normalizeOpenRouterModelSort("unknown"), "recommended");
+  assert.deepEqual(getOpenRouterSearchHighlightParts("Compact Free", "free"), [
+    { text: "Compact ", isHighlighted: false },
+    { text: "Free", isHighlighted: true },
+  ]);
+  assert.deepEqual(getOpenRouterSearchHighlightParts("GPT GPT", "gpt"), [
+    { text: "GPT", isHighlighted: true },
+    { text: " ", isHighlighted: false },
+    { text: "GPT", isHighlighted: true },
+  ]);
+  assert.deepEqual(getOpenRouterSearchHighlightParts("No Match", ""), [
+    { text: "No Match", isHighlighted: false },
+  ]);
+});
+
+test("ai client helpers preserve useful error messages", () => {
+  assert.deepEqual(
+    buildTrackItUpAiHeaders({ Custom: "value", Empty: undefined }),
+    {
+      "X-Title": "TrackItUp",
+      Custom: "value",
+    },
+  );
+  assert.equal(
+    formatAiServiceError(new Error("Provider refused request")),
+    "Provider refused request",
+  );
+  assert.match(
+    formatAiServiceError({ detail: true }),
+    /failed before TrackItUp received/i,
+  );
+});
+
+test("schema-builder prompt uses compact template and workspace context", () => {
+  const draft = buildSchemaBuilderPrompt({
+    workspace: trackItUpWorkspace,
+    userGoal:
+      "Create a reef maintenance template with chemistry readings, photo proof, and follow-up reminders.",
+    quickActionKind: "metric-entry",
+  });
+
+  assert.equal(draft.context.feature, "schema-builder");
+  assert.equal(draft.context.quickActionKind, "metric-entry");
+  assert.ok(draft.context.baseTemplate.sections.length > 0);
+  assert.ok(
+    draft.context.presetFields.some(
+      (field) => field.label === "Observation note",
+    ),
+  );
+  assert.match(draft.prompt, /Base schema family: metric-entry/);
+  assert.match(draft.consentLabel, /template, space, and metric metadata/i);
+  assert.doesNotMatch(draft.prompt, /syncQueue|lastSyncAt|lastSyncError/);
+});
+
+test("logbook prompt keeps only the minimum necessary related context", () => {
+  const snapshot = createSnapshot({
+    logs: [
+      {
+        id: "ai-log-target",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: "Skimmer cup cleaned",
+        note: "Pulled thick waste and reset the cup after the weekly check.",
+        occurredAt: "2026-03-10T09:00:00.000Z",
+        assetIds: ["asset-filter"],
+        tags: ["maintenance", "reef"],
+        attachments: [
+          {
+            id: "attach-proof",
+            uri: "file://proof-photo.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-03-10T09:00:00.000Z",
+          },
+        ],
+        locationPoint: { latitude: 12.3, longitude: 45.6 },
+        customFieldValues: { secret: "hidden" },
+      },
+      {
+        id: "ai-log-other-space",
+        spaceId: "plants",
+        kind: "asset-update",
+        title: "Repotted pothos",
+        note: "Fresh soil and moss pole.",
+        occurredAt: "2026-03-11T09:00:00.000Z",
+      },
+    ],
+  });
+
+  const draft = buildLogbookDraftPrompt({
+    workspace: snapshot,
+    userRequest: "Rewrite this into a cleaner entry and suggest tags.",
+    draftNote: "Cleaned the skimmer cup and checked flow after feeding.",
+    spaceId: "reef",
+    assetIds: ["asset-filter"],
+  });
+
+  assert.equal(draft.context.feature, "logbook-draft");
+  assert.equal(draft.context.targetSpace?.name, "100G Reef Tank");
+  assert.equal(draft.context.selectedAssets[0]?.name, "Canister Filter");
+  assert.equal(draft.context.recentLogs.length, 1);
+  assert.equal(draft.context.recentLogs[0]?.title, "Skimmer cup cleaned");
+  assert.doesNotMatch(
+    draft.prompt,
+    /file:\/\/proof-photo\.jpg|locationPoint|customFieldValues/,
+  );
+});
+
+test("visual recap prompt summarizes highlights without sending photo URIs", () => {
+  const draft = buildVisualRecapPrompt({
+    workspace: trackItUpWorkspace,
+    scope: { spaceId: "plants" },
+    scopeLabel: "Plants",
+  });
+
+  assert.ok(draft);
+  assert.equal(draft?.context.feature, "visual-recap");
+  assert.equal(draft?.context.scopeLabel, "Plants");
+  assert.ok((draft?.context.highlights.length ?? 0) > 0);
+  assert.match(
+    draft?.system ?? "",
+    /Do not claim to have directly seen photos/i,
+  );
+  assert.doesNotMatch(draft?.prompt ?? "", /file:\/\//);
+});
+
+test("planner copilot prompt uses compact reminder and recommendation context", () => {
+  const activeDateKey =
+    trackItUpWorkspace.reminders[0]?.dueAt.slice(0, 10) ??
+    trackItUpWorkspace.generatedAt.slice(0, 10);
+  const draft = buildPlannerCopilotPrompt({
+    workspace: trackItUpWorkspace,
+    userRequest:
+      "Prioritize the selected day and tell me what needs proof first.",
+    activeDateKey,
+  });
+
+  assert.equal(draft.context.feature, "planner-copilot");
+  assert.equal(draft.context.activeDateKey, activeDateKey);
+  assert.ok(draft.context.upcomingAgenda.length > 0);
+  assert.match(draft.prompt, /Selected planner day/);
+});
+
+test("planner risk prompt uses compact deferral and hotspot context", () => {
+  const activeDateKey =
+    trackItUpWorkspace.reminders[0]?.dueAt.slice(0, 10) ??
+    trackItUpWorkspace.generatedAt.slice(0, 10);
+  const snapshot = createSnapshot({
+    reminders: trackItUpWorkspace.reminders.map((reminder, index) =>
+      index === 0
+        ? {
+            ...reminder,
+            status: "snoozed",
+            history: [
+              ...(reminder.history ?? []),
+              {
+                id: "planner-risk-history-1",
+                action: "snoozed",
+                at: "2026-03-12T08:00:00.000Z",
+                note: "Pushed because the filter inspection took longer.",
+              },
+              {
+                id: "planner-risk-history-2",
+                action: "skipped",
+                at: "2026-03-11T08:00:00.000Z",
+                note: "Skipped while supplies were being restocked.",
+              },
+            ],
+          }
+        : reminder,
+    ),
+  });
+
+  const riskSummary = buildWorkspacePlannerRiskSummary(snapshot, activeDateKey);
+  const draft = buildPlannerRiskPrompt({
+    workspace: snapshot,
+    userRequest: "Explain what is most likely to slip and what can wait.",
+    activeDateKey,
+  });
+
+  assert.equal(draft.context.feature, "planner-risk-brief");
+  assert.ok(riskSummary.highestRiskReminders.length > 0);
+  assert.ok(draft.context.retrievedSources.length > 0);
+  assert.match(draft.prompt, /Selected planner day/);
+});
+
+test("action center explainer prompt includes grouped workload and next steps", () => {
+  const draft = buildActionCenterExplainerPrompt({
+    workspace: trackItUpWorkspace,
+    userRequest:
+      "Explain the queue pressure and tell me what should be handled first.",
+  });
+
+  assert.equal(draft.context.feature, "action-center-explainer");
+  assert.ok(draft.context.nextBestSteps.length > 0);
+  assert.ok(draft.context.groupedBySpace.length > 0);
+  assert.match(draft.prompt, /grouped workload/i);
+});
+
+test("tracking quality prompt uses compact evidence-gap context", () => {
+  const snapshot = createSnapshot({
+    logs: [
+      {
+        id: "quality-log-sparse",
+        spaceId: "reef",
+        kind: "routine-run",
+        title: "Quick cleanup",
+        note: "Done",
+        occurredAt: "2026-03-10T09:00:00.000Z",
+        attachmentsCount: 0,
+      },
+      ...trackItUpWorkspace.logs,
+    ],
+    reminders: trackItUpWorkspace.reminders.map((reminder, index) =>
+      index === 0
+        ? {
+            ...reminder,
+            history: [
+              ...(reminder.history ?? []),
+              {
+                id: "quality-history-1",
+                action: "snoozed",
+                at: "2026-03-11T07:30:00.000Z",
+                note: "Deferred until proof can be logged.",
+              },
+            ],
+          }
+        : reminder,
+    ),
+  });
+
+  const summary = buildWorkspaceTrackingQualitySummary(snapshot);
+  const draft = buildTrackingQualityPrompt({
+    workspace: snapshot,
+    userRequest:
+      "Explain what I should record next to improve tracking quality.",
+  });
+
+  assert.equal(draft.context.feature, "tracking-quality-brief");
+  assert.ok(summary.reminderGaps.length > 0 || summary.sparseLogs.length > 0);
+  assert.ok(draft.context.retrievedSources.length > 0);
+  assert.match(draft.prompt, /what should be recorded next/i);
+});
+
+test("workspace q&a prompt selects compact grounded sources only", () => {
+  const snapshot = createSnapshot({
+    logs: [
+      {
+        id: "qa-log-filter",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: "Filter intake cleaned",
+        note: "Rinsed the intake guard and restored full flow after algae buildup.",
+        occurredAt: "2026-03-10T09:00:00.000Z",
+        assetIds: ["asset-filter"],
+        tags: ["filter", "maintenance"],
+        attachments: [
+          {
+            id: "qa-photo",
+            uri: "file://reef-filter.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-03-10T09:05:00.000Z",
+          },
+        ],
+        locationPoint: { latitude: 10.2, longitude: 12.3 },
+        customFieldValues: { hidden: "secret" },
+      },
+    ],
+  });
+
+  const draft = buildWorkspaceQaPrompt({
+    workspace: snapshot,
+    question: "What does TrackItUp know about recent filter maintenance?",
+  });
+
+  assert.equal(draft.context.feature, "workspace-q-and-a");
+  assert.ok(draft.context.retrievedSources.length > 0);
+  assert.ok(
+    draft.context.retrievedSources.some((source) =>
+      /Canister Filter|Filter intake cleaned/.test(source.title),
+    ),
+  );
+  assert.doesNotMatch(
+    draft.prompt,
+    /file:\/\/reef-filter\.jpg|locationPoint|customFieldValues/,
+  );
+});
+
+test("ai draft review helpers compact values and summarize token usage", () => {
+  assert.equal(formatAiDraftReviewValue(true), "Yes");
+  assert.equal(formatAiDraftReviewValue(false), "No");
+  assert.equal(
+    formatAiDraftReviewValue("  Rewrite   this into a cleaner summary.  "),
+    "Rewrite this into a cleaner summary.",
+  );
+  assert.equal(formatAiDraftReviewValue(null), null);
+  assert.match(
+    formatAiDraftReviewValue({ title: "Schema draft", fields: 4 }) ?? "",
+    /Schema draft/,
+  );
+  assert.equal(
+    formatAiDraftUsageLabel({ inputTokens: 120, outputTokens: 48 }),
+    "120 in • 48 out",
+  );
+  assert.equal(formatAiDraftUsageLabel({ totalTokens: 240 }), "240 total");
+});
+
+test("ai draft review helpers build compact review items for lists and fields", () => {
+  const reviewItems = buildAiDraftReviewItems([
+    { key: "title", label: "Title", value: "  Reef maintenance draft  " },
+    {
+      key: "tags",
+      label: "Suggested tags",
+      value: ["reef", "maintenance", "chemistry", "weekly"],
+      maxLines: 3,
+    },
+    { key: "empty", label: "Ignore", value: "   " },
+  ]);
+
+  assert.equal(reviewItems.length, 2);
+  assert.equal(reviewItems[0].valueText, "Reef maintenance draft");
+  assert.deepEqual(reviewItems[1].valueLines, [
+    "reef",
+    "maintenance",
+    "chemistry",
+    "+1 more",
+  ]);
+});
+
+test("ai text input helpers compact transcript preview and source labels", () => {
+  assert.equal(DEFAULT_AI_TRANSCRIPT_PREVIEW_MAX_LENGTH, 160);
+  assert.equal(
+    compactAiTranscriptPreview(
+      "  rewrite   the skimmer note into a cleaner summary  ",
+    ),
+    "rewrite the skimmer note into a cleaner summary",
+  );
+  assert.equal(compactAiTranscriptPreview("   "), null);
+  assert.equal(
+    getAiTranscriptSourceLabel("speech-recognition"),
+    "Live transcript",
+  );
+  assert.equal(
+    getAiTranscriptSourceLabel("device-keyboard"),
+    "Keyboard dictation",
+  );
+  assert.equal(getAiTranscriptSourceLabel(undefined), null);
+});
+
+test("ai text input helpers derive prompt state labels safely", () => {
+  assert.equal(getAiPromptCharacterCountLabel(""), "Prompt empty");
+  assert.equal(getAiPromptCharacterCountLabel(" reef "), "4 chars");
+  assert.equal(canSubmitAiPrompt("Draft a recap"), true);
+  assert.equal(canSubmitAiPrompt("   "), false);
+  assert.equal(canSubmitAiPrompt("Draft a recap", true), false);
+});
+
+test("ai schema draft parser extracts reviewable local template drafts", () => {
+  const rawResponse = `Here is the draft:\n\n\`\`\`json
+  {
+    "name": "Reef maintenance check",
+    "summary": "Track chemistry, observations, and proof from weekly reef maintenance.",
+    "category": "Aquarium",
+    "quickActionKind": "metric-entry",
+    "extraFields": [
+      {
+        "label": "Observation note",
+        "type": "rich-text",
+        "description": "Main maintenance observations.",
+        "placeholder": "What changed?"
+      },
+      {
+        "label": "Reference asset",
+        "type": "checklist",
+        "source": "assets",
+        "required": true
+      },
+      {
+        "label": "Reference asset",
+        "type": "checklist",
+        "source": "assets"
+      },
+      {
+        "label": "Ignored source field",
+        "type": "textarea",
+        "source": "metrics"
+      }
+    ]
+  }
+  \`\`\``;
+
+  const parsed = parseAiSchemaTemplateDraft(rawResponse, "quick-log");
+  assert.ok(parsed);
+  assert.equal(parsed?.quickActionKind, "metric-entry");
+  assert.equal(parsed?.name, "Reef maintenance check");
+  assert.equal(parsed?.extraFields.length, 3);
+  assert.equal(parsed?.extraFields[1]?.source, "assets");
+  assert.equal(parsed?.extraFields[2]?.source, undefined);
+
+  const reviewItems = buildAiSchemaDraftReviewItems(parsed);
+  assert.equal(reviewItems[0].label, "Template name");
+  assert.match(reviewItems.at(-1)?.value?.join(" ") ?? "", /Observation note/);
+  assert.match(
+    buildAiSchemaGenerationPrompt("Base prompt"),
+    /Return ONLY valid JSON/,
+  );
+});
+
+test("ai logbook draft parser extracts grounded writing suggestions", () => {
+  const rawResponse = [
+    "Draft suggestion:",
+    "```json",
+    JSON.stringify(
+      {
+        title: "Weekly reef check completed",
+        note: "Completed the skimmer clean, checked flow, and confirmed parameters were stable after feeding.",
+        tags: ["reef", "maintenance", "reef", "weekly-check"],
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiLogbookDraft(rawResponse, {
+    allowTitle: true,
+    allowTags: true,
+  });
+
+  assert.ok(parsed);
+  assert.equal(parsed?.title, "Weekly reef check completed");
+  assert.match(parsed?.note ?? "", /confirmed parameters were stable/i);
+  assert.deepEqual(parsed?.tags, ["reef", "maintenance", "weekly-check"]);
+
+  const reviewItems = buildAiLogbookDraftReviewItems(parsed ?? {});
+  assert.equal(reviewItems[0]?.label, "Title");
+  assert.match(reviewItems.at(-1)?.value?.join(" ") ?? "", /weekly-check/);
+  assert.match(
+    buildAiLogbookGenerationPrompt("Base prompt", {
+      allowTitle: true,
+      allowTags: false,
+    }),
+    /Only include keys shown above/,
+  );
+});
+
+test("ai visual recap parser extracts grounded narrator drafts", () => {
+  const rawResponse = [
+    "Narration draft:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Plants showed steady recovery this month",
+        summary:
+          "The selected recap points to steady plant recovery, repeated proof captures, and consistent check-ins recorded through TrackItUp logs.",
+        highlights: [
+          "Proof photos captured multiple milestones across the month.",
+          "Recent logs emphasized maintenance consistency and gradual progress.",
+          "Proof photos captured multiple milestones across the month.",
+        ],
+        nextFocus:
+          "Keep the same cadence next month so changes remain easy to compare.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiVisualRecapDraft(rawResponse);
+  assert.ok(parsed);
+  assert.equal(parsed?.headline, "Plants showed steady recovery this month");
+  assert.match(parsed?.summary ?? "", /steady plant recovery/i);
+  assert.equal(parsed?.highlights.length, 2);
+  assert.match(parsed?.nextFocus ?? "", /same cadence next month/i);
+
+  const reviewItems = buildAiVisualRecapReviewItems(
+    parsed ?? { headline: "", highlights: [] },
+  );
+  assert.equal(reviewItems[0]?.label, "Headline");
+  assert.match(reviewItems.at(-1)?.value ?? "", /next month/i);
+  assert.match(
+    buildAiVisualRecapGenerationPrompt("Base prompt"),
+    /Do not imply direct visual inspection/i,
+  );
+});
+
+test("ai planner copilot parser extracts reviewable next-step drafts", () => {
+  const reminders = trackItUpWorkspace.reminders
+    .slice(0, 2)
+    .map((reminder) => ({
+      id: reminder.id,
+      title: reminder.title,
+    }));
+  const activeDateKey =
+    trackItUpWorkspace.reminders[0]?.dueAt.slice(0, 10) ??
+    trackItUpWorkspace.generatedAt.slice(0, 10);
+  const rawResponse = [
+    "Planner draft:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Focus proof capture first, then clear the shorter reminders",
+        summary:
+          "The selected day appears manageable if proof capture happens first and lower-friction reminders are handled before anything that might slip.",
+        focusDateKey: activeDateKey,
+        groupedPlan: [
+          "Handle the reminder that needs proof capture first.",
+          "Use the action center for anything that still needs triage after that.",
+        ],
+        suggestedActions: [
+          {
+            reminderId: reminders[0]?.id,
+            title: reminders[0]?.title,
+            action: "log-proof",
+            reason:
+              "This one benefits most from recording completion evidence immediately.",
+          },
+          {
+            reminderId: "missing-reminder",
+            title: "Ignore",
+            action: "do-now",
+            reason: "Should be dropped.",
+          },
+        ],
+        caution: "Review anything overdue before snoozing it.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiPlannerCopilotDraft(rawResponse, {
+    allowedDateKeys: [activeDateKey],
+    reminders,
+  });
+
+  assert.ok(parsed);
+  assert.equal(parsed?.focusDateKey, activeDateKey);
+  assert.equal(parsed?.suggestedActions.length, 1);
+  assert.match(parsed?.summary ?? "", /proof capture happens first/i);
+
+  const reviewItems = buildAiPlannerCopilotReviewItems(
+    parsed ?? { headline: "", groupedPlan: [], suggestedActions: [] },
+  );
+  assert.equal(reviewItems[0]?.label, "Headline");
+  assert.match(
+    buildAiPlannerCopilotGenerationPrompt("Base prompt"),
+    /review-only next-step suggestion/i,
+  );
+});
+
+test("ai planner risk parser extracts cited reviewable risk briefs", () => {
+  const rawResponse = [
+    "Planner risk brief:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Repeated deferrals make the reef queue the main risk",
+        summary:
+          "The reef reminder queue looks likeliest to slip because one selected-day reminder was recently snoozed and skipped while that same space still carries open pressure.",
+        keyRisks: [
+          "One selected-day reminder has multiple recent deferrals.",
+          "The same space still holds open planner pressure.",
+        ],
+        sourceIds: [
+          "reminder:reminder-water-change",
+          "deferral:planner-risk-history-1",
+          "space:reef",
+          "unknown-source",
+        ],
+        suggestedDestination: "action-center",
+        caution:
+          "Use the cited reminder history before deciding to snooze anything again.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const sources = [
+    {
+      id: "reminder:reminder-water-change",
+      title: "Water change",
+      kind: "reminder",
+      snippet: "Already overdue and recently deferred.",
+      route: "action-center",
+      spaceId: "reef",
+      reminderId: "reminder-water-change",
+    },
+    {
+      id: "deferral:planner-risk-history-1",
+      title: "Water change (snoozed)",
+      kind: "deferral",
+      snippet: "Pushed because the filter inspection took longer.",
+      route: "action-center",
+      spaceId: "reef",
+      reminderId: "reminder-water-change",
+    },
+    {
+      id: "space:reef",
+      title: "100G Reef Tank",
+      kind: "space",
+      snippet: "1 overdue, 0 due today, 2 recent deferrals.",
+      route: "action-center",
+      spaceId: "reef",
+    },
+  ];
+
+  const parsed = parseAiPlannerRiskDraft(rawResponse, {
+    allowedSourceIds: sources.map((source) => source.id),
+  });
+
+  assert.ok(parsed);
+  assert.deepEqual(parsed?.citedSourceIds, [
+    "reminder:reminder-water-change",
+    "deferral:planner-risk-history-1",
+    "space:reef",
+  ]);
+  assert.equal(parsed?.suggestedDestination, "action-center");
+  assert.match(parsed?.summary ?? "", /likeliest to slip/i);
+
+  const reviewItems = buildAiPlannerRiskReviewItems(parsed, sources);
+  assert.match(reviewItems[3]?.value?.join(" ") ?? "", /Reminder:/i);
+  assert.match(
+    buildAiPlannerRiskGenerationPrompt("Base prompt"),
+    /Cite 1 to 4 sourceIds/i,
+  );
+});
+
+test("ai tracking quality parser extracts cited reviewable briefs", () => {
+  const rawResponse = [
+    "Tracking quality brief:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Record reef proof and a fresh chemistry reading next",
+        summary:
+          "The reef space is the clearest tracking-quality gap because an open reminder still lacks a linked proof log, recent space activity includes a sparse cleanup note, and a tracked metric needs fresher coverage.",
+        keyGaps: [
+          "One open reminder still lacks a linked proof log.",
+          "A recent cleanup entry was saved without enough detail or proof.",
+        ],
+        sourceIds: [
+          "reminder:reminder-water-change",
+          "metric:metric-salinity",
+          "log:quality-log-sparse",
+          "unknown-source",
+        ],
+        suggestedDestination: "logbook",
+        caution:
+          "Check the cited reminder and metric context before deciding which quick log to record first.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const sources = [
+    {
+      id: "reminder:reminder-water-change",
+      title: "Water change",
+      kind: "reminder-gap",
+      snippet: "No linked proof log was recorded recently.",
+      route: "logbook",
+      spaceId: "reef",
+      reminderId: "reminder-water-change",
+      actionId: "quick-log",
+    },
+    {
+      id: "metric:metric-salinity",
+      title: "Salinity",
+      kind: "metric-gap",
+      snippet: "Its last recorded reading is older than 30 days.",
+      route: "logbook",
+      spaceId: "reef",
+      actionId: "quick-metric",
+    },
+    {
+      id: "log:quality-log-sparse",
+      title: "Quick cleanup",
+      kind: "log-gap",
+      snippet: "The note is too short and no proof attachment was saved.",
+      route: "logbook",
+      spaceId: "reef",
+      actionId: "quick-log",
+    },
+  ];
+
+  const parsed = parseAiTrackingQualityDraft(rawResponse, {
+    allowedSourceIds: sources.map((source) => source.id),
+  });
+
+  assert.ok(parsed);
+  assert.deepEqual(parsed?.citedSourceIds, [
+    "reminder:reminder-water-change",
+    "metric:metric-salinity",
+    "log:quality-log-sparse",
+  ]);
+  assert.equal(parsed?.suggestedDestination, "logbook");
+  assert.match(parsed?.summary ?? "", /tracking-quality gap/i);
+
+  const reviewItems = buildAiTrackingQualityReviewItems(parsed, sources);
+  assert.match(reviewItems[3]?.value?.join(" ") ?? "", /Reminder gap:/i);
+  assert.match(
+    buildAiTrackingQualityGenerationPrompt("Base prompt"),
+    /what should be recorded next/i,
+  );
+});
+
+test("ai action center explainer parser extracts grounded queue guidance", () => {
+  const reminders = trackItUpWorkspace.reminders
+    .slice(0, 2)
+    .map((reminder) => ({
+      id: reminder.id,
+      title: reminder.title,
+    }));
+  const rawResponse = [
+    "Action center explainer:",
+    "```json",
+    JSON.stringify(
+      {
+        headline:
+          "Handle the overdue queue first, then reduce pressure in the busiest space",
+        summary:
+          "Most urgency sits in reminders that are already overdue, while one space is carrying enough open work to keep the queue noisy if it is not reduced soon.",
+        groupedInsights: [
+          "One space is carrying a larger share of open reminders than the others.",
+          "Overdue reminders should be resolved before the due-today queue grows.",
+        ],
+        recommendationTakeaways: [
+          "Use the logbook when proof capture will close a reminder cleanly.",
+        ],
+        suggestedActions: [
+          {
+            reminderId: reminders[0]?.id,
+            title: reminders[0]?.title,
+            action: "complete-now",
+            reason:
+              "This one is already overdue and is the clearest item to remove from the queue first.",
+          },
+          {
+            reminderId: "missing-reminder",
+            title: "Ignore",
+            action: "open-planner",
+            reason: "Should be dropped.",
+          },
+        ],
+        caution: "Review anything recently snoozed before deferring it again.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiActionCenterExplainerDraft(rawResponse, reminders);
+
+  assert.ok(parsed);
+  assert.equal(parsed?.suggestedActions.length, 1);
+  assert.equal(parsed?.groupedInsights.length, 2);
+  assert.match(parsed?.summary ?? "", /Most urgency sits/i);
+
+  const reviewItems = buildAiActionCenterExplainerReviewItems(
+    parsed ?? {
+      headline: "",
+      groupedInsights: [],
+      recommendationTakeaways: [],
+      suggestedActions: [],
+    },
+  );
+  assert.equal(reviewItems[0]?.label, "Headline");
+  assert.match(
+    buildAiActionCenterExplainerGenerationPrompt("Base prompt"),
+    /review-only explanation/i,
+  );
+});
+
+test("ai workspace q&a parser extracts cited grounded answers", () => {
+  const sources = [
+    {
+      id: "asset:asset-filter",
+      kind: "asset",
+      title: "Canister Filter",
+      snippet: "filter • maintenance • 100G Reef Tank",
+      route: "inventory",
+    },
+    {
+      id: "log:qa-log-filter",
+      kind: "log",
+      title: "Filter intake cleaned",
+      snippet: "asset-update • 2026-03-10 • restored full flow",
+      route: "logbook",
+    },
+  ];
+  const rawResponse = [
+    "Workspace answer:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Recent filter maintenance looks straightforward",
+        answer:
+          "The strongest grounded evidence points to a recent intake cleaning that restored flow, with the filter asset still active in the reef setup.",
+        keyPoints: [
+          "A recent log records an intake cleaning and restored flow.",
+          "The tracked asset remains active in the reef workspace.",
+        ],
+        sourceIds: ["log:qa-log-filter", "asset:asset-filter", "missing"],
+        suggestedDestination: "inventory",
+        caution:
+          "Open the logbook if you need more detailed proof or chronology.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiWorkspaceQaDraft(rawResponse, {
+    allowedSourceIds: sources.map((source) => source.id),
+  });
+
+  assert.ok(parsed);
+  assert.deepEqual(parsed?.citedSourceIds, [
+    "log:qa-log-filter",
+    "asset:asset-filter",
+  ]);
+  assert.equal(parsed?.suggestedDestination, "inventory");
+  assert.match(parsed?.answer ?? "", /restored flow/i);
+
+  const reviewItems = buildAiWorkspaceQaReviewItems(parsed, sources);
+  assert.equal(reviewItems[0]?.label, "Headline");
+  assert.match(
+    reviewItems[3]?.value?.join(" ") ?? "",
+    /Asset: Canister Filter/i,
+  );
+  assert.match(
+    buildAiWorkspaceQaGenerationPrompt("Base prompt"),
+    /Cite 1 to 4 sourceIds/i,
+  );
+});
+
+test("dashboard pulse helpers build compact grounded home context", () => {
+  const snapshot = createSnapshot({
+    generatedAt: "2026-03-20T10:00:00.000Z",
+    logs: [
+      ...trackItUpWorkspace.logs,
+      {
+        id: "dashboard-pulse-metric",
+        spaceId: "reef",
+        kind: "metric-reading",
+        title: "Salinity dip",
+        note: "Salinity fell after a top-off issue.",
+        occurredAt: "2026-03-19T09:00:00.000Z",
+        assetIds: ["asset-filter"],
+        tags: ["reef", "salinity"],
+        metricReadings: [{ metricId: "metric-salinity", value: 1.02 }],
+        attachments: [
+          {
+            id: "dashboard-pulse-photo",
+            uri: "file://reef-dashboard.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-03-19T09:00:00.000Z",
+          },
+        ],
+      },
+    ],
+  });
+
+  const pulse = buildWorkspaceDashboardPulse(snapshot);
+  const promptDraft = buildDashboardPulsePrompt({
+    workspace: snapshot,
+    userRequest: "Summarize what needs attention first across the dashboard.",
+  });
+
+  assert.ok(pulse.attentionItems.length > 0);
+  assert.ok(pulse.activeSpaces.length > 0);
+  assert.ok(promptDraft.context.retrievedSources.length > 0);
+  assert.ok(
+    promptDraft.context.retrievedSources.some((source) =>
+      /safe zone|follow-up|pending task/i.test(
+        `${source.title} ${source.snippet}`,
+      ),
+    ),
+  );
+  assert.doesNotMatch(promptDraft.prompt, /file:\/\//i);
+});
+
+test("ai dashboard pulse parser extracts cited dashboard briefs", () => {
+  const sources = [
+    {
+      id: "recommendation:rec-reef",
+      title: "Review reef maintenance follow-up",
+      kind: "recommendation",
+      snippet:
+        "A due reef reminder and recent evidence suggest a planner review.",
+      route: "planner",
+      spaceId: "reef",
+    },
+    {
+      id: "attention:metric-alert:dashboard-pulse-metric:metric-salinity",
+      title: "Salinity is outside the safe zone",
+      kind: "attention",
+      snippet: "1.02 SG in 100G Reef Tank",
+      route: "planner",
+      spaceId: "reef",
+    },
+  ];
+  const rawResponse = [
+    "Dashboard pulse:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Reef follow-up leads the dashboard today",
+        summary:
+          "The dashboard evidence points to reef follow-up first because a safe-range alert and an open maintenance recommendation both converge on the same area.",
+        priorities: [
+          "Check the reef planner items tied to the recent salinity dip.",
+          "Review the recommendation before logging any follow-up action.",
+        ],
+        sourceIds: [
+          "attention:metric-alert:dashboard-pulse-metric:metric-salinity",
+          "recommendation:rec-reef",
+          "unknown-source",
+        ],
+        suggestedDestination: "planner",
+        caution:
+          "Use the cited planner items and logs to confirm the cause before acting.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiDashboardPulseDraft(rawResponse, {
+    allowedSourceIds: sources.map((source) => source.id),
+  });
+
+  assert.ok(parsed);
+  assert.deepEqual(parsed?.citedSourceIds, [
+    "attention:metric-alert:dashboard-pulse-metric:metric-salinity",
+    "recommendation:rec-reef",
+  ]);
+  assert.equal(parsed?.suggestedDestination, "planner");
+  assert.match(parsed?.summary ?? "", /dashboard evidence points/i);
+
+  const reviewItems = buildAiDashboardPulseReviewItems(parsed, sources);
+  assert.match(reviewItems[3]?.value?.join(" ") ?? "", /Recommendation:/i);
+  assert.match(
+    buildAiDashboardPulseGenerationPrompt("Base prompt"),
+    /Cite 1 to 4 sourceIds/i,
+  );
+});
+
+test("inventory lifecycle helpers summarize asset pressure without raw attachment leakage", () => {
+  const snapshot = createSnapshot({
+    generatedAt: "2026-03-20T10:00:00.000Z",
+    assets: [
+      {
+        id: "asset-filter",
+        spaceId: "reef",
+        name: "Canister Filter",
+        category: "Equipment",
+        status: "maintenance",
+        note: "Needs a service review.",
+        purchaseDate: "2025-03-10",
+        purchasePrice: 180,
+        warrantyExpiresAt: "2026-03-25T00:00:00.000Z",
+        warrantyNote: "1-year coverage",
+      },
+      {
+        id: "asset-airpump",
+        spaceId: "reef",
+        name: "Backup Air Pump",
+        category: "Equipment",
+        status: "active",
+        note: "Stored for outages.",
+        purchaseDate: "2025-09-01",
+        purchasePrice: 65,
+      },
+    ],
+    expenses: [
+      {
+        id: "expense-filter-service",
+        spaceId: "reef",
+        title: "Filter media",
+        category: "maintenance",
+        amount: 42,
+        currency: "USD",
+        occurredAt: "2026-03-05T09:00:00.000Z",
+        assetId: "asset-filter",
+      },
+      {
+        id: "expense-airpump",
+        spaceId: "reef",
+        title: "Air pump",
+        category: "equipment",
+        amount: 65,
+        currency: "USD",
+        occurredAt: "2025-09-01T09:00:00.000Z",
+        assetId: "asset-airpump",
+      },
+    ],
+    logs: [
+      {
+        id: "inventory-asset-log",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: "Filter servicing",
+        note: "Captured proof after cleaning the housing.",
+        occurredAt: "2026-03-10T09:00:00.000Z",
+        assetIds: ["asset-filter"],
+        tags: ["maintenance"],
+        attachments: [
+          {
+            id: "inventory-photo",
+            uri: "file://inventory-proof.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-03-10T09:00:00.000Z",
+          },
+        ],
+      },
+    ],
+  });
+
+  const lifecycle = buildWorkspaceInventoryLifecycleSummary(snapshot);
+  const promptDraft = buildInventoryLifecyclePrompt({
+    workspace: snapshot,
+    userRequest: "Which assets need documentation or warranty review next?",
+  });
+
+  assert.equal(lifecycle.summary.warrantyRiskCount, 1);
+  assert.ok(
+    lifecycle.attentionAssets.some((asset) => asset.id === "asset-filter"),
+  );
+  assert.ok(
+    lifecycle.attentionAssets.some((asset) => asset.id === "asset-airpump"),
+  );
+  assert.ok(promptDraft.context.retrievedSources.length > 0);
+  assert.ok(
+    promptDraft.context.retrievedSources.some((source) =>
+      /warranty|maintenance|photo history/i.test(
+        `${source.title} ${source.snippet}`,
+      ),
+    ),
+  );
+  assert.match(
+    aiInventoryLifecycleCopy.helperText,
+    /asset lifecycle pressure/i,
+  );
+  assert.doesNotMatch(promptDraft.prompt, /file:\/\//i);
+});
+
+test("ai inventory lifecycle parser extracts grounded asset briefs", () => {
+  const sources = [
+    {
+      id: "asset:asset-filter",
+      title: "Canister Filter",
+      kind: "asset",
+      snippet: "Maintenance status; warranty expires within 30 days.",
+      route: "inventory",
+      assetId: "asset-filter",
+      spaceId: "reef",
+    },
+    {
+      id: "asset:asset-airpump",
+      title: "Backup Air Pump",
+      kind: "asset",
+      snippet: "No linked logs or photo history recorded yet.",
+      route: "logbook",
+      assetId: "asset-airpump",
+      spaceId: "reef",
+    },
+  ];
+  const rawResponse = [
+    "Inventory lifecycle:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Documentation gaps matter more than raw asset count today",
+        summary:
+          "The strongest grounded inventory signal is that one asset is already in maintenance with near-term warranty pressure, while another still lacks any linked documentation trail.",
+        priorities: [
+          "Review the filter record before the warranty window closes.",
+          "Open logbook and capture a first asset update for the backup air pump.",
+        ],
+        sourceIds: ["asset:asset-airpump", "asset:asset-filter", "missing"],
+        suggestedDestination: "logbook",
+        caution:
+          "Check the cited asset cards before recording new maintenance or proof.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiInventoryLifecycleDraft(rawResponse, {
+    allowedSourceIds: sources.map((source) => source.id),
+  });
+
+  assert.ok(parsed);
+  assert.deepEqual(parsed?.citedSourceIds, [
+    "asset:asset-airpump",
+    "asset:asset-filter",
+  ]);
+  assert.equal(parsed?.suggestedDestination, "logbook");
+  assert.match(parsed?.summary ?? "", /grounded inventory signal/i);
+
+  const reviewItems = buildAiInventoryLifecycleReviewItems(parsed, sources);
+  assert.match(
+    reviewItems[3]?.value?.join(" ") ?? "",
+    /Asset: Backup Air Pump/i,
+  );
+  assert.match(
+    buildAiInventoryLifecycleGenerationPrompt("Base prompt"),
+    /Cite 1 to 4 sourceIds/i,
+  );
+});
+
+test("cross-space trend helpers compare months and keep sources grounded", () => {
+  const snapshot = createSnapshot({
+    generatedAt: "2026-03-18T10:00:00.000Z",
+    logs: [
+      {
+        id: "trend-feb-proof",
+        spaceId: "reef",
+        kind: "routine-run",
+        title: "February reef proof",
+        note: "Captured a healthy coral spread after cleanup.",
+        occurredAt: "2026-02-12T10:00:00.000Z",
+        assetIds: ["asset-filter"],
+        tags: ["reef", "proof"],
+        routineId: "routine-water-change",
+        attachments: [
+          {
+            id: "trend-feb-photo-1",
+            uri: "file://reef-feb-1.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-02-12T10:00:00.000Z",
+          },
+          {
+            id: "trend-feb-photo-2",
+            uri: "file://reef-feb-2.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-02-12T10:01:00.000Z",
+          },
+        ],
+      },
+      {
+        id: "trend-mar-metric",
+        spaceId: "reef",
+        kind: "metric-reading",
+        title: "March salinity alert",
+        note: "Salinity dipped after a top-off issue.",
+        occurredAt: "2026-03-10T09:00:00.000Z",
+        assetIds: ["asset-filter"],
+        tags: ["reef", "salinity"],
+        metricReadings: [
+          {
+            metricId: "metric-salinity",
+            value: 30,
+          },
+        ],
+        attachments: [
+          {
+            id: "trend-mar-photo",
+            uri: "file://reef-mar.jpg",
+            mediaType: "photo",
+            capturedAt: "2026-03-10T09:00:00.000Z",
+          },
+        ],
+      },
+    ],
+  });
+
+  const trendSummary = buildWorkspaceTrendSummary(snapshot, "2026-03");
+  const promptDraft = buildCrossSpaceTrendPrompt({
+    workspace: snapshot,
+    monthKey: "2026-03",
+    userRequest:
+      "Explain the strongest month-over-month changes and anomalies across spaces.",
+  });
+
+  assert.equal(trendSummary.previousMonthKey, "2026-02");
+  assert.ok(trendSummary.anomalies.length > 0);
+  assert.ok(
+    promptDraft.context.retrievedSources.some((source) =>
+      /salinity|activity dropped|overdue/i.test(
+        `${source.title} ${source.snippet}`,
+      ),
+    ),
+  );
+  assert.doesNotMatch(promptDraft.prompt, /file:\/\//i);
+});
+
+test("ai cross-space trend parser extracts cited anomaly summaries", () => {
+  const sources = [
+    {
+      id: "space:reef",
+      title: "100G Reef Tank",
+      kind: "space",
+      snippet: "1 photo in 2026-03 vs 2 in 2026-02; 1 metric alert.",
+      route: "planner",
+      spaceId: "reef",
+    },
+    {
+      id: "anomaly:metric-alert:reef:metric-salinity:trend-mar-metric",
+      title: "100G Reef Tank: Salinity is outside the safe zone",
+      kind: "anomaly",
+      snippet: "30 ppt was logged in 2026-03, outside the safe range.",
+      route: "planner",
+      spaceId: "reef",
+    },
+  ];
+  const rawResponse = [
+    "Trend summary:",
+    "```json",
+    JSON.stringify(
+      {
+        headline: "Reef follow-up stands out this month",
+        summary:
+          "Across spaces, the reef setup shows the clearest anomaly because salinity dropped below the safe range while documented proof activity also softened versus the prior month.",
+        keySignals: [
+          "A March salinity reading is outside the safe range.",
+          "The reef space logged fewer March photos than in February.",
+        ],
+        sourceIds: [
+          "anomaly:metric-alert:reef:metric-salinity:trend-mar-metric",
+          "space:reef",
+          "missing-source",
+        ],
+        suggestedDestination: "planner",
+        caution:
+          "Review the reef planner and recent logs before assuming the cause of the salinity dip.",
+      },
+      null,
+      2,
+    ),
+    "```",
+  ].join("\n");
+
+  const parsed = parseAiCrossSpaceTrendDraft(rawResponse, {
+    allowedSourceIds: sources.map((source) => source.id),
+  });
+
+  assert.ok(parsed);
+  assert.deepEqual(parsed?.citedSourceIds, [
+    "anomaly:metric-alert:reef:metric-salinity:trend-mar-metric",
+    "space:reef",
+  ]);
+  assert.equal(parsed?.suggestedDestination, "planner");
+  assert.match(parsed?.summary ?? "", /salinity dropped/i);
+
+  const reviewItems = buildAiCrossSpaceTrendReviewItems(parsed, sources);
+  assert.match(reviewItems[3]?.value?.join(" ") ?? "", /Anomaly:/i);
+  assert.match(
+    buildAiCrossSpaceTrendGenerationPrompt("Base prompt"),
+    /Cite 1 to 4 sourceIds/i,
+  );
+});
+
+test("ai consent copy stays surface-specific and privacy-forward", () => {
+  assert.match(
+    aiSchemaBuilderCopy.getHelperText("Metric entry"),
+    /Metric entry/,
+  );
+  assert.match(aiSchemaBuilderCopy.consentLabel, /not sent/i);
+  assert.match(aiLogbookDraftCopy.consentLabel, /Attachments, photo URIs/i);
+  assert.match(
+    aiVisualRecapCopy.getHelperText("Plants", "March 2026"),
+    /Plants.*March 2026/i,
+  );
+  assert.match(
+    aiVisualRecapCopy.reviewFooterNote,
+    /sharing it outside TrackItUp/i,
+  );
+  assert.match(aiPlannerCopilotCopy.consentLabel, /reminder schedule/i);
+  assert.match(aiPlannerRiskCopy.consentLabel, /recent snooze\/skip history/i);
+  assert.match(aiTrackingQualityCopy.consentLabel, /recent logs/i);
+  assert.match(aiActionCenterExplainerCopy.consentLabel, /grouped reminders/i);
+  assert.match(
+    aiWorkspaceQaCopy.consentLabel,
+    /matching local reminders, logs, assets/i,
+  );
+  assert.match(aiDashboardPulseCopy.consentLabel, /dashboard counts/i);
+  assert.match(
+    aiCrossSpaceTrendCopy.consentLabel,
+    /month-over-month workspace counts/i,
+  );
+  assert.match(
+    aiAccountSettingsCopy.telemetrySummary,
+    /not stored in telemetry/i,
+  );
+});
+
+test("ai telemetry summary aggregates local generation and apply events", () => {
+  let summary = createEmptyAiTelemetrySummary();
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "schema-builder",
+    action: "generate-requested",
+    at: "2026-03-11T10:00:00.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "schema-builder",
+    action: "generate-succeeded",
+    at: "2026-03-11T10:00:05.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "schema-builder",
+    action: "draft-applied",
+    at: "2026-03-11T10:01:00.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "action-center-explainer",
+    action: "generate-requested",
+    at: "2026-03-11T10:02:00.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "workspace-q-and-a",
+    action: "generate-succeeded",
+    at: "2026-03-11T10:03:00.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "planner-risk-brief",
+    action: "generate-requested",
+    at: "2026-03-11T10:03:15.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "tracking-quality-brief",
+    action: "generate-requested",
+    at: "2026-03-11T10:03:20.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "dashboard-pulse",
+    action: "generate-requested",
+    at: "2026-03-11T10:03:30.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "inventory-lifecycle-brief",
+    action: "generate-requested",
+    at: "2026-03-11T10:03:40.000Z",
+  });
+  summary = applyAiTelemetryEvent(summary, {
+    surface: "cross-space-trends",
+    action: "generate-requested",
+    at: "2026-03-11T10:04:00.000Z",
+  });
+
+  assert.equal(summary.totalEvents, 10);
+  assert.equal(summary.generationRequests, 7);
+  assert.equal(summary.generationSuccesses, 2);
+  assert.equal(summary.draftApplies, 1);
+  assert.equal(summary.surfaces["schema-builder"].draftApplies, 1);
+  assert.equal(
+    summary.surfaces["action-center-explainer"].generationRequests,
+    1,
+  );
+  assert.equal(summary.surfaces["workspace-q-and-a"].generationSuccesses, 1);
+  assert.equal(summary.surfaces["planner-risk-brief"].generationRequests, 1);
+  assert.equal(
+    summary.surfaces["tracking-quality-brief"].generationRequests,
+    1,
+  );
+  assert.equal(summary.surfaces["dashboard-pulse"].generationRequests, 1);
+  assert.equal(
+    summary.surfaces["inventory-lifecycle-brief"].generationRequests,
+    1,
+  );
+  assert.equal(summary.surfaces["cross-space-trends"].generationRequests, 1);
+  assert.deepEqual(Object.keys(summary.surfaces), [...AI_TELEMETRY_SURFACES]);
+  assert.ok(
+    AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS.some(
+      (item) => item.surface === "inventory-lifecycle-brief",
+    ),
+  );
+  assert.ok(
+    AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS.some(
+      (item) => item.surface === "tracking-quality-brief",
+    ),
+  );
+  assert.match(
+    formatAiTelemetryLastEventLabel(summary.lastEventAt),
+    /Last AI activity/i,
+  );
 });
 
 test("workspace snapshot normalization preserves attachments while filling defaults", () => {

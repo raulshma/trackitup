@@ -6,7 +6,9 @@ type SpeechRecognitionLike = {
   onerror: ((event: { error?: string }) => void) | null;
   onresult:
     | ((event: {
-        results: ArrayLike<ArrayLike<{ transcript?: string }>>;
+        results: ArrayLike<
+          ArrayLike<{ transcript?: string }> & { isFinal?: boolean }
+        >;
       }) => void)
     | null;
   start: () => void;
@@ -17,6 +19,10 @@ export type DictationCaptureResult = {
   mode: "speech-recognition" | "device-keyboard";
   transcript?: string;
   message: string;
+};
+
+type CaptureDictationOptions = {
+  onTranscript?: (transcript: string) => void;
 };
 
 function getRuntimePlatform() {
@@ -47,13 +53,17 @@ function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
   );
 }
 
-function captureBrowserTranscript(Ctor: new () => SpeechRecognitionLike) {
+function captureBrowserTranscript(
+  Ctor: new () => SpeechRecognitionLike,
+  options?: CaptureDictationOptions,
+) {
   return new Promise<string>((resolve, reject) => {
     const recognition = new Ctor();
     let resolved = false;
+    let latestTranscript = "";
 
     recognition.continuous = false;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = "en-US";
 
     recognition.onresult = (event) => {
@@ -62,6 +72,19 @@ function captureBrowserTranscript(Ctor: new () => SpeechRecognitionLike) {
         .map((item) => item.transcript ?? "")
         .join(" ")
         .trim();
+
+      latestTranscript = transcript;
+      if (transcript) {
+        options?.onTranscript?.(transcript);
+      }
+
+      const hasFinalResult = Array.from(event.results).some(
+        (result) => result.isFinal,
+      );
+
+      if (!hasFinalResult) {
+        return;
+      }
 
       resolved = true;
       recognition.stop();
@@ -75,7 +98,8 @@ function captureBrowserTranscript(Ctor: new () => SpeechRecognitionLike) {
 
     recognition.onend = () => {
       if (!resolved) {
-        resolve("");
+        resolved = true;
+        resolve(latestTranscript.trim());
       }
     };
 
@@ -95,7 +119,9 @@ export function appendDictationTranscript(
   return `${base}${/[\s\n]$/.test(currentValue) ? "" : " "}${addition}`;
 }
 
-export async function captureDictationAsync(): Promise<DictationCaptureResult> {
+export async function captureDictationAsync(
+  options?: CaptureDictationOptions,
+): Promise<DictationCaptureResult> {
   const SpeechRecognitionCtor = getSpeechRecognitionCtor();
 
   if (!SpeechRecognitionCtor) {
@@ -108,7 +134,10 @@ export async function captureDictationAsync(): Promise<DictationCaptureResult> {
     };
   }
 
-  const transcript = await captureBrowserTranscript(SpeechRecognitionCtor);
+  const transcript = await captureBrowserTranscript(
+    SpeechRecognitionCtor,
+    options,
+  );
   return transcript
     ? {
         mode: "speech-recognition",

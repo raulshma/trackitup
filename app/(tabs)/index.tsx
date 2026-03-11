@@ -1,15 +1,39 @@
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
-import { Button, Chip, SegmentedButtons, Surface } from "react-native-paper";
+import {
+    Button,
+    Chip,
+    SegmentedButtons,
+    Surface,
+    useTheme,
+    type MD3Theme,
+} from "react-native-paper";
 
 import { MiniMetricChart, type ChartMode } from "@/components/MiniMetricChart";
 import { Text } from "@/components/Themed";
+import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
+import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { ScreenHero } from "@/components/ui/ScreenHero";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
+import { generateOpenRouterText } from "@/services/ai/aiClient";
+import { aiDashboardPulseCopy } from "@/services/ai/aiConsentCopy";
+import {
+    buildAiDashboardPulseGenerationPrompt,
+    buildAiDashboardPulseReviewItems,
+    formatAiDashboardPulseDestinationLabel,
+    formatAiDashboardPulseSourceLabel,
+    parseAiDashboardPulseDraft,
+    type AiDashboardPulseDraft,
+    type AiDashboardPulseSource,
+} from "@/services/ai/aiDashboardPulse";
+import { buildDashboardPulsePrompt } from "@/services/ai/aiPromptBuilders";
+import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
+import { buildWorkspaceDashboardPulse } from "@/services/insights/workspaceDashboardPulse";
 import {
     buildMetricChartPoints,
     getReminderScheduleTimestamp,
@@ -17,13 +41,36 @@ import {
 import { buildWorkspaceVisualHistory } from "@/services/insights/workspaceVisualHistory";
 import type { WorkspaceRecommendation } from "@/types/trackitup";
 
+type GeneratedAiDashboardPulse = {
+  request: string;
+  consentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  sources: AiDashboardPulseSource[];
+  draft: AiDashboardPulseDraft;
+};
+
 export default function TabOneScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
+  const theme = useTheme<MD3Theme>();
   const router = useRouter();
   const headerHeight = useMaterialCompactTopAppBarHeight();
   const headerScroll = useTabHeaderScroll("index");
   const [chartMode, setChartMode] = useState<ChartMode>("line");
+  const [dashboardPulseRequest, setDashboardPulseRequest] = useState("");
+  const [dashboardPulseStatusMessage, setDashboardPulseStatusMessage] =
+    useState<string | null>(null);
+  const [isGeneratingDashboardPulse, setIsGeneratingDashboardPulse] =
+    useState(false);
+  const [generatedDashboardPulse, setGeneratedDashboardPulse] =
+    useState<GeneratedAiDashboardPulse | null>(null);
+  const [appliedDashboardPulse, setAppliedDashboardPulse] =
+    useState<GeneratedAiDashboardPulse | null>(null);
   const {
     cycleDashboardWidgetSize,
     moveDashboardWidget,
@@ -58,42 +105,17 @@ export default function TabOneScreen() {
       ),
     [workspace.metricDefinitions],
   );
-
-  const attentionItems = useMemo(() => {
-    const metricAlerts = workspace.logs.flatMap((log) =>
-      (log.metricReadings ?? []).flatMap((reading) => {
-        const metric = metricDefinitionsById.get(reading.metricId);
-        if (!metric || typeof reading.value !== "number") return [];
-
-        const belowSafeMin =
-          metric.safeMin !== undefined && reading.value < metric.safeMin;
-        const aboveSafeMax =
-          metric.safeMax !== undefined && reading.value > metric.safeMax;
-        if (!belowSafeMin && !aboveSafeMax) return [];
-
-        return [
-          `${metric.name} is outside the safe zone in ${spacesById.get(log.spaceId)?.name ?? "Unknown space"}`,
-        ];
-      }),
-    );
-
-    const reminderAlerts = workspace.reminders
-      .filter(
-        (reminder) =>
-          reminder.status === "due" || reminder.status === "snoozed",
-      )
-      .map(
-        (reminder) =>
-          `${reminder.title} • ${reminder.ruleLabel ?? reminder.triggerCondition ?? "Needs follow-up"}`,
-      );
-
-    return [...metricAlerts, ...reminderAlerts].slice(0, 4);
-  }, [
-    spacesById,
-    workspace.logs,
-    workspace.metricDefinitions,
-    workspace.reminders,
-  ]);
+  const dashboardPulse = useMemo(
+    () => buildWorkspaceDashboardPulse(workspace),
+    [workspace],
+  );
+  const attentionItems = useMemo(
+    () =>
+      dashboardPulse.attentionItems.map(
+        (item) => `${item.title} • ${item.detail}`,
+      ),
+    [dashboardPulse.attentionItems],
+  );
 
   const upcomingReminders = useMemo(
     () =>
@@ -164,42 +186,42 @@ export default function TabOneScreen() {
   ]);
 
   const baseCardSurfaceStyle = {
-    backgroundColor: palette.surface2,
-    borderColor: palette.borderSoft,
-    shadowColor: palette.shadow,
+    backgroundColor: theme.colors.elevation.level1,
+    borderColor: theme.colors.outlineVariant,
+    shadowColor: theme.colors.shadow,
   };
 
   const nestedCardSurfaceStyle = {
-    backgroundColor: palette.surface3,
-    borderColor: palette.borderSoft,
-    shadowColor: palette.shadow,
+    backgroundColor: theme.colors.elevation.level2,
+    borderColor: theme.colors.outlineVariant,
+    shadowColor: theme.colors.shadow,
   };
 
-  const toolbarButtonColor = palette.secondaryContainer;
-  const toolbarButtonTextColor = palette.onSecondaryContainer;
-  const widgetButtonColor = palette.surface4;
-  const widgetButtonTextColor = palette.text;
+  const toolbarButtonColor = theme.colors.secondaryContainer;
+  const toolbarButtonTextColor = theme.colors.onSecondaryContainer;
+  const widgetButtonColor = theme.colors.elevation.level2;
+  const widgetButtonTextColor = theme.colors.onSurface;
 
   function getSeverityBadgeColors(
     severity: WorkspaceRecommendation["severity"],
   ) {
     if (severity === "high") {
       return {
-        backgroundColor: palette.dangerContainer,
-        color: palette.onDangerContainer,
+        backgroundColor: theme.colors.errorContainer,
+        color: theme.colors.onErrorContainer,
       };
     }
 
     if (severity === "medium") {
       return {
-        backgroundColor: `${palette.warning}22`,
-        color: palette.warning,
+        backgroundColor: theme.colors.tertiaryContainer,
+        color: theme.colors.onTertiaryContainer,
       };
     }
 
     return {
-      backgroundColor: `${palette.success}22`,
-      color: palette.success,
+      backgroundColor: theme.colors.secondaryContainer,
+      color: theme.colors.onSecondaryContainer,
     };
   }
 
@@ -225,6 +247,135 @@ export default function TabOneScreen() {
     }
 
     router.push("/action-center");
+  }
+
+  function openDashboardPulseDestination(
+    destination?: AiDashboardPulseDraft["suggestedDestination"],
+    sourceSpaceId?: string,
+  ) {
+    if (!destination || destination === "action-center") {
+      router.push("/action-center");
+      return;
+    }
+
+    if (destination === "planner") {
+      router.push("/planner");
+      return;
+    }
+
+    if (destination === "logbook") {
+      router.push(
+        sourceSpaceId
+          ? { pathname: "/logbook", params: { spaceId: sourceSpaceId } }
+          : "/logbook",
+      );
+      return;
+    }
+
+    if (destination === "inventory") {
+      router.push("/inventory");
+      return;
+    }
+
+    router.push(
+      sourceSpaceId
+        ? { pathname: "/visual-history", params: { spaceId: sourceSpaceId } }
+        : "/visual-history",
+    );
+  }
+
+  function openDashboardPulseSource(source: AiDashboardPulseSource) {
+    openDashboardPulseDestination(source.route, source.spaceId);
+  }
+
+  async function handleGenerateDashboardPulse() {
+    const trimmedRequest = dashboardPulseRequest.trim();
+    if (!trimmedRequest) {
+      setDashboardPulseStatusMessage(
+        "Describe the dashboard question you want answered before generating a pulse brief.",
+      );
+      return;
+    }
+
+    const pulsePrompt = buildDashboardPulsePrompt({
+      workspace,
+      userRequest: trimmedRequest,
+    });
+    setIsGeneratingDashboardPulse(true);
+    void recordAiTelemetryEvent({
+      surface: "dashboard-pulse",
+      action: "generate-requested",
+    });
+    const result = await generateOpenRouterText({
+      system: pulsePrompt.system,
+      prompt: buildAiDashboardPulseGenerationPrompt(pulsePrompt.prompt),
+      temperature: 0.25,
+      maxOutputTokens: 900,
+    });
+    setIsGeneratingDashboardPulse(false);
+
+    if (result.status !== "success") {
+      setGeneratedDashboardPulse(null);
+      setDashboardPulseStatusMessage(result.message);
+      void recordAiTelemetryEvent({
+        surface: "dashboard-pulse",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    const parsedDraft = parseAiDashboardPulseDraft(result.text, {
+      allowedSourceIds: pulsePrompt.context.retrievedSources.map(
+        (source) => source.id,
+      ),
+    });
+    if (!parsedDraft) {
+      setGeneratedDashboardPulse(null);
+      setDashboardPulseStatusMessage(
+        "TrackItUp received an AI response but could not turn it into a grounded dashboard pulse brief. Try asking a narrower question about priorities or follow-up.",
+      );
+      void recordAiTelemetryEvent({
+        surface: "dashboard-pulse",
+        action: "generate-failed",
+      });
+      return;
+    }
+
+    setGeneratedDashboardPulse({
+      request: trimmedRequest,
+      consentLabel: pulsePrompt.consentLabel,
+      modelId: result.modelId,
+      usage: result.usage,
+      sources: pulsePrompt.context.retrievedSources,
+      draft: parsedDraft,
+    });
+    setDashboardPulseStatusMessage(
+      "Generated a grounded dashboard pulse brief. Review the cited sources before applying it.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "dashboard-pulse",
+      action: "generate-succeeded",
+    });
+  }
+
+  function handleApplyDashboardPulse() {
+    if (!generatedDashboardPulse) return;
+    setAppliedDashboardPulse(generatedDashboardPulse);
+    setGeneratedDashboardPulse(null);
+    setDashboardPulseStatusMessage(
+      "Applied the dashboard pulse brief. Review the cited sources before acting on it.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "dashboard-pulse",
+      action: "draft-applied",
+    });
+  }
+
+  function handleDismissDashboardPulse() {
+    setGeneratedDashboardPulse(null);
+    setDashboardPulseStatusMessage(
+      "Dismissed the AI dashboard pulse draft. The dashboard remains unchanged.",
+    );
   }
 
   function renderWidgetBody(
@@ -409,48 +560,24 @@ export default function TabOneScreen() {
         { paddingTop: 20 + headerHeight },
       ]}
     >
-      <Surface
-        style={[
-          styles.hero,
+      <ScreenHero
+        palette={palette}
+        eyebrow="Streamlined workspace command center"
+        title="Run every space, routine, and asset from one calm dashboard."
+        subtitle="Review what needs attention, jump into quick actions, and keep every hobby organized without losing the bigger picture."
+        badges={[
           {
-            backgroundColor: palette.hero,
-            borderColor: palette.heroBorder,
+            label: "TrackItUp",
+            backgroundColor: theme.colors.primaryContainer,
+            textColor: theme.colors.onPrimaryContainer,
+          },
+          {
+            label: attentionSummary,
+            backgroundColor: theme.colors.surface,
+            textColor: theme.colors.onSurface,
           },
         ]}
-        elevation={2}
       >
-        <View style={styles.heroBadgeRow}>
-          <Chip
-            compact
-            style={[
-              styles.heroBadge,
-              { backgroundColor: palette.primaryContainer },
-            ]}
-            textStyle={[
-              styles.heroBadgeLabel,
-              { color: palette.onPrimaryContainer },
-            ]}
-          >
-            TrackItUp
-          </Chip>
-          <Chip
-            compact
-            style={[styles.heroBadge, { backgroundColor: palette.surface3 }]}
-            textStyle={[styles.heroBadgeLabel, { color: palette.text }]}
-          >
-            {attentionSummary}
-          </Chip>
-        </View>
-        <Text style={[styles.eyebrow, { color: palette.tint }]}>
-          Streamlined workspace command center
-        </Text>
-        <Text style={styles.title}>
-          Run every space, routine, and asset from one calm dashboard.
-        </Text>
-        <Text style={[styles.subtitle, { color: palette.muted }]}>
-          Review what needs attention, jump into quick actions, and keep every
-          hobby organized without losing the bigger picture.
-        </Text>
         <View style={styles.heroStatRow}>
           {workspacePulse.map((item) => (
             <Chip
@@ -458,16 +585,19 @@ export default function TabOneScreen() {
               style={[
                 styles.heroStatPill,
                 {
-                  backgroundColor: palette.surface3,
+                  backgroundColor: theme.colors.surface,
                 },
               ]}
-              textStyle={[styles.heroStatLabel, { color: palette.text }]}
+              textStyle={[
+                styles.heroStatLabel,
+                { color: theme.colors.onSurface },
+              ]}
             >
               {item}
             </Chip>
           ))}
         </View>
-      </Surface>
+      </ScreenHero>
 
       <View style={styles.statRow}>
         {overviewStats.map((stat) => (
@@ -486,6 +616,159 @@ export default function TabOneScreen() {
           </Surface>
         ))}
       </View>
+
+      <AiPromptComposerCard
+        palette={palette}
+        label="AI dashboard pulse"
+        title="Generate a grounded dashboard brief"
+        value={dashboardPulseRequest}
+        onChangeText={setDashboardPulseRequest}
+        onSubmit={() => void handleGenerateDashboardPulse()}
+        isBusy={isGeneratingDashboardPulse}
+        contextChips={[
+          `${dashboardPulse.summary.recommendationCount} recommendation${dashboardPulse.summary.recommendationCount === 1 ? "" : "s"}`,
+          `${dashboardPulse.attentionItems.length} attention item${dashboardPulse.attentionItems.length === 1 ? "" : "s"}`,
+          `${dashboardPulse.activeSpaces.length} active space${dashboardPulse.activeSpaces.length === 1 ? "" : "s"}`,
+        ]}
+        placeholder="Example: Summarize what needs attention first across the dashboard and tell me which screen to open next."
+        helperText={aiDashboardPulseCopy.helperText}
+        consentLabel={aiDashboardPulseCopy.consentLabel}
+        footerNote={aiDashboardPulseCopy.promptFooterNote}
+        submitLabel="Generate pulse brief"
+      />
+
+      {dashboardPulseStatusMessage ? (
+        <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
+          <Text style={styles.widgetListTitle}>AI dashboard pulse</Text>
+          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
+            {dashboardPulseStatusMessage}
+          </Text>
+        </Surface>
+      ) : null}
+
+      {generatedDashboardPulse ? (
+        <AiDraftReviewCard
+          palette={palette}
+          title="Review the AI dashboard pulse"
+          draftKindLabel="Home dashboard"
+          summary={`Prompt: ${generatedDashboardPulse.request}`}
+          consentLabel={generatedDashboardPulse.consentLabel}
+          footerNote={aiDashboardPulseCopy.reviewFooterNote}
+          statusLabel="Draft ready"
+          modelLabel={generatedDashboardPulse.modelId}
+          usage={generatedDashboardPulse.usage}
+          contextChips={[
+            `${generatedDashboardPulse.draft.citedSourceIds.length} cited source${generatedDashboardPulse.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+          ]}
+          items={buildAiDashboardPulseReviewItems(
+            generatedDashboardPulse.draft,
+            generatedDashboardPulse.sources,
+          )}
+          acceptLabel="Apply brief"
+          editLabel="Dismiss draft"
+          regenerateLabel="Generate again"
+          onAccept={handleApplyDashboardPulse}
+          onEdit={handleDismissDashboardPulse}
+          onRegenerate={() => void handleGenerateDashboardPulse()}
+          isBusy={isGeneratingDashboardPulse}
+        />
+      ) : null}
+
+      {appliedDashboardPulse ? (
+        <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
+          <View style={styles.pulseHeaderRow}>
+            <Text style={styles.sectionTitle}>
+              {appliedDashboardPulse.draft.headline}
+            </Text>
+            {appliedDashboardPulse.draft.suggestedDestination ? (
+              <Chip compact style={styles.heroStatPill}>
+                {formatAiDashboardPulseDestinationLabel(
+                  appliedDashboardPulse.draft.suggestedDestination,
+                )}
+              </Chip>
+            ) : null}
+          </View>
+          {appliedDashboardPulse.draft.summary ? (
+            <Text style={[styles.spaceNote, { color: palette.muted }]}>
+              {appliedDashboardPulse.draft.summary}
+            </Text>
+          ) : null}
+          {appliedDashboardPulse.draft.priorities.map((priority) => (
+            <View key={priority} style={styles.focusItem}>
+              <View
+                style={[
+                  styles.focusDot,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+              />
+              <Text style={[styles.focusText, { color: palette.muted }]}>
+                {priority}
+              </Text>
+            </View>
+          ))}
+          {appliedDashboardPulse.draft.caution ? (
+            <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
+              Caution: {appliedDashboardPulse.draft.caution}
+            </Text>
+          ) : null}
+          {appliedDashboardPulse.sources
+            .filter((source) =>
+              appliedDashboardPulse.draft.citedSourceIds.includes(source.id),
+            )
+            .map((source) => (
+              <Surface
+                key={source.id}
+                style={[styles.pulseSourceCard, nestedCardSurfaceStyle]}
+                elevation={1}
+              >
+                <View style={styles.widgetListCopy}>
+                  <Text style={styles.widgetListTitle}>
+                    {formatAiDashboardPulseSourceLabel(source)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.widgetShortcutMeta,
+                      { color: palette.muted },
+                    ]}
+                  >
+                    {source.snippet}
+                  </Text>
+                </View>
+                <Button
+                  mode="outlined"
+                  textColor={theme.colors.primary}
+                  onPress={() => openDashboardPulseSource(source)}
+                >
+                  {formatAiDashboardPulseDestinationLabel(source.route)}
+                </Button>
+              </Surface>
+            ))}
+          <View style={styles.pulseActionRow}>
+            <Button
+              mode="outlined"
+              textColor={theme.colors.primary}
+              onPress={() => setAppliedDashboardPulse(null)}
+            >
+              Clear brief
+            </Button>
+            <Button
+              mode="contained"
+              buttonColor={theme.colors.primary}
+              textColor={theme.colors.onPrimary}
+              onPress={() =>
+                openDashboardPulseDestination(
+                  appliedDashboardPulse.draft.suggestedDestination,
+                )
+              }
+            >
+              {formatAiDashboardPulseDestinationLabel(
+                appliedDashboardPulse.draft.suggestedDestination ??
+                  "action-center",
+              )}
+            </Button>
+          </View>
+        </Surface>
+      ) : null}
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Recommended next actions</Text>
@@ -1186,6 +1469,26 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
+  },
+  pulseHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 12,
+  },
+  pulseSourceCard: {
+    marginTop: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    padding: 14,
+    gap: 10,
+  },
+  pulseActionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 16,
   },
   widgetControls: {
     flexDirection: "row",
