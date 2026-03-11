@@ -997,7 +997,7 @@ test("theme preferences default to dark and support oled selection", () => {
   assert.equal(isDarkThemePreference("light"), false);
   assert.equal(isDarkThemePreference("dark"), true);
   assert.equal(isDarkThemePreference("oled"), true);
-  assert.equal(getThemeBackgroundColor("light"), "#f7f9fc");
+  assert.equal(getThemeBackgroundColor("light"), "#f8fafc");
   assert.equal(getThemeBackgroundColor("dark"), "#111318");
   assert.equal(getThemeBackgroundColor("oled"), "#000000");
 });

@@ -12,16 +12,16 @@ export function createCommonPaletteStyles(palette: AppPalette) {
       borderColor: palette.heroBorder,
     },
     cardSurface: {
-      backgroundColor: palette.card,
+      backgroundColor: palette.surface1,
       borderColor: palette.border,
     },
     raisedCardSurface: {
-      backgroundColor: palette.card,
-      borderColor: palette.border,
+      backgroundColor: palette.surface2,
+      borderColor: palette.borderSoft,
       shadowColor: palette.shadow,
     },
     cardChipSurface: {
-      backgroundColor: palette.card,
+      backgroundColor: palette.surface2,
     },
     accentChipSurface: {
       backgroundColor: palette.accentSoft,

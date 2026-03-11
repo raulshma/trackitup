@@ -18,9 +18,11 @@ import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
 import {
+    uiBorder,
     uiElevation,
     uiRadius,
     uiShadow,
+    uiSize,
     uiSpace,
     uiTypography,
 } from "@/constants/UiTokens";
@@ -124,10 +126,10 @@ export default function TabLayout() {
           tabBarInactiveBackgroundColor: "transparent",
           tabBarLabelPosition: "below-icon",
           tabBarStyle: {
-            backgroundColor: theme.colors.elevation.level2,
-            borderTopColor: "transparent",
-            borderTopWidth: 0,
-            height: 80,
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.outlineVariant,
+            borderTopWidth: uiBorder.hairline,
+            height: uiSize.tabBarHeight,
             paddingTop: uiSpace.sm,
             paddingBottom: uiSpace.sm,
             paddingHorizontal: uiSpace.sm,
@@ -144,8 +146,6 @@ export default function TabLayout() {
           },
           tabBarLabelStyle: {
             ...uiTypography.tabLabel,
-            fontSize: 12,
-            fontWeight: "500",
             marginTop: uiSpace.xxs,
           },
           headerTransparent: true,
@@ -221,7 +221,7 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabIconContainer: {
-    width: 64,
+    width: uiSize.tabBarActiveIndicatorWidth,
     height: 32,
     borderRadius: uiRadius.pill,
     alignItems: "center",

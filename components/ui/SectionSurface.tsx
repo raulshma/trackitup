@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
-import { Surface } from "react-native-paper";
+import { Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
@@ -28,19 +28,34 @@ export function SectionSurface({
   style,
   elevation = 1,
 }: SectionSurfaceProps) {
+  const theme = useTheme<MD3Theme>();
+  const surfaceColor =
+    elevation === 0
+      ? theme.colors.surface
+      : theme.colors.elevation[`level${elevation}`];
+
   return (
     <Surface
       style={[
         styles.card,
-        { backgroundColor: palette.card, borderColor: palette.border },
+        {
+          backgroundColor: surfaceColor,
+          borderColor: theme.colors.outlineVariant,
+        },
         style,
       ]}
       elevation={elevation}
     >
       {label ? (
-        <Text style={[styles.label, { color: palette.tint }]}>{label}</Text>
+        <Text style={[styles.label, { color: theme.colors.primary }]}>
+          {label}
+        </Text>
       ) : null}
-      {title ? <Text style={styles.title}>{title}</Text> : null}
+      {title ? (
+        <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+          {title}
+        </Text>
+      ) : null}
       {children}
     </Surface>
   );

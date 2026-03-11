@@ -1,8 +1,19 @@
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+    Surface,
+    TouchableRipple,
+    useTheme,
+    type MD3Theme,
+} from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
-import { uiBorder, uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
 
 import { SectionSurface } from "./SectionSurface";
 
@@ -30,6 +41,8 @@ export function PageQuickActions({
   description,
   style,
 }: PageQuickActionsProps) {
+  const theme = useTheme<MD3Theme>();
+
   if (actions.length === 0) {
     return null;
   }
@@ -48,34 +61,53 @@ export function PageQuickActions({
       ) : null}
       <View style={styles.grid}>
         {actions.map((action) => {
-          const accentColor = action.accentColor ?? palette.tint;
+          const accentColor = action.accentColor ?? theme.colors.primary;
 
           return (
-            <Pressable
+            <Surface
               key={action.id}
-              accessibilityRole="button"
-              disabled={action.disabled}
-              onPress={() => void action.onPress()}
-              style={({ pressed }) => [
+              style={[
                 styles.pressable,
-                { opacity: action.disabled ? 0.55 : pressed ? 0.94 : 1 },
+                styles.card,
+                {
+                  backgroundColor: theme.colors.elevation.level1,
+                  borderColor: action.disabled
+                    ? theme.colors.outlineVariant
+                    : `${accentColor}33`,
+                  opacity: action.disabled ? 0.6 : 1,
+                },
               ]}
+              elevation={1}
             >
-              <View
-                style={[
-                  styles.card,
-                  {
-                    backgroundColor: palette.cardAlt,
-                    borderColor: `${accentColor}33`,
-                  },
-                ]}
+              <TouchableRipple
+                accessibilityRole="button"
+                accessibilityState={{ disabled: action.disabled }}
+                borderless={false}
+                disabled={action.disabled}
+                onPress={() => void action.onPress()}
+                rippleColor={`${accentColor}1A`}
+                style={styles.touchable}
               >
-                <Text style={styles.label}>{action.label}</Text>
-                <Text style={[styles.hint, { color: palette.muted }]}>
-                  {action.hint}
-                </Text>
-              </View>
-            </Pressable>
+                <View style={styles.cardContent}>
+                  <View
+                    style={[styles.accentBar, { backgroundColor: accentColor }]}
+                  />
+                  <Text
+                    style={[styles.label, { color: theme.colors.onSurface }]}
+                  >
+                    {action.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.hint,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    {action.hint}
+                  </Text>
+                </View>
+              </TouchableRipple>
+            </Surface>
           );
         })}
       </View>
@@ -96,13 +128,26 @@ const styles = StyleSheet.create({
   pressable: {
     flexGrow: 1,
     flexBasis: 220,
-  },
-  card: {
-    minHeight: 104,
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.lg,
+    overflow: "hidden",
+  },
+  card: {
+    minHeight: 116,
+  },
+  touchable: {
+    flex: 1,
+  },
+  cardContent: {
+    minHeight: 116,
     padding: uiSpace.lg,
     gap: uiSpace.sm,
+  },
+  accentBar: {
+    width: 40,
+    height: 4,
+    borderRadius: uiRadius.pill,
+    marginBottom: uiSpace.xs,
   },
   label: uiTypography.bodyStrong,
   hint: uiTypography.bodySmall,

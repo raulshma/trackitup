@@ -5,6 +5,7 @@ import {
 } from "@react-navigation/native";
 import {
     adaptNavigationTheme,
+    configureFonts,
     MD3DarkTheme,
     MD3LightTheme,
     type MD3Theme,
@@ -20,6 +21,71 @@ const { LightTheme: AdaptedNavigationLight, DarkTheme: AdaptedNavigationDark } =
     materialLight: MD3LightTheme,
     materialDark: MD3DarkTheme,
   });
+
+const appFonts = configureFonts({
+  config: {
+    headlineSmall: {
+      fontSize: 24,
+      lineHeight: 32,
+      fontWeight: "700",
+      letterSpacing: 0,
+    },
+    titleLarge: {
+      fontSize: 22,
+      lineHeight: 28,
+      fontWeight: "600",
+      letterSpacing: 0,
+    },
+    titleMedium: {
+      fontSize: 16,
+      lineHeight: 24,
+      fontWeight: "600",
+      letterSpacing: 0.15,
+    },
+    titleSmall: {
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: "600",
+      letterSpacing: 0.1,
+    },
+    labelLarge: {
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: "600",
+      letterSpacing: 0.1,
+    },
+    labelMedium: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "600",
+      letterSpacing: 0.4,
+    },
+    labelSmall: {
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "600",
+      letterSpacing: 0.4,
+    },
+    bodyLarge: {
+      fontSize: 16,
+      lineHeight: 24,
+      fontWeight: "400",
+      letterSpacing: 0.15,
+    },
+    bodyMedium: {
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: "400",
+      letterSpacing: 0.1,
+    },
+    bodySmall: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "400",
+      letterSpacing: 0.2,
+    },
+  },
+});
 
 export type AppColorScheme = keyof typeof Colors;
 export type AppPalette = (typeof Colors)["light"];
@@ -46,7 +112,8 @@ export function getAppThemes(colorScheme: AppColorScheme): {
 
   const paperTheme: MD3Theme = {
     ...paperBaseTheme,
-    roundness: uiRadius.lg,
+    roundness: uiRadius.md,
+    fonts: appFonts,
     colors: {
       ...paperBaseTheme.colors,
       primary: palette.tint,
@@ -62,6 +129,7 @@ export function getAppThemes(colorScheme: AppColorScheme): {
       tertiaryContainer: palette.tertiaryContainer,
       onTertiaryContainer: palette.onTertiaryContainer,
       error: palette.danger,
+      onError: paperBaseTheme.colors.onError,
       errorContainer: palette.dangerContainer,
       onErrorContainer: palette.onDangerContainer,
       background: palette.background,
@@ -69,13 +137,17 @@ export function getAppThemes(colorScheme: AppColorScheme): {
       surface: palette.card,
       onSurface: palette.text,
       surfaceVariant: palette.cardAlt,
+      surfaceDisabled: paperBaseTheme.colors.surfaceDisabled,
       onSurfaceVariant: palette.muted,
+      onSurfaceDisabled: paperBaseTheme.colors.onSurfaceDisabled,
       outline: palette.border,
       outlineVariant: palette.borderSoft,
       inverseSurface: palette.inverseSurface,
       inverseOnSurface: palette.inverseOnSurface,
       inversePrimary: palette.inversePrimary,
       shadow: palette.shadow,
+      scrim: paperBaseTheme.colors.scrim,
+      backdrop: paperBaseTheme.colors.backdrop,
       elevation: {
         ...paperBaseTheme.colors.elevation,
         level0: palette.background,

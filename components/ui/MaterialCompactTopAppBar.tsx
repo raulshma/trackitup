@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
     uiBorder,
     uiRadius,
+    uiSize,
     uiSpace,
     uiTypography,
 } from "@/constants/UiTokens";
@@ -28,7 +29,7 @@ type MaterialCompactTopAppBarProps = {
   scrollY?: Animated.Value;
 };
 
-const COMPACT_TOP_APP_BAR_HEIGHT = 64;
+const COMPACT_TOP_APP_BAR_HEIGHT = uiSize.topAppBarHeight;
 const HEADER_RELEASE_OFFSET = 12;
 const HEADER_FADE_DISTANCE = 72;
 const HEADER_COLLAPSE_DISTANCE = 112;
@@ -61,7 +62,7 @@ export function MaterialCompactTopAppBar({
     : theme.colors.onSurfaceVariant;
   const actionContainerColor = showBrand
     ? theme.colors.secondaryContainer
-    : theme.colors.elevation.level3;
+    : theme.colors.elevation.level2;
   const animatedContainerStyle = React.useMemo(() => {
     if (!scrollY) {
       return {
@@ -100,7 +101,7 @@ export function MaterialCompactTopAppBar({
         styles.container,
         animatedContainerStyle,
         {
-          backgroundColor: theme.colors.elevation.level2,
+          backgroundColor: theme.colors.surface,
           paddingTop: insets.top,
         },
       ]}
@@ -112,7 +113,7 @@ export function MaterialCompactTopAppBar({
         style={[
           styles.header,
           {
-            backgroundColor: theme.colors.elevation.level2,
+            backgroundColor: theme.colors.surface,
             borderBottomColor: theme.colors.outlineVariant,
           },
         ]}
@@ -120,11 +121,14 @@ export function MaterialCompactTopAppBar({
         {canGoBack ? (
           <Appbar.BackAction
             accessibilityLabel="Go back"
-            color={theme.colors.onSurface}
+            color={theme.colors.onSurfaceVariant}
             onPress={onBack}
             style={[
               styles.leadingAction,
-              { backgroundColor: theme.colors.elevation.level3 },
+              {
+                backgroundColor: theme.colors.elevation.level2,
+                borderColor: theme.colors.outlineVariant,
+              },
             ]}
           />
         ) : null}
@@ -140,7 +144,10 @@ export function MaterialCompactTopAppBar({
                 <View
                   style={[
                     styles.brandBadge,
-                    { backgroundColor: theme.colors.primaryContainer },
+                    {
+                      backgroundColor: theme.colors.primaryContainer,
+                      borderColor: theme.colors.outlineVariant,
+                    },
                   ]}
                 >
                   <Text
@@ -209,7 +216,10 @@ const styles = StyleSheet.create({
   leadingAction: {
     marginLeft: 0,
     marginRight: 0,
+    width: uiSize.headerAction,
+    height: uiSize.headerAction,
     borderRadius: uiRadius.md,
+    borderWidth: uiBorder.hairline,
   },
   content: {
     marginLeft: 0,
@@ -240,13 +250,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   title: {
-    ...uiTypography.titleSm,
-    fontWeight: "700",
+    ...uiTypography.titleMd,
+    fontWeight: "600",
     letterSpacing: 0.15,
   },
   action: {
     marginLeft: uiSpace.sm,
     marginRight: 0,
+    width: uiSize.headerAction,
+    height: uiSize.headerAction,
     borderWidth: uiBorder.hairline,
     borderRadius: uiRadius.md,
   },

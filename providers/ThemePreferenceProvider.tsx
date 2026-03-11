@@ -14,6 +14,7 @@ import {
 } from "@/services/theme/themePreferencePersistence";
 import {
     DEFAULT_THEME_PREFERENCE,
+    getThemeBackgroundColor,
     type ThemePreference,
 } from "@/services/theme/themePreferences";
 
@@ -64,11 +65,7 @@ export function ThemePreferenceProvider({
     if (themeColorMeta) {
       themeColorMeta.setAttribute(
         "content",
-        themePreference === "light"
-          ? "#f7f9fc"
-          : themePreference === "oled"
-            ? "#000000"
-            : "#111318",
+        getThemeBackgroundColor(themePreference),
       );
     }
   }, [themePreference]);

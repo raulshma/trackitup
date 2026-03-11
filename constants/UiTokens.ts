@@ -32,38 +32,90 @@ export const uiBorder = {
 
 export const uiSize = {
   headerAction: 40,
+  topAppBarHeight: 64,
   scannerPreview: 320,
   calendarDayMin: 72,
   statusDot: 8,
-  tabBarHeight: 72,
+  tabBarHeight: 80,
+  tabBarActiveIndicatorWidth: 64,
 } as const;
 
 export const uiElevation = {
   card: 1,
   hero: 2,
   raisedCard: 3,
-  chrome: 8,
+  chrome: 4,
 } as const;
 
 export const uiTypography = {
-  chip: { fontSize: 12, fontWeight: "700" },
-  label: { fontSize: 12, fontWeight: "700", letterSpacing: 0.4 },
-  support: { fontSize: 12, lineHeight: 18 },
-  bodySmall: { fontSize: 13, lineHeight: 18 },
-  body: { fontSize: 14, lineHeight: 20 },
-  bodyStrong: { fontSize: 14, fontWeight: "700" },
-  titleSm: { fontSize: 15, fontWeight: "700" },
-  titleMd: { fontSize: 16, fontWeight: "700" },
-  titleSection: { fontSize: 17, fontWeight: "700" },
-  titleLg: { fontSize: 18, fontWeight: "700" },
-  titleXl: { fontSize: 20, fontWeight: "700" },
-  subtitle: { fontSize: 15, lineHeight: 22 },
-  navTitle: { fontSize: 22, fontWeight: "600" },
-  heroEyebrow: { fontSize: 13, fontWeight: "700" },
-  heroTitle: { fontSize: 30, lineHeight: 38, fontWeight: "700" },
-  valueLg: { fontSize: 26, fontWeight: "800" },
-  tabLabel: { fontSize: 11, fontWeight: "600" },
-  microLabel: { fontSize: 11, fontWeight: "800" },
+  chip: { fontSize: 12, lineHeight: 16, fontWeight: "600", letterSpacing: 0.2 },
+  label: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  support: { fontSize: 12, lineHeight: 16 },
+  bodySmall: { fontSize: 12, lineHeight: 16 },
+  body: { fontSize: 14, lineHeight: 20, letterSpacing: 0.1 },
+  bodyStrong: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+  },
+  titleSm: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+  },
+  titleMd: {
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "600",
+    letterSpacing: 0.15,
+  },
+  titleSection: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: "700",
+    letterSpacing: 0.1,
+  },
+  titleLg: {
+    fontSize: 20,
+    lineHeight: 26,
+    fontWeight: "700",
+    letterSpacing: 0.1,
+  },
+  titleXl: { fontSize: 22, lineHeight: 28, fontWeight: "700" },
+  subtitle: { fontSize: 15, lineHeight: 22, letterSpacing: 0.1 },
+  navTitle: { fontSize: 22, lineHeight: 28, fontWeight: "600" },
+  heroEyebrow: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  heroTitle: {
+    fontSize: 30,
+    lineHeight: 38,
+    fontWeight: "700",
+    letterSpacing: -0.2,
+  },
+  valueLg: { fontSize: 28, lineHeight: 32, fontWeight: "800" },
+  tabLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+  },
+  microLabel: {
+    fontSize: 11,
+    lineHeight: 16,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+  },
 } satisfies Record<string, TextStyle>;
 
 export const uiShadow = {

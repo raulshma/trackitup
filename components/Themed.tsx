@@ -3,6 +3,7 @@
  * https://docs.expo.io/guides/color-schemes/
  */
 import { Text as DefaultText, View as DefaultView } from "react-native";
+import { type MD3Theme, useTheme } from "react-native-paper";
 
 import { useColorScheme } from "./useColorScheme";
 
@@ -19,7 +20,7 @@ export type ViewProps = ThemeProps & DefaultView["props"];
 
 export function useThemeColor(
   props: { light?: string; dark?: string; oled?: string },
-  colorName: keyof typeof Colors.light & keyof typeof Colors.dark,
+  fallbackColor: string,
 ) {
   const theme = useColorScheme();
   const colorFromProps =
@@ -32,15 +33,16 @@ export function useThemeColor(
   if (colorFromProps) {
     return colorFromProps;
   } else {
-    return Colors[theme][colorName];
+    return fallbackColor ?? Colors[theme].text;
   }
 }
 
 export function Text(props: TextProps) {
   const { style, lightColor, darkColor, oledColor, ...otherProps } = props;
+  const theme = useTheme<MD3Theme>();
   const color = useThemeColor(
     { light: lightColor, dark: darkColor, oled: oledColor },
-    "text",
+    theme.colors.onSurface,
   );
 
   return <DefaultText style={[{ color }, style]} {...otherProps} />;
@@ -48,9 +50,10 @@ export function Text(props: TextProps) {
 
 export function View(props: ViewProps) {
   const { style, lightColor, darkColor, oledColor, ...otherProps } = props;
+  const theme = useTheme<MD3Theme>();
   const backgroundColor = useThemeColor(
     { light: lightColor, dark: darkColor, oled: oledColor },
-    "background",
+    theme.colors.background,
   );
 
   return <DefaultView style={[{ backgroundColor }, style]} {...otherProps} />;

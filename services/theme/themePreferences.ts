@@ -18,7 +18,7 @@ export function isDarkThemePreference(preference: ThemePreference): boolean {
 export function getThemeBackgroundColor(preference: ThemePreference): string {
   switch (preference) {
     case "light":
-      return "#f7f9fc";
+      return "#f8fafc";
     case "oled":
       return "#000000";
     default:

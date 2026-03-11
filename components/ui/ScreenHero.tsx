@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import { Chip, Surface } from "react-native-paper";
+import { Chip, Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
@@ -35,11 +35,16 @@ export function ScreenHero({
   badges = [],
   children,
 }: ScreenHeroProps) {
+  const theme = useTheme<MD3Theme>();
+
   return (
     <Surface
       style={[
         styles.hero,
-        { backgroundColor: palette.hero, borderColor: palette.heroBorder },
+        {
+          backgroundColor: theme.colors.secondaryContainer,
+          borderColor: theme.colors.outlineVariant,
+        },
       ]}
       elevation={uiElevation.hero}
     >
@@ -51,11 +56,14 @@ export function ScreenHero({
               compact
               style={[
                 styles.badge,
-                { backgroundColor: badge.backgroundColor ?? palette.card },
+                {
+                  backgroundColor:
+                    badge.backgroundColor ?? theme.colors.surface,
+                },
               ]}
               textStyle={[
                 styles.badgeText,
-                { color: badge.textColor ?? palette.text },
+                { color: badge.textColor ?? theme.colors.onSurface },
               ]}
             >
               {badge.label}
@@ -64,10 +72,18 @@ export function ScreenHero({
         </View>
       ) : null}
       {eyebrow ? (
-        <Text style={[styles.eyebrow, { color: palette.tint }]}>{eyebrow}</Text>
+        <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>
+          {eyebrow}
+        </Text>
       ) : null}
-      <Text style={styles.title}>{title}</Text>
-      <Text style={[styles.subtitle, { color: palette.muted }]}>
+      <Text
+        style={[styles.title, { color: theme.colors.onSecondaryContainer }]}
+      >
+        {title}
+      </Text>
+      <Text
+        style={[styles.subtitle, { color: theme.colors.onSecondaryContainer }]}
+      >
         {subtitle}
       </Text>
       {children}
