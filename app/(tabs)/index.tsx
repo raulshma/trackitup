@@ -1,5 +1,6 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { SymbolView } from "expo-symbols";
+import { useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import {
     Button,
@@ -39,6 +40,11 @@ import {
 } from "@/services/ai/aiDashboardPulse";
 import { buildDashboardPulsePrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
+import {
+    loadHomeDashboardSectionPreference,
+    persistHomeDashboardSectionPreference,
+} from "@/services/insights/homeDashboardSectionPreferencePersistence";
+import { type HomeDashboardSection } from "@/services/insights/homeDashboardSectionPreferences";
 import { buildWorkspaceDashboardPulse } from "@/services/insights/workspaceDashboardPulse";
 import {
     buildMetricChartPoints,
@@ -60,6 +66,8 @@ type GeneratedAiDashboardPulse = {
   draft: AiDashboardPulseDraft;
 };
 
+type HomeSectionIconName = React.ComponentProps<typeof SymbolView>["name"];
+
 export default function TabOneScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
@@ -67,7 +75,12 @@ export default function TabOneScreen() {
   const router = useRouter();
   const headerHeight = useMaterialCompactTopAppBarHeight();
   const headerScroll = useTabHeaderScroll("index");
+  const sectionTransition = useState(() => new Animated.Value(1))[0];
   const [chartMode, setChartMode] = useState<ChartMode>("line");
+  const [activeSection, setActiveSection] =
+    useState<HomeDashboardSection>("overview");
+  const [isSectionPreferenceLoaded, setIsSectionPreferenceLoaded] =
+    useState(false);
   const [dashboardPulseRequest, setDashboardPulseRequest] = useState("");
   const [dashboardPulseStatusMessage, setDashboardPulseStatusMessage] =
     useState<string | null>(null);
@@ -149,6 +162,14 @@ export default function TabOneScreen() {
     () => workspace.dashboardWidgets.filter((widget) => widget.hidden),
     [workspace.dashboardWidgets],
   );
+  const totalSpacePhotos = useMemo(
+    () =>
+      [...spacePhotoMap.values()].reduce(
+        (total, gallery) => total + gallery.photoCount,
+        0,
+      ),
+    [spacePhotoMap],
+  );
   const workspacePulse = [
     `${workspace.spaces.length} spaces`,
     `${workspace.assets.length} assets`,
@@ -158,6 +179,84 @@ export default function TabOneScreen() {
     recommendations.length > 0
       ? `${recommendations.length} recommendation${recommendations.length === 1 ? "" : "s"} ready`
       : "Everything looks steady";
+  const homeSectionOptions = useMemo(
+    () => [
+      {
+        id: "overview" as const,
+        label: "Overview",
+        icon: {
+          ios: "rectangle.grid.2x2.fill",
+          android: "dashboard",
+          web: "dashboard",
+        } satisfies HomeSectionIconName,
+        hint: "AI pulse, recommendations, and attention items",
+        meta: `${recommendations.length} priority${recommendations.length === 1 ? "" : "ies"}`,
+        badges: [
+          `${attentionItems.length} attention`,
+          recommendations.length > 0 ? "Needs review" : "Steady",
+        ],
+      },
+      {
+        id: "capture" as const,
+        label: "Capture",
+        icon: {
+          ios: "plus.bubble.fill",
+          android: "add_circle",
+          web: "add_circle",
+        } satisfies HomeSectionIconName,
+        hint: "Recording shortcuts and fast event entry",
+        meta: `${quickActionCards.length} quick log${quickActionCards.length === 1 ? "" : "s"}`,
+        badges: [
+          `${quickActionCards.length} shortcut${quickActionCards.length === 1 ? "" : "s"}`,
+          `${workspace.logs.length} logs`,
+        ],
+      },
+      {
+        id: "spaces" as const,
+        label: "Spaces",
+        icon: {
+          ios: "square.grid.2x2",
+          android: "grid_view",
+          web: "grid_view",
+        } satisfies HomeSectionIconName,
+        hint: "Tracked spaces, galleries, and active context",
+        meta: `${spaceSummaries.length} active space${spaceSummaries.length === 1 ? "" : "s"}`,
+        badges: [
+          `${spaceSummaries.length} live`,
+          `${totalSpacePhotos} photo${totalSpacePhotos === 1 ? "" : "s"}`,
+        ],
+      },
+      {
+        id: "manage" as const,
+        label: "Manage",
+        icon: {
+          ios: "slider.horizontal.3",
+          android: "tune",
+          web: "tune",
+        } satisfies HomeSectionIconName,
+        hint: "Widgets, templates, and workspace guidance",
+        meta: `${visibleWidgets.length} visible widget${visibleWidgets.length === 1 ? "" : "s"}`,
+        badges: [
+          `${hiddenWidgets.length} hidden`,
+          `${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"}`,
+        ],
+      },
+    ],
+    [
+      attentionItems.length,
+      hiddenWidgets.length,
+      quickActionCards.length,
+      recommendations.length,
+      spaceSummaries.length,
+      totalSpacePhotos,
+      visibleWidgets.length,
+      workspace.logs.length,
+      workspace.templates.length,
+    ],
+  );
+  const activeSectionOption =
+    homeSectionOptions.find((section) => section.id === activeSection) ??
+    homeSectionOptions[0];
   const workspaceGuidance = useMemo(() => {
     const items: string[] = [];
 
@@ -219,6 +318,49 @@ export default function TabOneScreen() {
           }),
       })),
     [quickActionCards, router],
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void loadHomeDashboardSectionPreference().then((section) => {
+      if (!isMounted) return;
+      setActiveSection(section);
+      setIsSectionPreferenceLoaded(true);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSectionPreferenceLoaded) return;
+    void persistHomeDashboardSectionPreference(activeSection);
+  }, [activeSection, isSectionPreferenceLoaded]);
+
+  useEffect(() => {
+    sectionTransition.setValue(0);
+    Animated.timing(sectionTransition, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [activeSection, sectionTransition]);
+
+  const sectionContentAnimatedStyle = useMemo(
+    () => ({
+      opacity: sectionTransition,
+      transform: [
+        {
+          translateY: sectionTransition.interpolate({
+            inputRange: [0, 1],
+            outputRange: [10, 0],
+          }),
+        },
+      ],
+    }),
+    [sectionTransition],
   );
 
   function getSeverityBadgeColors(
@@ -636,559 +778,794 @@ export default function TabOneScreen() {
         ))}
       </View>
 
-      <AiPromptComposerCard
-        palette={palette}
-        label="AI dashboard pulse"
-        title="Generate a grounded dashboard brief"
-        value={dashboardPulseRequest}
-        onChangeText={setDashboardPulseRequest}
-        onSubmit={() => void handleGenerateDashboardPulse()}
-        isBusy={isGeneratingDashboardPulse}
-        contextChips={[
-          `${dashboardPulse.summary.recommendationCount} recommendation${dashboardPulse.summary.recommendationCount === 1 ? "" : "s"}`,
-          `${dashboardPulse.attentionItems.length} attention item${dashboardPulse.attentionItems.length === 1 ? "" : "s"}`,
-          `${dashboardPulse.activeSpaces.length} active space${dashboardPulse.activeSpaces.length === 1 ? "" : "s"}`,
-        ]}
-        placeholder="Example: Summarize what needs attention first across the dashboard and tell me which screen to open next."
-        helperText={aiDashboardPulseCopy.helperText}
-        consentLabel={aiDashboardPulseCopy.consentLabel}
-        footerNote={aiDashboardPulseCopy.promptFooterNote}
-        submitLabel="Generate pulse brief"
-      />
-
-      {dashboardPulseStatusMessage ? (
-        <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
-          <Text style={styles.widgetListTitle}>AI dashboard pulse</Text>
-          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
-            {dashboardPulseStatusMessage}
-          </Text>
-        </Surface>
-      ) : null}
-
-      {generatedDashboardPulse ? (
-        <AiDraftReviewCard
-          palette={palette}
-          title="Review the AI dashboard pulse"
-          draftKindLabel="Home dashboard"
-          summary={`Prompt: ${generatedDashboardPulse.request}`}
-          consentLabel={generatedDashboardPulse.consentLabel}
-          footerNote={aiDashboardPulseCopy.reviewFooterNote}
-          statusLabel="Draft ready"
-          modelLabel={generatedDashboardPulse.modelId}
-          usage={generatedDashboardPulse.usage}
-          contextChips={[
-            `${generatedDashboardPulse.draft.citedSourceIds.length} cited source${generatedDashboardPulse.draft.citedSourceIds.length === 1 ? "" : "s"}`,
-          ]}
-          items={buildAiDashboardPulseReviewItems(
-            generatedDashboardPulse.draft,
-            generatedDashboardPulse.sources,
-          )}
-          acceptLabel="Apply brief"
-          editLabel="Dismiss draft"
-          regenerateLabel="Generate again"
-          onAccept={handleApplyDashboardPulse}
-          onEdit={handleDismissDashboardPulse}
-          onRegenerate={() => void handleGenerateDashboardPulse()}
-          isBusy={isGeneratingDashboardPulse}
-        />
-      ) : null}
-
-      {appliedDashboardPulse ? (
-        <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
-          <View style={styles.pulseHeaderRow}>
-            <Text style={styles.sectionTitle}>
-              {appliedDashboardPulse.draft.headline}
-            </Text>
-            {appliedDashboardPulse.draft.suggestedDestination ? (
-              <Chip compact style={styles.heroStatPill}>
-                {formatAiDashboardPulseDestinationLabel(
-                  appliedDashboardPulse.draft.suggestedDestination,
-                )}
-              </Chip>
-            ) : null}
-          </View>
-          {appliedDashboardPulse.draft.summary ? (
-            <Text style={[styles.spaceNote, { color: palette.muted }]}>
-              {appliedDashboardPulse.draft.summary}
-            </Text>
-          ) : null}
-          {appliedDashboardPulse.draft.priorities.map((priority) => (
-            <View key={priority} style={styles.focusItem}>
-              <View
-                style={[
-                  styles.focusDot,
-                  { backgroundColor: theme.colors.primary },
-                ]}
-              />
-              <Text style={[styles.focusText, { color: palette.muted }]}>
-                {priority}
-              </Text>
-            </View>
-          ))}
-          {appliedDashboardPulse.draft.caution ? (
-            <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
-              Caution: {appliedDashboardPulse.draft.caution}
-            </Text>
-          ) : null}
-          {appliedDashboardPulse.sources
-            .filter((source) =>
-              appliedDashboardPulse.draft.citedSourceIds.includes(source.id),
-            )
-            .map((source) => (
-              <Surface
-                key={source.id}
-                style={[styles.pulseSourceCard, nestedCardSurfaceStyle]}
-                elevation={1}
-              >
-                <View style={styles.widgetListCopy}>
-                  <Text style={styles.widgetListTitle}>
-                    {formatAiDashboardPulseSourceLabel(source)}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.widgetShortcutMeta,
-                      { color: palette.muted },
-                    ]}
-                  >
-                    {source.snippet}
-                  </Text>
-                </View>
-                <View style={styles.pulseSourceActionRow}>
-                  <CardActionPill
-                    label={formatAiDashboardPulseDestinationLabel(source.route)}
-                    onPress={() => openDashboardPulseSource(source)}
-                  />
-                </View>
-              </Surface>
-            ))}
-          <View style={styles.pulseActionRow}>
-            <CardActionPill
-              label="Clear brief"
-              onPress={() => setAppliedDashboardPulse(null)}
-            />
-            <CardActionPill
-              label={formatAiDashboardPulseDestinationLabel(
-                appliedDashboardPulse.draft.suggestedDestination ??
-                  "action-center",
-              )}
-              onPress={() =>
-                openDashboardPulseDestination(
-                  appliedDashboardPulse.draft.suggestedDestination,
-                )
-              }
-            />
-          </View>
-        </Surface>
-      ) : null}
-
       <SectionSurface
         palette={palette}
-        label="Next best actions"
-        title="Recommended next actions"
+        label="Feature groups"
+        title="Focus on one workspace layer at a time"
       >
         <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          TrackItUp now promotes the most useful next step from reminders,
-          metrics, and asset history.
+          Switch between overview, capture, spaces, and management tools so the
+          home screen stays organized instead of showing every feature at once.
         </Text>
-        {recommendations.length === 0 ? (
-          <Text style={[styles.focusText, { color: palette.muted }]}>
-            Recommendations will appear here as your spaces build up reminders,
-            readings, and maintenance history.
-          </Text>
-        ) : (
-          recommendations.slice(0, 3).map((recommendation) => {
-            const badgeColors = getSeverityBadgeColors(recommendation.severity);
+        <View style={styles.sectionSwitcherGrid}>
+          {homeSectionOptions.map((section) => {
+            const isActive = activeSection === section.id;
 
             return (
               <Pressable
-                key={recommendation.id}
-                onPress={() => openRecommendation(recommendation)}
+                key={section.id}
+                accessibilityLabel={`Show ${section.label} section`}
+                onPress={() => setActiveSection(section.id)}
                 style={({ pressed }) => [
-                  styles.recommendationRow,
-                  nestedCardSurfaceStyle,
-                  { opacity: pressed ? 0.94 : 1 },
+                  styles.sectionSwitchCard,
+                  {
+                    backgroundColor: isActive
+                      ? theme.colors.primaryContainer
+                      : theme.colors.elevation.level1,
+                    borderColor: isActive
+                      ? theme.colors.primary
+                      : theme.colors.outlineVariant,
+                    opacity: pressed ? 0.92 : 1,
+                  },
                 ]}
               >
-                <View style={styles.widgetListCopy}>
-                  <Text style={styles.widgetListTitle}>
-                    {recommendation.title}
+                <View style={styles.sectionSwitchHeader}>
+                  <View
+                    style={[
+                      styles.sectionSwitchIconWrap,
+                      {
+                        backgroundColor: isActive
+                          ? theme.colors.elevation.level1
+                          : theme.colors.elevation.level2,
+                        borderColor: isActive
+                          ? theme.colors.primary
+                          : theme.colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    <SymbolView
+                      name={section.icon}
+                      size={18}
+                      tintColor={
+                        isActive
+                          ? theme.colors.onPrimaryContainer
+                          : theme.colors.onSurfaceVariant
+                      }
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.sectionSwitchTitle,
+                      {
+                        color: isActive
+                          ? theme.colors.onPrimaryContainer
+                          : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {section.label}
                   </Text>
+                </View>
+                <View style={styles.sectionSwitchBadgeRow}>
+                  {section.badges.map((badge) => (
+                    <View
+                      key={`${section.id}-${badge}`}
+                      style={[
+                        styles.sectionSwitchBadge,
+                        {
+                          backgroundColor: isActive
+                            ? theme.colors.elevation.level1
+                            : theme.colors.elevation.level2,
+                          borderColor: isActive
+                            ? theme.colors.primary
+                            : theme.colors.outlineVariant,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.sectionSwitchBadgeLabel,
+                          {
+                            color: isActive
+                              ? theme.colors.onPrimaryContainer
+                              : theme.colors.onSurfaceVariant,
+                          },
+                        ]}
+                      >
+                        {badge}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <Text
+                  style={[
+                    styles.sectionSwitchHint,
+                    {
+                      color: isActive
+                        ? theme.colors.onPrimaryContainer
+                        : theme.colors.onSurfaceVariant,
+                    },
+                  ]}
+                >
+                  {section.hint}
+                </Text>
+                <Text
+                  style={[
+                    styles.sectionSwitchMeta,
+                    {
+                      color: isActive
+                        ? theme.colors.onPrimaryContainer
+                        : palette.tint,
+                    },
+                  ]}
+                >
+                  {section.meta}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Surface
+          style={[styles.activeSectionCard, nestedCardSurfaceStyle]}
+          elevation={1}
+        >
+          <View style={styles.activeSectionSummaryRow}>
+            <View
+              style={[
+                styles.activeSectionIconWrap,
+                {
+                  backgroundColor: theme.colors.elevation.level3,
+                  borderColor: theme.colors.outlineVariant,
+                },
+              ]}
+            >
+              <SymbolView
+                name={activeSectionOption.icon}
+                size={18}
+                tintColor={theme.colors.onSurface}
+              />
+            </View>
+            <Text style={styles.widgetListTitle}>
+              {activeSectionOption.label} view
+            </Text>
+          </View>
+          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
+            {activeSectionOption.hint}. Use the section switcher above to jump
+            between feature clusters without scrolling through the full page.
+          </Text>
+        </Surface>
+      </SectionSurface>
+
+      <Animated.View style={sectionContentAnimatedStyle}>
+        {activeSection === "overview" ? (
+          <>
+            <AiPromptComposerCard
+              palette={palette}
+              label="AI dashboard pulse"
+              title="Generate a grounded dashboard brief"
+              value={dashboardPulseRequest}
+              onChangeText={setDashboardPulseRequest}
+              onSubmit={() => void handleGenerateDashboardPulse()}
+              isBusy={isGeneratingDashboardPulse}
+              contextChips={[
+                `${dashboardPulse.summary.recommendationCount} recommendation${dashboardPulse.summary.recommendationCount === 1 ? "" : "s"}`,
+                `${dashboardPulse.attentionItems.length} attention item${dashboardPulse.attentionItems.length === 1 ? "" : "s"}`,
+                `${dashboardPulse.activeSpaces.length} active space${dashboardPulse.activeSpaces.length === 1 ? "" : "s"}`,
+              ]}
+              placeholder="Example: Summarize what needs attention first across the dashboard and tell me which screen to open next."
+              helperText={aiDashboardPulseCopy.helperText}
+              consentLabel={aiDashboardPulseCopy.consentLabel}
+              footerNote={aiDashboardPulseCopy.promptFooterNote}
+              submitLabel="Generate pulse brief"
+            />
+
+            {dashboardPulseStatusMessage ? (
+              <Surface
+                style={[styles.focusCard, baseCardSurfaceStyle]}
+                elevation={1}
+              >
+                <Text style={styles.widgetListTitle}>AI dashboard pulse</Text>
+                <Text
+                  style={[styles.widgetShortcutMeta, { color: palette.muted }]}
+                >
+                  {dashboardPulseStatusMessage}
+                </Text>
+              </Surface>
+            ) : null}
+
+            {generatedDashboardPulse ? (
+              <AiDraftReviewCard
+                palette={palette}
+                title="Review the AI dashboard pulse"
+                draftKindLabel="Home dashboard"
+                summary={`Prompt: ${generatedDashboardPulse.request}`}
+                consentLabel={generatedDashboardPulse.consentLabel}
+                footerNote={aiDashboardPulseCopy.reviewFooterNote}
+                statusLabel="Draft ready"
+                modelLabel={generatedDashboardPulse.modelId}
+                usage={generatedDashboardPulse.usage}
+                contextChips={[
+                  `${generatedDashboardPulse.draft.citedSourceIds.length} cited source${generatedDashboardPulse.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+                ]}
+                items={buildAiDashboardPulseReviewItems(
+                  generatedDashboardPulse.draft,
+                  generatedDashboardPulse.sources,
+                )}
+                acceptLabel="Apply brief"
+                editLabel="Dismiss draft"
+                regenerateLabel="Generate again"
+                onAccept={handleApplyDashboardPulse}
+                onEdit={handleDismissDashboardPulse}
+                onRegenerate={() => void handleGenerateDashboardPulse()}
+                isBusy={isGeneratingDashboardPulse}
+              />
+            ) : null}
+
+            {appliedDashboardPulse ? (
+              <Surface
+                style={[styles.focusCard, baseCardSurfaceStyle]}
+                elevation={1}
+              >
+                <View style={styles.pulseHeaderRow}>
+                  <Text style={styles.sectionTitle}>
+                    {appliedDashboardPulse.draft.headline}
+                  </Text>
+                  {appliedDashboardPulse.draft.suggestedDestination ? (
+                    <Chip compact style={styles.heroStatPill}>
+                      {formatAiDashboardPulseDestinationLabel(
+                        appliedDashboardPulse.draft.suggestedDestination,
+                      )}
+                    </Chip>
+                  ) : null}
+                </View>
+                {appliedDashboardPulse.draft.summary ? (
+                  <Text style={[styles.spaceNote, { color: palette.muted }]}>
+                    {appliedDashboardPulse.draft.summary}
+                  </Text>
+                ) : null}
+                {appliedDashboardPulse.draft.priorities.map((priority) => (
+                  <View key={priority} style={styles.focusItem}>
+                    <View
+                      style={[
+                        styles.focusDot,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                    />
+                    <Text style={[styles.focusText, { color: palette.muted }]}>
+                      {priority}
+                    </Text>
+                  </View>
+                ))}
+                {appliedDashboardPulse.draft.caution ? (
                   <Text
                     style={[
                       styles.widgetShortcutMeta,
                       { color: palette.muted },
                     ]}
                   >
-                    {recommendation.explanation}
+                    Caution: {appliedDashboardPulse.draft.caution}
                   </Text>
-                </View>
-                <View style={styles.recommendationAside}>
-                  <View
-                    style={[
-                      styles.severityBadge,
-                      { backgroundColor: badgeColors.backgroundColor },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.severityBadgeLabel,
-                        { color: badgeColors.color },
-                      ]}
+                ) : null}
+                {appliedDashboardPulse.sources
+                  .filter((source) =>
+                    appliedDashboardPulse.draft.citedSourceIds.includes(
+                      source.id,
+                    ),
+                  )
+                  .map((source) => (
+                    <Surface
+                      key={source.id}
+                      style={[styles.pulseSourceCard, nestedCardSurfaceStyle]}
+                      elevation={1}
                     >
-                      {recommendation.severity}
-                    </Text>
-                  </View>
-                  <Text style={[styles.actionCta, { color: palette.tint }]}>
-                    {recommendation.action.label}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })
-        )}
-      </SectionSurface>
-
-      <PageQuickActions
-        palette={palette}
-        title="Start recording"
-        description="Choose what happened and TrackItUp will guide you into the right event-entry flow."
-        actions={homeQuickActions}
-      />
-
-      <SectionSurface palette={palette} label="Spaces" title="Active spaces">
-        <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          Spaces from your real workspace appear here after you sync, import, or
-          start tracking on this device.
-        </Text>
-        {spaceSummaries.length === 0 ? (
-          <EmptyStateCard
-            palette={palette}
-            icon={{
-              ios: "square.grid.2x2",
-              android: "dashboard",
-              web: "dashboard",
-            }}
-            title="No tracked spaces yet"
-            message="Create your first space to give new events, routines, and metrics a home in the workspace."
-            actionLabel="Create first space"
-            onAction={() => router.push("/space-create")}
-            style={styles.emptyStateCard}
-          />
-        ) : (
-          spaceSummaries.map((space) => (
-            <Surface
-              key={space.id}
-              style={[styles.spaceCard, baseCardSurfaceStyle]}
-              elevation={1}
-            >
-              <View style={styles.spaceHeader}>
-                <View style={styles.spaceHeadingCopy}>
-                  <Text style={styles.spaceName}>{space.name}</Text>
-                  <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                    {space.category}
-                  </Text>
-                  {spacesById.get(space.id)?.parentSpaceId ? (
-                    <Text style={[styles.nestedMeta, { color: palette.muted }]}>
-                      Nested in{" "}
-                      {
-                        spacesById.get(
-                          spacesById.get(space.id)?.parentSpaceId ?? "",
-                        )?.name
-                      }
-                    </Text>
-                  ) : null}
-                </View>
-                <View
-                  style={[
-                    styles.badge,
-                    { backgroundColor: `${space.accent}22` },
-                  ]}
-                >
-                  <Text style={[styles.badgeLabel, { color: space.accent }]}>
-                    {space.status}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                {space.note}
-              </Text>
-
-              <View style={styles.widgetToolbar}>
-                <CardActionPill
-                  label={
-                    spacePhotoMap.get(space.id)?.photoCount
-                      ? `Visual history (${spacePhotoMap.get(space.id)?.photoCount})`
-                      : "Visual history"
-                  }
-                  accentColor={space.accent}
-                  onPress={() =>
-                    router.push(`/visual-history?spaceId=${space.id}` as never)
-                  }
-                />
-              </View>
-
-              <View style={styles.spaceFooter}>
-                <Text style={styles.spaceFooterLabel}>
-                  {space.pendingTasks} task(s)
-                </Text>
-                <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                  {space.lastLog}
-                </Text>
-              </View>
-            </Surface>
-          ))
-        )}
-      </SectionSurface>
-
-      <SectionSurface
-        palette={palette}
-        label="Attention"
-        title="Items needing attention"
-      >
-        <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          Safe-zone alerts and urgent reminders surfaced from the shared
-          workspace.
-        </Text>
-        <Surface style={[styles.focusCard, baseCardSurfaceStyle]} elevation={1}>
-          {attentionItems.map((item) => (
-            <View key={item} style={styles.focusItem}>
-              <View
-                style={[styles.focusDot, { backgroundColor: palette.tint }]}
-              />
-              <Text style={[styles.focusText, { color: palette.muted }]}>
-                {item}
-              </Text>
-            </View>
-          ))}
-        </Surface>
-      </SectionSurface>
-
-      <SectionSurface
-        palette={palette}
-        label="Workspace controls"
-        title="Customize tools and reference panels"
-      >
-        <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          Keep the dashboard focused, then expand setup and customization only
-          when you need it.
-        </Text>
-        <View style={styles.widgetToolbar}>
-          <CardActionPill
-            label="Open workspace tools"
-            onPress={() => router.push("/workspace-tools")}
-          />
-          <CardActionPill
-            label="Create space"
-            onPress={() => router.push("/space-create")}
-          />
-        </View>
-
-        <CollapsibleSectionCard
-          title="Dashboard widgets"
-          description="Reorder, resize, and hide widgets so each hobby can keep a different dashboard layout."
-          badge={`${visibleWidgets.length} visible`}
-        >
-          {visibleWidgets.map((widget, index) => (
-            <Surface
-              key={widget.id}
-              style={[styles.spaceCard, baseCardSurfaceStyle]}
-              elevation={1}
-            >
-              <View style={styles.spaceHeader}>
-                <View style={styles.spaceHeadingCopy}>
-                  <Text style={styles.spaceName}>{widget.title}</Text>
-                  <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                    {widget.type} • {widget.size} card
-                  </Text>
-                </View>
-                <View style={styles.widgetControls}>
-                  <Button
-                    onPress={() => moveDashboardWidget(widget.id, "up")}
-                    mode="contained-tonal"
-                    buttonColor={widgetButtonColor}
-                    textColor={widgetButtonTextColor}
-                    compact
-                    style={styles.widgetButton}
-                    contentStyle={styles.widgetButtonContent}
-                    labelStyle={styles.widgetButtonLabel}
-                  >
-                    Up
-                  </Button>
-                  <Button
-                    onPress={() => moveDashboardWidget(widget.id, "down")}
-                    mode="contained-tonal"
-                    buttonColor={widgetButtonColor}
-                    textColor={widgetButtonTextColor}
-                    compact
-                    style={styles.widgetButton}
-                    contentStyle={styles.widgetButtonContent}
-                    labelStyle={styles.widgetButtonLabel}
-                  >
-                    Down
-                  </Button>
-                  <Button
-                    onPress={() => cycleDashboardWidgetSize(widget.id)}
-                    mode="contained-tonal"
-                    buttonColor={widgetButtonColor}
-                    textColor={widgetButtonTextColor}
-                    compact
-                    style={styles.widgetButton}
-                    contentStyle={styles.widgetButtonContent}
-                    labelStyle={styles.widgetButtonLabel}
-                  >
-                    Size
-                  </Button>
-                  <Button
-                    onPress={() => toggleDashboardWidgetVisibility(widget.id)}
-                    mode="contained-tonal"
-                    buttonColor={widgetButtonColor}
-                    textColor={widgetButtonTextColor}
-                    compact
-                    style={styles.widgetButton}
-                    contentStyle={styles.widgetButtonContent}
-                    labelStyle={styles.widgetButtonLabel}
-                  >
-                    Hide
-                  </Button>
-                </View>
-              </View>
-              <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                {widget.description}
-              </Text>
-              <View style={styles.widgetBody}>{renderWidgetBody(widget)}</View>
-              <Text style={styles.spaceFooterLabel}>Widget #{index + 1}</Text>
-            </Surface>
-          ))}
-          {hiddenWidgets.length > 0 ? (
-            <Surface
-              style={[styles.focusCard, baseCardSurfaceStyle]}
-              elevation={1}
-            >
-              <Text style={styles.sectionTitle}>Hidden widgets</Text>
-              {hiddenWidgets.map((widget) => (
-                <View key={widget.id} style={styles.hiddenWidgetRow}>
-                  <View style={styles.widgetListCopy}>
-                    <Text style={styles.widgetListTitle}>{widget.title}</Text>
-                    <Text
-                      style={[
-                        styles.widgetShortcutMeta,
-                        { color: palette.muted },
-                      ]}
-                    >
-                      {widget.type} • {widget.size} card
-                    </Text>
-                  </View>
+                      <View style={styles.widgetListCopy}>
+                        <Text style={styles.widgetListTitle}>
+                          {formatAiDashboardPulseSourceLabel(source)}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.widgetShortcutMeta,
+                            { color: palette.muted },
+                          ]}
+                        >
+                          {source.snippet}
+                        </Text>
+                      </View>
+                      <View style={styles.pulseSourceActionRow}>
+                        <CardActionPill
+                          label={formatAiDashboardPulseDestinationLabel(
+                            source.route,
+                          )}
+                          onPress={() => openDashboardPulseSource(source)}
+                        />
+                      </View>
+                    </Surface>
+                  ))}
+                <View style={styles.pulseActionRow}>
                   <CardActionPill
-                    label="Show"
-                    onPress={() => toggleDashboardWidgetVisibility(widget.id)}
+                    label="Clear brief"
+                    onPress={() => setAppliedDashboardPulse(null)}
+                  />
+                  <CardActionPill
+                    label={formatAiDashboardPulseDestinationLabel(
+                      appliedDashboardPulse.draft.suggestedDestination ??
+                        "action-center",
+                    )}
+                    onPress={() =>
+                      openDashboardPulseDestination(
+                        appliedDashboardPulse.draft.suggestedDestination,
+                      )
+                    }
                   />
                 </View>
-              ))}
-            </Surface>
-          ) : null}
-        </CollapsibleSectionCard>
+              </Surface>
+            ) : null}
 
-        <CollapsibleSectionCard
-          title="Template catalog"
-          description="Official and community templates expose the schema engine and import paths."
-          badge={`${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"}`}
-        >
-          <View style={styles.widgetToolbar}>
-            <CardActionPill
-              label="Build custom schema"
-              onPress={() => router.push("/schema-builder")}
-            />
-            <CardActionPill
-              label="Import template"
-              onPress={() => router.push("/template-import")}
-            />
-          </View>
-          {workspace.templates.length === 0 ? (
-            <EmptyStateCard
+            <SectionSurface
               palette={palette}
-              icon={{
-                ios: "square.stack.3d.up",
-                android: "inventory_2",
-                web: "inventory_2",
-              }}
-              title="No templates in this workspace yet"
-              message="Import a template or build your own schema to populate this catalog."
-              actionLabel="Import template"
-              onAction={() => router.push("/template-import")}
-              style={styles.emptyStateCard}
-            />
-          ) : (
-            workspace.templates.map((template) => (
+              label="Next best actions"
+              title="Recommended next actions"
+            >
+              <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
+                TrackItUp now promotes the most useful next step from reminders,
+                metrics, and asset history.
+              </Text>
+              {recommendations.length === 0 ? (
+                <Text style={[styles.focusText, { color: palette.muted }]}>
+                  Recommendations will appear here as your spaces build up
+                  reminders, readings, and maintenance history.
+                </Text>
+              ) : (
+                recommendations.slice(0, 3).map((recommendation) => {
+                  const badgeColors = getSeverityBadgeColors(
+                    recommendation.severity,
+                  );
+
+                  return (
+                    <Pressable
+                      key={recommendation.id}
+                      onPress={() => openRecommendation(recommendation)}
+                      style={({ pressed }) => [
+                        styles.recommendationRow,
+                        nestedCardSurfaceStyle,
+                        { opacity: pressed ? 0.94 : 1 },
+                      ]}
+                    >
+                      <View style={styles.widgetListCopy}>
+                        <Text style={styles.widgetListTitle}>
+                          {recommendation.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.widgetShortcutMeta,
+                            { color: palette.muted },
+                          ]}
+                        >
+                          {recommendation.explanation}
+                        </Text>
+                      </View>
+                      <View style={styles.recommendationAside}>
+                        <View
+                          style={[
+                            styles.severityBadge,
+                            {
+                              backgroundColor: badgeColors.backgroundColor,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.severityBadgeLabel,
+                              { color: badgeColors.color },
+                            ]}
+                          >
+                            {recommendation.severity}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[styles.actionCta, { color: palette.tint }]}
+                        >
+                          {recommendation.action.label}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
+            </SectionSurface>
+
+            <SectionSurface
+              palette={palette}
+              label="Attention"
+              title="Items needing attention"
+            >
+              <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
+                Safe-zone alerts and urgent reminders surfaced from the shared
+                workspace.
+              </Text>
               <Surface
-                key={template.id}
-                style={[styles.spaceCard, baseCardSurfaceStyle]}
+                style={[styles.focusCard, baseCardSurfaceStyle]}
                 elevation={1}
               >
-                <View style={styles.spaceHeader}>
-                  <View style={styles.spaceHeadingCopy}>
-                    <Text style={styles.spaceName}>{template.name}</Text>
-                    <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                      {template.origin} • {template.category}
+                {attentionItems.map((item) => (
+                  <View key={item} style={styles.focusItem}>
+                    <View
+                      style={[
+                        styles.focusDot,
+                        { backgroundColor: palette.tint },
+                      ]}
+                    />
+                    <Text style={[styles.focusText, { color: palette.muted }]}>
+                      {item}
                     </Text>
                   </View>
-                  <View
-                    style={[
-                      styles.badge,
-                      { backgroundColor: `${palette.tint}22` },
-                    ]}
-                  >
-                    <Text style={[styles.badgeLabel, { color: palette.tint }]}>
-                      {template.importMethods.join(" • ")}
-                    </Text>
+                ))}
+              </Surface>
+            </SectionSurface>
+          </>
+        ) : null}
+
+        {activeSection === "capture" ? (
+          <PageQuickActions
+            palette={palette}
+            title="Start recording"
+            description="Choose what happened and TrackItUp will guide you into the right event-entry flow."
+            actions={homeQuickActions}
+          />
+        ) : null}
+
+        {activeSection === "spaces" ? (
+          <SectionSurface
+            palette={palette}
+            label="Spaces"
+            title="Active spaces"
+          >
+            <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
+              Spaces from your real workspace appear here after you sync,
+              import, or start tracking on this device.
+            </Text>
+            {spaceSummaries.length === 0 ? (
+              <EmptyStateCard
+                palette={palette}
+                icon={{
+                  ios: "square.grid.2x2",
+                  android: "dashboard",
+                  web: "dashboard",
+                }}
+                title="No tracked spaces yet"
+                message="Create your first space to give new events, routines, and metrics a home in the workspace."
+                actionLabel="Create first space"
+                onAction={() => router.push("/space-create")}
+                style={styles.emptyStateCard}
+              />
+            ) : (
+              spaceSummaries.map((space) => (
+                <Surface
+                  key={space.id}
+                  style={[styles.spaceCard, baseCardSurfaceStyle]}
+                  elevation={1}
+                >
+                  <View style={styles.spaceHeader}>
+                    <View style={styles.spaceHeadingCopy}>
+                      <Text style={styles.spaceName}>{space.name}</Text>
+                      <Text
+                        style={[styles.spaceMeta, { color: palette.muted }]}
+                      >
+                        {space.category}
+                      </Text>
+                      {spacesById.get(space.id)?.parentSpaceId ? (
+                        <Text
+                          style={[styles.nestedMeta, { color: palette.muted }]}
+                        >
+                          Nested in{" "}
+                          {
+                            spacesById.get(
+                              spacesById.get(space.id)?.parentSpaceId ?? "",
+                            )?.name
+                          }
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View
+                      style={[
+                        styles.badge,
+                        { backgroundColor: `${space.accent}22` },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.badgeLabel, { color: space.accent }]}
+                      >
+                        {space.status}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                  {template.summary}
-                </Text>
-                <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                  Fields: {template.supportedFieldTypes.slice(0, 5).join(", ")}
-                </Text>
-                {template.formTemplate ? (
+
+                  <Text style={[styles.spaceNote, { color: palette.muted }]}>
+                    {space.note}
+                  </Text>
+
                   <View style={styles.widgetToolbar}>
                     <CardActionPill
-                      label="Open form"
+                      label={
+                        spacePhotoMap.get(space.id)?.photoCount
+                          ? `Visual history (${spacePhotoMap.get(space.id)?.photoCount})`
+                          : "Visual history"
+                      }
+                      accentColor={space.accent}
                       onPress={() =>
-                        router.push({
-                          pathname: "/logbook",
-                          params: { templateId: template.id },
-                        })
+                        router.push(
+                          `/visual-history?spaceId=${space.id}` as never,
+                        )
                       }
                     />
                   </View>
-                ) : null}
-              </Surface>
-            ))
-          )}
-        </CollapsibleSectionCard>
 
-        <CollapsibleSectionCard
-          title="Workspace guide"
-          description="Tips here reflect your current real workspace state."
-          badge={`${workspaceGuidance.length} tip${workspaceGuidance.length === 1 ? "" : "s"}`}
-        >
-          <Surface
-            style={[styles.focusCard, baseCardSurfaceStyle]}
-            elevation={1}
+                  <View style={styles.spaceFooter}>
+                    <Text style={styles.spaceFooterLabel}>
+                      {space.pendingTasks} task(s)
+                    </Text>
+                    <Text style={[styles.spaceMeta, { color: palette.muted }]}>
+                      {space.lastLog}
+                    </Text>
+                  </View>
+                </Surface>
+              ))
+            )}
+          </SectionSurface>
+        ) : null}
+
+        {activeSection === "manage" ? (
+          <SectionSurface
+            palette={palette}
+            label="Workspace controls"
+            title="Customize tools and reference panels"
           >
-            {workspaceGuidance.map((item) => (
-              <View key={item} style={styles.focusItem}>
-                <View
-                  style={[styles.focusDot, { backgroundColor: palette.tint }]}
+            <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
+              Keep the dashboard focused, then expand setup and customization
+              only when you need it.
+            </Text>
+            <Surface
+              style={[styles.sidebarHintCard, nestedCardSurfaceStyle]}
+              elevation={1}
+            >
+              <Text style={styles.widgetListTitle}>
+                Open screens from the sidebar
+              </Text>
+              <Text
+                style={[styles.widgetShortcutMeta, { color: palette.muted }]}
+              >
+                The new slide-out navigation menu keeps setup, import, scanner,
+                and workspace-admin screens close by without packing extra jump
+                buttons into the dashboard itself.
+              </Text>
+            </Surface>
+
+            <CollapsibleSectionCard
+              title="Dashboard widgets"
+              description="Reorder, resize, and hide widgets so each hobby can keep a different dashboard layout."
+              badge={`${visibleWidgets.length} visible`}
+            >
+              {visibleWidgets.map((widget, index) => (
+                <Surface
+                  key={widget.id}
+                  style={[styles.spaceCard, baseCardSurfaceStyle]}
+                  elevation={1}
+                >
+                  <View style={styles.spaceHeader}>
+                    <View style={styles.spaceHeadingCopy}>
+                      <Text style={styles.spaceName}>{widget.title}</Text>
+                      <Text
+                        style={[styles.spaceMeta, { color: palette.muted }]}
+                      >
+                        {widget.type} • {widget.size} card
+                      </Text>
+                    </View>
+                    <View style={styles.widgetControls}>
+                      <Button
+                        onPress={() => moveDashboardWidget(widget.id, "up")}
+                        mode="contained-tonal"
+                        buttonColor={widgetButtonColor}
+                        textColor={widgetButtonTextColor}
+                        compact
+                        style={styles.widgetButton}
+                        contentStyle={styles.widgetButtonContent}
+                        labelStyle={styles.widgetButtonLabel}
+                      >
+                        Up
+                      </Button>
+                      <Button
+                        onPress={() => moveDashboardWidget(widget.id, "down")}
+                        mode="contained-tonal"
+                        buttonColor={widgetButtonColor}
+                        textColor={widgetButtonTextColor}
+                        compact
+                        style={styles.widgetButton}
+                        contentStyle={styles.widgetButtonContent}
+                        labelStyle={styles.widgetButtonLabel}
+                      >
+                        Down
+                      </Button>
+                      <Button
+                        onPress={() => cycleDashboardWidgetSize(widget.id)}
+                        mode="contained-tonal"
+                        buttonColor={widgetButtonColor}
+                        textColor={widgetButtonTextColor}
+                        compact
+                        style={styles.widgetButton}
+                        contentStyle={styles.widgetButtonContent}
+                        labelStyle={styles.widgetButtonLabel}
+                      >
+                        Size
+                      </Button>
+                      <Button
+                        onPress={() =>
+                          toggleDashboardWidgetVisibility(widget.id)
+                        }
+                        mode="contained-tonal"
+                        buttonColor={widgetButtonColor}
+                        textColor={widgetButtonTextColor}
+                        compact
+                        style={styles.widgetButton}
+                        contentStyle={styles.widgetButtonContent}
+                        labelStyle={styles.widgetButtonLabel}
+                      >
+                        Hide
+                      </Button>
+                    </View>
+                  </View>
+                  <Text style={[styles.spaceNote, { color: palette.muted }]}>
+                    {widget.description}
+                  </Text>
+                  <View style={styles.widgetBody}>
+                    {renderWidgetBody(widget)}
+                  </View>
+                  <Text style={styles.spaceFooterLabel}>
+                    Widget #{index + 1}
+                  </Text>
+                </Surface>
+              ))}
+              {hiddenWidgets.length > 0 ? (
+                <Surface
+                  style={[styles.focusCard, baseCardSurfaceStyle]}
+                  elevation={1}
+                >
+                  <Text style={styles.sectionTitle}>Hidden widgets</Text>
+                  {hiddenWidgets.map((widget) => (
+                    <View key={widget.id} style={styles.hiddenWidgetRow}>
+                      <View style={styles.widgetListCopy}>
+                        <Text style={styles.widgetListTitle}>
+                          {widget.title}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.widgetShortcutMeta,
+                            { color: palette.muted },
+                          ]}
+                        >
+                          {widget.type} • {widget.size} card
+                        </Text>
+                      </View>
+                      <CardActionPill
+                        label="Show"
+                        onPress={() =>
+                          toggleDashboardWidgetVisibility(widget.id)
+                        }
+                      />
+                    </View>
+                  ))}
+                </Surface>
+              ) : null}
+            </CollapsibleSectionCard>
+
+            <CollapsibleSectionCard
+              title="Template catalog"
+              description="Official and community templates expose the schema engine and import paths."
+              badge={`${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"}`}
+            >
+              <Text
+                style={[
+                  styles.widgetShortcutMeta,
+                  { color: palette.muted, marginBottom: 14 },
+                ]}
+              >
+                Need to build a schema or import a shared template? Open the
+                sidebar from the header and jump there when you need it.
+              </Text>
+              {workspace.templates.length === 0 ? (
+                <EmptyStateCard
+                  palette={palette}
+                  icon={{
+                    ios: "square.stack.3d.up",
+                    android: "inventory_2",
+                    web: "inventory_2",
+                  }}
+                  title="No templates in this workspace yet"
+                  message="Import a template or build your own schema to populate this catalog."
+                  actionLabel="Import template"
+                  onAction={() => router.push("/template-import")}
+                  style={styles.emptyStateCard}
                 />
-                <Text style={[styles.focusText, { color: palette.muted }]}>
-                  {item}
-                </Text>
-              </View>
-            ))}
-          </Surface>
-        </CollapsibleSectionCard>
-      </SectionSurface>
+              ) : (
+                workspace.templates.map((template) => (
+                  <Surface
+                    key={template.id}
+                    style={[styles.spaceCard, baseCardSurfaceStyle]}
+                    elevation={1}
+                  >
+                    <View style={styles.spaceHeader}>
+                      <View style={styles.spaceHeadingCopy}>
+                        <Text style={styles.spaceName}>{template.name}</Text>
+                        <Text
+                          style={[styles.spaceMeta, { color: palette.muted }]}
+                        >
+                          {template.origin} • {template.category}
+                        </Text>
+                      </View>
+                      <View
+                        style={[
+                          styles.badge,
+                          { backgroundColor: `${palette.tint}22` },
+                        ]}
+                      >
+                        <Text
+                          style={[styles.badgeLabel, { color: palette.tint }]}
+                        >
+                          {template.importMethods.join(" • ")}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.spaceNote, { color: palette.muted }]}>
+                      {template.summary}
+                    </Text>
+                    <Text style={[styles.spaceMeta, { color: palette.muted }]}>
+                      Fields:{" "}
+                      {template.supportedFieldTypes.slice(0, 5).join(", ")}
+                    </Text>
+                    {template.formTemplate ? (
+                      <View style={styles.widgetToolbar}>
+                        <CardActionPill
+                          label="Open form"
+                          onPress={() =>
+                            router.push({
+                              pathname: "/logbook",
+                              params: { templateId: template.id },
+                            })
+                          }
+                        />
+                      </View>
+                    ) : null}
+                  </Surface>
+                ))
+              )}
+            </CollapsibleSectionCard>
+
+            <CollapsibleSectionCard
+              title="Workspace guide"
+              description="Tips here reflect your current real workspace state."
+              badge={`${workspaceGuidance.length} tip${workspaceGuidance.length === 1 ? "" : "s"}`}
+            >
+              <Surface
+                style={[styles.focusCard, baseCardSurfaceStyle]}
+                elevation={1}
+              >
+                {workspaceGuidance.map((item) => (
+                  <View key={item} style={styles.focusItem}>
+                    <View
+                      style={[
+                        styles.focusDot,
+                        { backgroundColor: palette.tint },
+                      ]}
+                    />
+                    <Text style={[styles.focusText, { color: palette.muted }]}>
+                      {item}
+                    </Text>
+                  </View>
+                ))}
+              </Surface>
+            </CollapsibleSectionCard>
+          </SectionSurface>
+        ) : null}
+      </Animated.View>
     </Animated.ScrollView>
   );
 }
@@ -1253,6 +1630,83 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     flexWrap: "wrap",
+  },
+  sectionSwitcherGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginTop: 14,
+  },
+  sectionSwitchCard: {
+    flexGrow: 1,
+    flexBasis: 148,
+    minHeight: 116,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    padding: 16,
+    gap: 6,
+  },
+  sectionSwitchHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  sectionSwitchIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: uiRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  sectionSwitchTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    flex: 1,
+  },
+  sectionSwitchBadgeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  sectionSwitchBadge: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: uiRadius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  sectionSwitchBadgeLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  sectionSwitchHint: {
+    fontSize: 13,
+    lineHeight: 18,
+    flex: 1,
+  },
+  sectionSwitchMeta: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  activeSectionCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    padding: 14,
+    gap: 6,
+    marginTop: 14,
+  },
+  activeSectionSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  activeSectionIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: uiRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
   statCard: {
     flex: 1,
@@ -1482,6 +1936,13 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     flexWrap: "wrap",
     justifyContent: "flex-end",
+  },
+  sidebarHintCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 18,
+    padding: 14,
+    gap: 6,
+    marginBottom: 14,
   },
   emptyStateCard: {
     marginBottom: uiSpace.md,

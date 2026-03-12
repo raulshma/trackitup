@@ -2,7 +2,7 @@ import { File } from "expo-file-system";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
-import { ScrollView, StyleSheet, View } from "react-native";
+import { Animated, ScrollView, StyleSheet, View } from "react-native";
 import {
     Button,
     Chip,
@@ -16,6 +16,10 @@ import {
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
+import {
+    FeatureSectionSwitcher,
+    type FeatureSectionItem,
+} from "@/components/ui/FeatureSectionSwitcher";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
@@ -55,6 +59,8 @@ const themeOptionLabels: Record<ThemePreference, string> = {
   dark: "Dark",
   oled: "OLED",
 };
+
+type WorkspaceToolsSection = "backups" | "data" | "device" | "settings";
 
 function formatPermissionSummary(permission: {
   granted?: boolean;
@@ -112,6 +118,7 @@ export default function WorkspaceToolsScreen() {
     [palette],
   );
   const router = useRouter();
+  const sectionTransition = useState(() => new Animated.Value(1))[0];
   const { themePreference, setThemePreference } = useThemePreference();
   const {
     createRestorePoint,
@@ -133,6 +140,8 @@ export default function WorkspaceToolsScreen() {
     useState<WorkspaceRestorePointSummary | null>(null);
   const [pendingDeleteRestorePoint, setPendingDeleteRestorePoint] =
     useState<WorkspaceRestorePointSummary | null>(null);
+  const [activeSection, setActiveSection] =
+    useState<WorkspaceToolsSection>("backups");
   const latestRestorePoint = restorePoints[0] ?? null;
 
   useEffect(() => {
@@ -353,6 +362,112 @@ export default function WorkspaceToolsScreen() {
       disabled: isWorking,
     },
   ];
+  const workspaceToolSections = useMemo<
+    FeatureSectionItem<WorkspaceToolsSection>[]
+  >(
+    () => [
+      {
+        id: "backups" as const,
+        label: "Backups",
+        icon: {
+          ios: "externaldrive.fill.badge.timemachine",
+          android: "backup",
+          web: "backup",
+        },
+        hint: "Restore points, recovery, and exportable checkpoints",
+        meta: `${restorePoints.length} restore point${restorePoints.length === 1 ? "" : "s"}`,
+        badges: [
+          latestRestorePoint ? "Latest ready" : "Create first",
+          "Local vault",
+        ],
+        accentColor: palette.tint,
+      },
+      {
+        id: "data" as const,
+        label: "Data",
+        icon: {
+          ios: "arrow.left.arrow.right.circle.fill",
+          android: "sync_alt",
+          web: "sync_alt",
+        },
+        hint: "Exports, CSV imports, and template intake",
+        meta: `${workspace.logs.length} log${workspace.logs.length === 1 ? "" : "s"} in workspace`,
+        badges: [
+          `${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"}`,
+          csvInput.trim().length > 0 ? "CSV staged" : "Import ready",
+        ],
+        accentColor: palette.secondary,
+      },
+      {
+        id: "device" as const,
+        label: "Device",
+        icon: {
+          ios: "iphone.gen3",
+          android: "devices",
+          web: "devices",
+        },
+        hint: "Camera, location, and scanner readiness",
+        meta: `${cameraStatus} camera`,
+        badges: [locationStatus, locationPreview ? "Fix cached" : "No fix yet"],
+        accentColor: palette.tertiary,
+      },
+      {
+        id: "settings" as const,
+        label: "Settings",
+        icon: {
+          ios: "paintbrush.pointed.fill",
+          android: "palette",
+          web: "palette",
+        },
+        hint: "Theme preference and workspace tool notes",
+        meta: `${themeOptionLabels[themePreference]} theme active`,
+        badges: [
+          "Dark default",
+          toolMessage ? "Action result ready" : "No pending result",
+        ],
+        accentColor: palette.tint,
+      },
+    ],
+    [
+      cameraStatus,
+      csvInput,
+      latestRestorePoint,
+      locationPreview,
+      locationStatus,
+      palette.secondary,
+      palette.tertiary,
+      palette.tint,
+      restorePoints.length,
+      themePreference,
+      toolMessage,
+      workspace.logs.length,
+      workspace.templates.length,
+    ],
+  );
+
+  useEffect(() => {
+    sectionTransition.setValue(0);
+    Animated.timing(sectionTransition, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [activeSection, sectionTransition]);
+
+  const sectionContentAnimatedStyle = useMemo(
+    () => ({
+      opacity: sectionTransition,
+      transform: [
+        {
+          translateY: sectionTransition.interpolate({
+            inputRange: [0, 1],
+            outputRange: [10, 0],
+          }),
+        },
+      ],
+    }),
+    [sectionTransition],
+  );
 
   return (
     <ScrollView
@@ -387,368 +502,413 @@ export default function WorkspaceToolsScreen() {
         actions={pageQuickActions}
       />
 
-      <SectionSurface
+      <FeatureSectionSwitcher
         palette={palette}
-        label="Local backup vault"
-        title="Create restore points and recover earlier workspace states"
-        style={styles.sectionCardSpacing}
-      >
-        <Text style={[styles.listText, paletteStyles.mutedText]}>
-          Save a checkpoint before risky edits or use the automatic restore
-          points TrackItUp creates ahead of imports, restores, recovery, privacy
-          changes, and resets.
-        </Text>
-        <ChipRow style={styles.statusChipRow}>
-          <Chip compact style={styles.statusChip} icon="content-save-outline">
-            {restorePoints.length} saved
-          </Chip>
-          <Chip compact style={styles.statusChip} icon="history">
-            Most recent first
-          </Chip>
-          <Chip compact style={styles.statusChip} icon="backup-restore">
-            Keeps last 12
-          </Chip>
-        </ChipRow>
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          {latestRestorePoint
-            ? `Latest backup: ${formatRestorePointTime(latestRestorePoint.createdAt)}. Restoring replaces the live workspace and first tries to save a pre-restore checkpoint.`
-            : "Restoring replaces the live workspace and first tries to save a pre-restore checkpoint."}
-        </Text>
-        <ActionButtonRow style={styles.toolButtonRow}>
-          <Button
-            mode="contained"
-            onPress={() => void handleCreateRestorePoint()}
-            style={styles.toolButton}
-            disabled={isWorking}
-          >
-            Save restore point
-          </Button>
-        </ActionButtonRow>
+        label="Feature groups"
+        title="Focus on one workspace-tools layer at a time"
+        description="Switch between backups, data portability, device readiness, and settings so the tools page stays easier to navigate."
+        items={workspaceToolSections}
+        activeId={activeSection}
+        onChange={setActiveSection}
+      />
 
-        {restorePoints.length === 0 ? (
-          <Text style={[styles.helperText, paletteStyles.mutedText]}>
-            No restore points yet. Create one now or let TrackItUp add them
-            automatically before supported local-only changes.
-          </Text>
-        ) : (
-          <View style={styles.restorePointList}>
-            {restorePoints.map((restorePoint, index) => (
-              <Surface
-                key={restorePoint.id}
-                style={[styles.restorePointCard, paletteStyles.cardSurface]}
-                elevation={0}
+      <Animated.View style={sectionContentAnimatedStyle}>
+        {activeSection === "backups" ? (
+          <SectionSurface
+            palette={palette}
+            label="Local backup vault"
+            title="Create restore points and recover earlier workspace states"
+            style={styles.sectionCardSpacing}
+          >
+            <Text style={[styles.listText, paletteStyles.mutedText]}>
+              Save a checkpoint before risky edits or use the automatic restore
+              points TrackItUp creates ahead of imports, restores, recovery,
+              privacy changes, and resets.
+            </Text>
+            <ChipRow style={styles.statusChipRow}>
+              <Chip
+                compact
+                style={styles.statusChip}
+                icon="content-save-outline"
               >
-                <Text style={styles.restorePointTitle}>
-                  {restorePoint.label}
-                </Text>
-                <ChipRow style={styles.restorePointChipRow}>
-                  {index === 0 ? (
-                    <Chip
-                      compact
-                      style={styles.statusChip}
-                      icon="star-four-points-outline"
-                    >
-                      Latest
-                    </Chip>
-                  ) : null}
-                  <Chip
-                    compact
-                    style={styles.statusChip}
-                    icon="bookmark-outline"
+                {restorePoints.length} saved
+              </Chip>
+              <Chip compact style={styles.statusChip} icon="history">
+                Most recent first
+              </Chip>
+              <Chip compact style={styles.statusChip} icon="backup-restore">
+                Keeps last 12
+              </Chip>
+            </ChipRow>
+            <Text style={[styles.helperText, paletteStyles.mutedText]}>
+              {latestRestorePoint
+                ? `Latest backup: ${formatRestorePointTime(latestRestorePoint.createdAt)}. Restoring replaces the live workspace and first tries to save a pre-restore checkpoint.`
+                : "Restoring replaces the live workspace and first tries to save a pre-restore checkpoint."}
+            </Text>
+            <ActionButtonRow style={styles.toolButtonRow}>
+              <Button
+                mode="contained"
+                onPress={() => void handleCreateRestorePoint()}
+                style={styles.toolButton}
+                disabled={isWorking}
+              >
+                Save restore point
+              </Button>
+            </ActionButtonRow>
+
+            {restorePoints.length === 0 ? (
+              <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                No restore points yet. Create one now or let TrackItUp add them
+                automatically before supported local-only changes.
+              </Text>
+            ) : (
+              <View style={styles.restorePointList}>
+                {restorePoints.map((restorePoint, index) => (
+                  <Surface
+                    key={restorePoint.id}
+                    style={[styles.restorePointCard, paletteStyles.cardSurface]}
+                    elevation={0}
                   >
-                    {formatRestorePointReasonLabel(restorePoint)}
-                  </Chip>
-                  <Chip
-                    compact
-                    style={styles.statusChip}
-                    icon="shield-check-outline"
-                  >
-                    {restorePoint.protectionMode === "protected"
-                      ? "Protected"
-                      : "Compatibility"}
-                  </Chip>
-                </ChipRow>
-                <Text style={[styles.helperText, paletteStyles.mutedText]}>
-                  Saved {formatRestorePointTime(restorePoint.createdAt)}
-                </Text>
-                <Text style={[styles.helperText, paletteStyles.mutedText]}>
-                  {formatRestorePointPrimaryStats(restorePoint)}
-                </Text>
-                <Text style={[styles.helperText, paletteStyles.mutedText]}>
-                  {formatRestorePointSecondaryStats(restorePoint)}
-                </Text>
-                <ActionButtonRow style={styles.restorePointActions}>
-                  <Button
-                    mode="contained"
-                    onPress={() => setPendingRestorePoint(restorePoint)}
-                    disabled={isWorking}
-                  >
-                    Restore
-                  </Button>
-                  <Button
-                    mode="contained-tonal"
-                    onPress={() =>
-                      void handleExportRestorePoint(restorePoint.id)
-                    }
-                    disabled={isWorking}
-                  >
-                    Export JSON
-                  </Button>
-                  <Button
-                    mode="text"
-                    onPress={() => setPendingDeleteRestorePoint(restorePoint)}
-                    disabled={isWorking}
-                  >
-                    Delete
-                  </Button>
-                </ActionButtonRow>
-              </Surface>
-            ))}
-          </View>
-        )}
-      </SectionSurface>
+                    <Text style={styles.restorePointTitle}>
+                      {restorePoint.label}
+                    </Text>
+                    <ChipRow style={styles.restorePointChipRow}>
+                      {index === 0 ? (
+                        <Chip
+                          compact
+                          style={styles.statusChip}
+                          icon="star-four-points-outline"
+                        >
+                          Latest
+                        </Chip>
+                      ) : null}
+                      <Chip
+                        compact
+                        style={styles.statusChip}
+                        icon="bookmark-outline"
+                      >
+                        {formatRestorePointReasonLabel(restorePoint)}
+                      </Chip>
+                      <Chip
+                        compact
+                        style={styles.statusChip}
+                        icon="shield-check-outline"
+                      >
+                        {restorePoint.protectionMode === "protected"
+                          ? "Protected"
+                          : "Compatibility"}
+                      </Chip>
+                    </ChipRow>
+                    <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                      Saved {formatRestorePointTime(restorePoint.createdAt)}
+                    </Text>
+                    <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                      {formatRestorePointPrimaryStats(restorePoint)}
+                    </Text>
+                    <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                      {formatRestorePointSecondaryStats(restorePoint)}
+                    </Text>
+                    <ActionButtonRow style={styles.restorePointActions}>
+                      <Button
+                        mode="contained"
+                        onPress={() => setPendingRestorePoint(restorePoint)}
+                        disabled={isWorking}
+                      >
+                        Restore
+                      </Button>
+                      <Button
+                        mode="contained-tonal"
+                        onPress={() =>
+                          void handleExportRestorePoint(restorePoint.id)
+                        }
+                        disabled={isWorking}
+                      >
+                        Export JSON
+                      </Button>
+                      <Button
+                        mode="text"
+                        onPress={() =>
+                          setPendingDeleteRestorePoint(restorePoint)
+                        }
+                        disabled={isWorking}
+                      >
+                        Delete
+                      </Button>
+                    </ActionButtonRow>
+                  </Surface>
+                ))}
+              </View>
+            )}
+          </SectionSurface>
+        ) : null}
 
-      <SectionSurface
-        palette={palette}
-        label="Appearance"
-        title="Choose your default app theme"
-        style={styles.sectionCardSpacing}
-      >
-        <Text style={[styles.listText, paletteStyles.mutedText]}>
-          TrackItUp now defaults to dark mode. Switch between light, dark, and
-          OLED whenever you want.
-        </Text>
-        <SegmentedButtons
-          value={themePreference}
-          onValueChange={(value: string) =>
-            setThemePreference(value as ThemePreference)
-          }
-          style={styles.themeSelector}
-          buttons={(Object.keys(themeOptionLabels) as ThemePreference[]).map(
-            (value) => ({
-              value,
-              label: themeOptionLabels[value],
-            }),
-          )}
-        />
-        <ChipRow style={styles.statusChipRow}>
-          <Chip compact style={styles.statusChip} icon="theme-light-dark">
-            Active: {themeOptionLabels[themePreference]}
-          </Chip>
-          <Chip compact style={styles.statusChip}>
-            Default: Dark
-          </Chip>
-        </ChipRow>
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          OLED uses pure-black backgrounds for a darker nighttime look and can
-          reduce power usage on compatible displays.
-        </Text>
-      </SectionSurface>
+        {activeSection === "settings" ? (
+          <>
+            <SectionSurface
+              palette={palette}
+              label="Appearance"
+              title="Choose your default app theme"
+              style={styles.sectionCardSpacing}
+            >
+              <Text style={[styles.listText, paletteStyles.mutedText]}>
+                TrackItUp now defaults to dark mode. Switch between light, dark,
+                and OLED whenever you want.
+              </Text>
+              <SegmentedButtons
+                value={themePreference}
+                onValueChange={(value: string) =>
+                  setThemePreference(value as ThemePreference)
+                }
+                style={styles.themeSelector}
+                buttons={(
+                  Object.keys(themeOptionLabels) as ThemePreference[]
+                ).map((value) => ({
+                  value,
+                  label: themeOptionLabels[value],
+                }))}
+              />
+              <ChipRow style={styles.statusChipRow}>
+                <Chip compact style={styles.statusChip} icon="theme-light-dark">
+                  Active: {themeOptionLabels[themePreference]}
+                </Chip>
+                <Chip compact style={styles.statusChip}>
+                  Default: Dark
+                </Chip>
+              </ChipRow>
+              <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                OLED uses pure-black backgrounds for a darker nighttime look and
+                can reduce power usage on compatible displays.
+              </Text>
+            </SectionSurface>
 
-      <SectionSurface
-        palette={palette}
-        label="Data portability"
-        title="Export or import workspace history"
-        style={styles.sectionCardSpacing}
-      >
-        <Text style={[styles.listText, paletteStyles.mutedText]}>
-          Export the live workspace snapshot as JSON, CSV, or PDF. Paste CSV
-          rows below or pick a CSV file to bulk import log history into your
-          current local workspace.
-        </Text>
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          Current snapshot: {workspace.spaces.length} spaces •{" "}
-          {workspace.logs.length} logs • {workspace.assets.length} assets
-        </Text>
+            <Surface
+              style={[styles.footnoteCard, paletteStyles.cardSurface]}
+              elevation={1}
+            >
+              <Text style={styles.footnoteTitle}>Workspace note</Text>
+              <Text style={[styles.footnoteCopy, paletteStyles.mutedText]}>
+                This screen only exposes tools and checks for your current
+                workspace, not seeded sample content.
+              </Text>
+            </Surface>
+          </>
+        ) : null}
 
-        <ActionButtonRow style={styles.toolButtonRow}>
-          <Button
-            mode="contained"
-            onPress={() =>
-              runTool(async () => {
-                const uri = await exportWorkspaceJsonAsync(workspace);
-                return `JSON export created at ${uri}`;
-              })
-            }
-            style={styles.toolButton}
-            disabled={isWorking}
-          >
-            Export JSON
-          </Button>
-          <Button
-            mode="contained-tonal"
-            onPress={() =>
-              runTool(async () => {
-                const uri = await exportWorkspaceLogsCsvAsync(workspace);
-                return `CSV log export created at ${uri}`;
-              })
-            }
-            style={styles.toolButton}
-            disabled={isWorking}
-          >
-            Export CSV
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() =>
-              runTool(async () => {
-                const uri = await exportWorkspaceSummaryPdfAsync(workspace);
-                return `PDF summary created at ${uri}`;
-              })
-            }
-            style={styles.toolButton}
-            disabled={isWorking}
-          >
-            Export PDF
-          </Button>
-        </ActionButtonRow>
+        {activeSection === "data" ? (
+          <>
+            <SectionSurface
+              palette={palette}
+              label="Data portability"
+              title="Export or import workspace history"
+              style={styles.sectionCardSpacing}
+            >
+              <Text style={[styles.listText, paletteStyles.mutedText]}>
+                Export the live workspace snapshot as JSON, CSV, or PDF. Paste
+                CSV rows below or pick a CSV file to bulk import log history
+                into your current local workspace.
+              </Text>
+              <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                Current snapshot: {workspace.spaces.length} spaces •{" "}
+                {workspace.logs.length} logs • {workspace.assets.length} assets
+              </Text>
 
-        <TextInput
-          label="Paste CSV log rows"
-          mode="outlined"
-          multiline
-          value={csvInput}
-          onChangeText={setCsvInput}
-          placeholder={"title,spaceId,kind,occurredAt,note,tags,cost"}
-          style={styles.csvInput}
-        />
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          Required columns: `title` plus either `spaceId` or `spaceName`.
-          Optional columns: `kind`, `occurredAt`, `note`, `tags`, `cost`,
-          `locationLabel`, `attachmentsCount`, `assetIds`.
-        </Text>
-        <ActionButtonRow style={styles.toolButtonRow}>
-          <Button
-            mode="contained"
-            onPress={handleImportCsv}
-            disabled={isWorking || csvInput.trim().length === 0}
-            style={styles.toolButton}
-          >
-            Import pasted CSV
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() => void handleImportCsvFile()}
-            disabled={isWorking}
-            style={styles.toolButton}
-          >
-            Pick CSV file
-          </Button>
-        </ActionButtonRow>
-      </SectionSurface>
+              <ActionButtonRow style={styles.toolButtonRow}>
+                <Button
+                  mode="contained"
+                  onPress={() =>
+                    runTool(async () => {
+                      const uri = await exportWorkspaceJsonAsync(workspace);
+                      return `JSON export created at ${uri}`;
+                    })
+                  }
+                  style={styles.toolButton}
+                  disabled={isWorking}
+                >
+                  Export JSON
+                </Button>
+                <Button
+                  mode="contained-tonal"
+                  onPress={() =>
+                    runTool(async () => {
+                      const uri = await exportWorkspaceLogsCsvAsync(workspace);
+                      return `CSV log export created at ${uri}`;
+                    })
+                  }
+                  style={styles.toolButton}
+                  disabled={isWorking}
+                >
+                  Export CSV
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() =>
+                    runTool(async () => {
+                      const uri =
+                        await exportWorkspaceSummaryPdfAsync(workspace);
+                      return `PDF summary created at ${uri}`;
+                    })
+                  }
+                  style={styles.toolButton}
+                  disabled={isWorking}
+                >
+                  Export PDF
+                </Button>
+              </ActionButtonRow>
 
-      <SectionSurface
-        palette={palette}
-        label="Template import"
-        title="Bring in shared TrackItUp templates"
-        style={styles.sectionCardSpacing}
-      >
-        <Text style={[styles.listText, paletteStyles.mutedText]}>
-          Paste a shared TrackItUp template link or scan a QR code to import
-          community or official templates into the local catalog.
-        </Text>
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          Current catalog: {workspace.templates.length} templates. Paste a full
-          TrackItUp import URL or scan a QR code below.
-        </Text>
-        <TextInput
-          label="Paste template import link"
-          mode="outlined"
-          multiline
-          value={templateImportUrl}
-          onChangeText={setTemplateImportUrl}
-          placeholder="trackitup://template-import?..."
-          style={styles.csvInput}
-        />
-        <ActionButtonRow style={styles.toolButtonRow}>
-          <Button
-            mode="contained"
-            onPress={() =>
-              router.push({
-                pathname: "/template-import",
-                params: { url: templateImportUrl.trim(), source: "deep-link" },
-              })
-            }
-            disabled={isWorking || templateImportUrl.trim().length === 0}
-            style={styles.toolButton}
-          >
-            Import link
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() => router.push("/scanner" as never)}
-            disabled={isWorking}
-            style={styles.toolButton}
-          >
-            Scan QR code
-          </Button>
-        </ActionButtonRow>
-      </SectionSurface>
+              <TextInput
+                label="Paste CSV log rows"
+                mode="outlined"
+                multiline
+                value={csvInput}
+                onChangeText={setCsvInput}
+                placeholder={"title,spaceId,kind,occurredAt,note,tags,cost"}
+                style={styles.csvInput}
+              />
+              <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                Required columns: `title` plus either `spaceId` or `spaceName`.
+                Optional columns: `kind`, `occurredAt`, `note`, `tags`, `cost`,
+                `locationLabel`, `attachmentsCount`, `assetIds`.
+              </Text>
+              <ActionButtonRow style={styles.toolButtonRow}>
+                <Button
+                  mode="contained"
+                  onPress={handleImportCsv}
+                  disabled={isWorking || csvInput.trim().length === 0}
+                  style={styles.toolButton}
+                >
+                  Import pasted CSV
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => void handleImportCsvFile()}
+                  disabled={isWorking}
+                  style={styles.toolButton}
+                >
+                  Pick CSV file
+                </Button>
+              </ActionButtonRow>
+            </SectionSurface>
 
-      <SectionSurface
-        palette={palette}
-        label="Hardware capabilities"
-        title="Check camera and location readiness"
-        style={styles.sectionCardSpacing}
-      >
-        <Text style={[styles.listText, paletteStyles.mutedText]}>
-          Validate the camera and location foundations used for barcode
-          scanning, media capture, and geotagged logs.
-        </Text>
-        <ChipRow style={styles.statusChipRow}>
-          <Chip compact style={styles.statusChip} icon="camera-outline">
-            {cameraStatus}
-          </Chip>
-          <Chip compact style={styles.statusChip} icon="map-marker-outline">
-            {locationStatus}
-          </Chip>
-        </ChipRow>
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          Camera: {cameraStatus}
-        </Text>
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          Location: {locationStatus}
-        </Text>
-        <Text style={[styles.helperText, paletteStyles.mutedText]}>
-          Last known location:{" "}
-          {locationPreview ??
-            "Unavailable until permission is granted and the device has a cached fix."}
-        </Text>
-        <ActionButtonRow style={styles.toolButtonRow}>
-          <Button
-            mode="contained"
-            onPress={handleRequestCamera}
-            style={styles.toolButton}
-            disabled={isWorking}
+            <SectionSurface
+              palette={palette}
+              label="Template import"
+              title="Bring in shared TrackItUp templates"
+              style={styles.sectionCardSpacing}
+            >
+              <Text style={[styles.listText, paletteStyles.mutedText]}>
+                Paste a shared TrackItUp template link or scan a QR code to
+                import community or official templates into the local catalog.
+              </Text>
+              <Text style={[styles.helperText, paletteStyles.mutedText]}>
+                Current catalog: {workspace.templates.length} templates. Paste a
+                full TrackItUp import URL or scan a QR code below.
+              </Text>
+              <TextInput
+                label="Paste template import link"
+                mode="outlined"
+                multiline
+                value={templateImportUrl}
+                onChangeText={setTemplateImportUrl}
+                placeholder="trackitup://template-import?..."
+                style={styles.csvInput}
+              />
+              <ActionButtonRow style={styles.toolButtonRow}>
+                <Button
+                  mode="contained"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/template-import",
+                      params: {
+                        url: templateImportUrl.trim(),
+                        source: "deep-link",
+                      },
+                    })
+                  }
+                  disabled={isWorking || templateImportUrl.trim().length === 0}
+                  style={styles.toolButton}
+                >
+                  Import link
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => router.push("/scanner" as never)}
+                  disabled={isWorking}
+                  style={styles.toolButton}
+                >
+                  Scan QR code
+                </Button>
+              </ActionButtonRow>
+            </SectionSurface>
+          </>
+        ) : null}
+
+        {activeSection === "device" ? (
+          <SectionSurface
+            palette={palette}
+            label="Hardware capabilities"
+            title="Check camera and location readiness"
+            style={styles.sectionCardSpacing}
           >
-            Request camera
-          </Button>
-          <Button
-            mode="contained-tonal"
-            onPress={handleRequestLocation}
-            style={styles.toolButton}
-            disabled={isWorking}
-          >
-            Request location
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() => void refreshDeviceCapabilities()}
-            style={styles.toolButton}
-            disabled={isWorking}
-          >
-            Refresh status
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() => router.push("/scanner" as never)}
-            style={styles.toolButton}
-            disabled={isWorking}
-          >
-            Open scanner
-          </Button>
-        </ActionButtonRow>
-      </SectionSurface>
+            <Text style={[styles.listText, paletteStyles.mutedText]}>
+              Validate the camera and location foundations used for barcode
+              scanning, media capture, and geotagged logs.
+            </Text>
+            <ChipRow style={styles.statusChipRow}>
+              <Chip compact style={styles.statusChip} icon="camera-outline">
+                {cameraStatus}
+              </Chip>
+              <Chip compact style={styles.statusChip} icon="map-marker-outline">
+                {locationStatus}
+              </Chip>
+            </ChipRow>
+            <Text style={[styles.helperText, paletteStyles.mutedText]}>
+              Camera: {cameraStatus}
+            </Text>
+            <Text style={[styles.helperText, paletteStyles.mutedText]}>
+              Location: {locationStatus}
+            </Text>
+            <Text style={[styles.helperText, paletteStyles.mutedText]}>
+              Last known location:{" "}
+              {locationPreview ??
+                "Unavailable until permission is granted and the device has a cached fix."}
+            </Text>
+            <ActionButtonRow style={styles.toolButtonRow}>
+              <Button
+                mode="contained"
+                onPress={handleRequestCamera}
+                style={styles.toolButton}
+                disabled={isWorking}
+              >
+                Request camera
+              </Button>
+              <Button
+                mode="contained-tonal"
+                onPress={handleRequestLocation}
+                style={styles.toolButton}
+                disabled={isWorking}
+              >
+                Request location
+              </Button>
+              <Button
+                mode="outlined"
+                onPress={() => void refreshDeviceCapabilities()}
+                style={styles.toolButton}
+                disabled={isWorking}
+              >
+                Refresh status
+              </Button>
+              <Button
+                mode="outlined"
+                onPress={() => router.push("/scanner" as never)}
+                style={styles.toolButton}
+                disabled={isWorking}
+              >
+                Open scanner
+              </Button>
+            </ActionButtonRow>
+          </SectionSurface>
+        ) : null}
+      </Animated.View>
 
       {toolMessage ? (
         <SectionMessage
@@ -801,17 +961,6 @@ export default function WorkspaceToolsScreen() {
           </Dialog.Actions>
         </Dialog>
       </Portal>
-
-      <Surface
-        style={[styles.footnoteCard, paletteStyles.cardSurface]}
-        elevation={1}
-      >
-        <Text style={styles.footnoteTitle}>Workspace note</Text>
-        <Text style={[styles.footnoteCopy, paletteStyles.mutedText]}>
-          This screen only exposes tools and checks for your current workspace,
-          not seeded sample content.
-        </Text>
-      </Surface>
 
       <StatusBar style={colorScheme === "light" ? "dark" : "light"} />
     </ScrollView>

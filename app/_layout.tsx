@@ -11,11 +11,16 @@ import "react-native-reanimated";
 
 import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
 import { OnboardingExperience } from "@/components/OnboardingExperience";
+import { AppSidebar } from "@/components/ui/AppSidebar";
 import { MaterialCompactTopAppBar } from "@/components/ui/MaterialCompactTopAppBar";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
 import { uiSpace, uiTypography } from "@/constants/UiTokens";
 import { AiPreferencesProvider } from "@/providers/AiPreferencesProvider";
+import {
+    AppSidebarProvider,
+    useAppSidebar,
+} from "@/providers/AppSidebarProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import {
     OnboardingProvider,
@@ -129,73 +134,10 @@ function RootLayoutNav() {
                 />
               ) : (
                 <WorkspaceProvider>
-                  <Stack
-                    screenOptions={{
-                      contentStyle: { backgroundColor: palette.background },
-                      header: (props) => (
-                        <MaterialCompactTopAppBar
-                          canGoBack={Boolean(props.back)}
-                          onBack={props.navigation.goBack}
-                          title={getHeaderTitle(
-                            props.options,
-                            props.route.name,
-                          )}
-                        />
-                      ),
-                    }}
-                  >
-                    <Stack.Screen
-                      name="(tabs)"
-                      options={{ headerShown: false }}
-                    />
-                    <Stack.Screen
-                      name="account"
-                      options={{ title: "Account" }}
-                    />
-                    <Stack.Screen
-                      name="logbook"
-                      options={{ title: "Logbook" }}
-                    />
-                    <Stack.Screen
-                      name="space-create"
-                      options={{ title: "Create space" }}
-                    />
-                    <Stack.Screen
-                      name="action-center"
-                      options={{ title: "Action center" }}
-                    />
-                    <Stack.Screen
-                      name="visual-history"
-                      options={{ title: "Visual history" }}
-                    />
-                    <Stack.Screen
-                      name="schema-builder"
-                      options={{ title: "Schema builder" }}
-                    />
-                    <Stack.Screen
-                      name="scanner"
-                      options={{ title: "Scanner" }}
-                    />
-                    <Stack.Screen
-                      name="template-import"
-                      options={{ title: "Template import" }}
-                    />
-                    <Stack.Screen
-                      name="workspace-tools"
-                      options={{ title: "Workspace tools" }}
-                    />
-                    <Stack.Screen
-                      name="openrouter-model-picker"
-                      options={{
-                        title: "OpenRouter models",
-                        presentation: "modal",
-                      }}
-                    />
-                    <Stack.Screen
-                      name="modal"
-                      options={{ headerShown: false }}
-                    />
-                  </Stack>
+                  <AppSidebarProvider>
+                    <WorkspaceNavigator palette={palette.background} />
+                    <AppSidebar />
+                  </AppSidebarProvider>
                 </WorkspaceProvider>
               )}
             </ThemeProvider>
@@ -203,6 +145,67 @@ function RootLayoutNav() {
         </WorkspacePrivacyModeProvider>
       </AuthProvider>
     </AnimatedSplashScreen>
+  );
+}
+
+function WorkspaceNavigator({ palette }: { palette: string }) {
+  const { toggleSidebar } = useAppSidebar();
+
+  return (
+    <Stack
+      screenOptions={{
+        contentStyle: { backgroundColor: palette },
+        header: (props) => (
+          <MaterialCompactTopAppBar
+            canGoBack={Boolean(props.back)}
+            onBack={props.navigation.goBack}
+            actions={[
+              {
+                icon: {
+                  ios: "sidebar.left",
+                  android: "menu",
+                  web: "menu",
+                },
+                accessibilityLabel: "Open navigation menu",
+                onPress: toggleSidebar,
+              },
+            ]}
+            title={getHeaderTitle(props.options, props.route.name)}
+          />
+        ),
+      }}
+    >
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="account" options={{ title: "Account" }} />
+      <Stack.Screen name="logbook" options={{ title: "Logbook" }} />
+      <Stack.Screen name="space-create" options={{ title: "Create space" }} />
+      <Stack.Screen name="action-center" options={{ title: "Action center" }} />
+      <Stack.Screen
+        name="visual-history"
+        options={{ title: "Visual history" }}
+      />
+      <Stack.Screen
+        name="schema-builder"
+        options={{ title: "Schema builder" }}
+      />
+      <Stack.Screen name="scanner" options={{ title: "Scanner" }} />
+      <Stack.Screen
+        name="template-import"
+        options={{ title: "Template import" }}
+      />
+      <Stack.Screen
+        name="workspace-tools"
+        options={{ title: "Workspace tools" }}
+      />
+      <Stack.Screen
+        name="openrouter-model-picker"
+        options={{
+          title: "OpenRouter models",
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen name="modal" options={{ headerShown: false }} />
+    </Stack>
   );
 }
 

@@ -24,6 +24,7 @@ type MaterialCompactTopAppBarProps = {
   title: string;
   canGoBack?: boolean;
   onBack?: () => void;
+  leadingAction?: MaterialCompactTopAppBarAction;
   actions?: MaterialCompactTopAppBarAction[];
   showBrand?: boolean;
   scrollY?: Animated.Value;
@@ -50,6 +51,7 @@ export function MaterialCompactTopAppBar({
   title,
   canGoBack = false,
   onBack,
+  leadingAction,
   actions = [],
   showBrand = false,
   scrollY,
@@ -68,6 +70,7 @@ export function MaterialCompactTopAppBar({
   const actionContainerColor = showBrand
     ? theme.colors.secondaryContainer
     : theme.colors.elevation.level1;
+  const hasLeadingAction = canGoBack || Boolean(leadingAction);
   const animatedContainerStyle = React.useMemo(() => {
     if (!clampedScrollY) {
       return {
@@ -136,13 +139,28 @@ export function MaterialCompactTopAppBar({
               },
             ]}
           />
+        ) : leadingAction ? (
+          <Appbar.Action
+            accessibilityLabel={leadingAction.accessibilityLabel}
+            color={theme.colors.onSurfaceVariant}
+            icon={createSymbolIcon(leadingAction.icon)}
+            onPress={leadingAction.onPress}
+            size={18}
+            style={[
+              styles.leadingAction,
+              {
+                backgroundColor: theme.colors.elevation.level2,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+          />
         ) : null}
         {showBrand ? (
           <Appbar.Content
             color={theme.colors.onSurface}
             style={[
               styles.content,
-              canGoBack ? styles.contentWithBack : styles.contentRoot,
+              hasLeadingAction ? styles.contentWithLeading : styles.contentRoot,
             ]}
             title={
               <View style={styles.brandRow}>
@@ -179,7 +197,7 @@ export function MaterialCompactTopAppBar({
             color={theme.colors.onSurface}
             style={[
               styles.content,
-              canGoBack ? styles.contentWithBack : styles.contentRoot,
+              hasLeadingAction ? styles.contentWithLeading : styles.contentRoot,
             ]}
             title={title}
             titleMaxFontSizeMultiplier={1.1}
@@ -230,7 +248,7 @@ const styles = StyleSheet.create({
     marginLeft: 0,
     minWidth: 0,
   },
-  contentWithBack: {
+  contentWithLeading: {
     marginLeft: uiSpace.sm,
   },
   contentRoot: {

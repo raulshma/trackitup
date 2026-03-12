@@ -26,16 +26,19 @@ import {
     uiSpace,
     uiTypography,
 } from "@/constants/UiTokens";
+import { useAppSidebar } from "@/providers/AppSidebarProvider";
 
 function TabRouteHeader({
   routeName,
   title,
   showBrand,
+  onOpenSidebar,
   actions,
 }: {
   routeName: string;
   title: string;
   showBrand: boolean;
+  onOpenSidebar: () => void;
   actions?: MaterialCompactTopAppBarAction[];
 }) {
   const scrollY = useTabHeaderScrollValue(routeName);
@@ -44,6 +47,15 @@ function TabRouteHeader({
     <MaterialCompactTopAppBar
       actions={actions}
       canGoBack={false}
+      leadingAction={{
+        icon: {
+          ios: "sidebar.left",
+          android: "menu",
+          web: "menu",
+        },
+        accessibilityLabel: "Open navigation menu",
+        onPress: onOpenSidebar,
+      }}
       scrollY={scrollY}
       showBrand={showBrand}
       title={title}
@@ -56,6 +68,7 @@ export default function TabLayout() {
   const palette = getAppPalette(colorScheme);
   const theme = useTheme<MD3Theme>();
   const router = useRouter();
+  const { toggleSidebar } = useAppSidebar();
   const activeTabColor = theme.colors.onPrimaryContainer;
   const inactiveTabColor = theme.colors.onSurfaceVariant;
   const homeHeaderActions = React.useMemo<MaterialCompactTopAppBarAction[]>(
@@ -163,14 +176,13 @@ export default function TabLayout() {
             return (
               <TabRouteHeader
                 actions={showBrand ? homeHeaderActions : undefined}
+                onOpenSidebar={toggleSidebar}
                 routeName={props.route.name}
                 showBrand={showBrand}
                 title={title}
               />
             );
           },
-          // Disable the static render of the header on web
-          // to prevent a hydration error in React Navigation v6.
           headerShown: useClientOnlyValue(false, true),
         }}
       >

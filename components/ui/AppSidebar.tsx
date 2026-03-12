@@ -1,0 +1,560 @@
+import { Href, usePathname, useRouter } from "expo-router";
+import { SymbolView } from "expo-symbols";
+import React from "react";
+import {
+    Animated,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    useWindowDimensions,
+    View,
+} from "react-native";
+import { Surface, useTheme, type MD3Theme } from "react-native-paper";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { Text } from "@/components/Themed";
+import {
+    uiBorder,
+    uiElevation,
+    uiRadius,
+    uiShadow,
+    uiSize,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
+import { useAppSidebar } from "@/providers/AppSidebarProvider";
+
+type SidebarIconName = React.ComponentProps<typeof SymbolView>["name"];
+
+type SidebarRoute = {
+  id: string;
+  label: string;
+  hint: string;
+  href: Href;
+  icon: SidebarIconName;
+  matches: (pathname: string) => boolean;
+};
+
+const sidebarGroups: Array<{
+  title: string;
+  items: SidebarRoute[];
+}> = [
+  {
+    title: "Workspace",
+    items: [
+      {
+        id: "home",
+        label: "Home",
+        hint: "Dashboard pulse, recommendations, and active spaces",
+        href: "/",
+        icon: { ios: "house.fill", android: "home", web: "home" },
+        matches: (pathname) => pathname === "/",
+      },
+      {
+        id: "timeline",
+        label: "Timeline",
+        hint: "Review recent activity and workspace history",
+        href: "/two",
+        icon: {
+          ios: "list.bullet.rectangle.portrait.fill",
+          android: "list",
+          web: "list",
+        },
+        matches: (pathname) => pathname === "/two",
+      },
+      {
+        id: "planner",
+        label: "Planner",
+        hint: "Manage reminders, routines, and upcoming work",
+        href: "/planner",
+        icon: {
+          ios: "calendar",
+          android: "calendar_month",
+          web: "calendar_month",
+        },
+        matches: (pathname) => pathname === "/planner",
+      },
+      {
+        id: "inventory",
+        label: "Inventory",
+        hint: "Track assets, counts, and related history",
+        href: "/inventory",
+        icon: {
+          ios: "shippingbox.fill",
+          android: "inventory_2",
+          web: "inventory_2",
+        },
+        matches: (pathname) => pathname === "/inventory",
+      },
+      {
+        id: "action-center",
+        label: "Action center",
+        hint: "Triaged reminders, AI explainers, and next steps",
+        href: "/action-center",
+        icon: {
+          ios: "bell.badge.fill",
+          android: "notifications",
+          web: "notifications",
+        },
+        matches: (pathname) => pathname.startsWith("/action-center"),
+      },
+      {
+        id: "logbook",
+        label: "Logbook",
+        hint: "Capture structured updates and event entries",
+        href: "/logbook",
+        icon: {
+          ios: "book.closed.fill",
+          android: "menu_book",
+          web: "menu_book",
+        },
+        matches: (pathname) => pathname.startsWith("/logbook"),
+      },
+    ],
+  },
+  {
+    title: "Build and capture",
+    items: [
+      {
+        id: "space-create",
+        label: "Create space",
+        hint: "Set up a new tracked space for this workspace",
+        href: "/space-create",
+        icon: { ios: "plus.square.fill", android: "add_box", web: "add_box" },
+        matches: (pathname) => pathname.startsWith("/space-create"),
+      },
+      {
+        id: "schema-builder",
+        label: "Schema builder",
+        hint: "Design reusable tracking schemas and forms",
+        href: "/schema-builder",
+        icon: {
+          ios: "square.stack.3d.up.fill",
+          android: "schema",
+          web: "schema",
+        },
+        matches: (pathname) => pathname.startsWith("/schema-builder"),
+      },
+      {
+        id: "template-import",
+        label: "Template import",
+        hint: "Bring in shared TrackItUp templates and forms",
+        href: "/template-import",
+        icon: {
+          ios: "square.and.arrow.down.fill",
+          android: "download_for_offline",
+          web: "download_for_offline",
+        },
+        matches: (pathname) => pathname.startsWith("/template-import"),
+      },
+      {
+        id: "scanner",
+        label: "Scanner",
+        hint: "Scan QR codes and capture device-assisted inputs",
+        href: "/scanner",
+        icon: {
+          ios: "qrcode.viewfinder",
+          android: "qr_code_scanner",
+          web: "qr_code_scanner",
+        },
+        matches: (pathname) => pathname.startsWith("/scanner"),
+      },
+      {
+        id: "visual-history",
+        label: "Visual history",
+        hint: "Browse photo timelines and visual change over time",
+        href: "/visual-history",
+        icon: {
+          ios: "photo.on.rectangle.angled",
+          android: "photo_library",
+          web: "photo_library",
+        },
+        matches: (pathname) => pathname.startsWith("/visual-history"),
+      },
+    ],
+  },
+  {
+    title: "Settings",
+    items: [
+      {
+        id: "workspace-tools",
+        label: "Workspace tools",
+        hint: "Exports, imports, restore points, and device checks",
+        href: "/workspace-tools",
+        icon: {
+          ios: "checklist",
+          android: "task_alt",
+          web: "task_alt",
+        },
+        matches: (pathname) => pathname.startsWith("/workspace-tools"),
+      },
+      {
+        id: "account",
+        label: "Account",
+        hint: "Profile, AI settings, sync, privacy, and security",
+        href: "/account",
+        icon: {
+          ios: "person.crop.circle",
+          android: "account_circle",
+          web: "account_circle",
+        },
+        matches: (pathname) => pathname.startsWith("/account"),
+      },
+    ],
+  },
+];
+
+export function AppSidebar() {
+  const { isOpen, closeSidebar } = useAppSidebar();
+  const router = useRouter();
+  const pathname = usePathname();
+  const theme = useTheme<MD3Theme>();
+  const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const progress = React.useRef(new Animated.Value(0)).current;
+  const [isVisible, setIsVisible] = React.useState(isOpen);
+  const drawerWidth = Math.min(320, Math.max(280, width * 0.84));
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsVisible(true);
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 220,
+        useNativeDriver: true,
+      }).start();
+      return;
+    }
+
+    Animated.timing(progress, {
+      toValue: 0,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setIsVisible(false);
+      }
+    });
+  }, [isOpen, progress]);
+
+  const drawerAnimatedStyle = React.useMemo(
+    () => ({
+      transform: [
+        {
+          translateX: progress.interpolate({
+            inputRange: [0, 1],
+            outputRange: [-drawerWidth - 24, 0],
+          }),
+        },
+      ],
+    }),
+    [drawerWidth, progress],
+  );
+
+  const backdropAnimatedStyle = React.useMemo(
+    () => ({
+      opacity: progress.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 1],
+      }),
+    }),
+    [progress],
+  );
+
+  if (!isVisible) {
+    return null;
+  }
+
+  return (
+    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+      <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
+        <Pressable
+          accessibilityLabel="Close sidebar"
+          onPress={closeSidebar}
+          style={StyleSheet.absoluteFill}
+        />
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.drawerWrap,
+          drawerAnimatedStyle,
+          { paddingTop: insets.top + uiSpace.sm, width: drawerWidth },
+        ]}
+      >
+        <Surface
+          style={[
+            styles.drawer,
+            {
+              backgroundColor: theme.colors.elevation.level1,
+              borderColor: theme.colors.outlineVariant,
+              shadowColor: theme.colors.shadow,
+            },
+          ]}
+          elevation={uiElevation.chrome}
+        >
+          <View style={styles.headerRow}>
+            <View style={styles.brandBlock}>
+              <View
+                style={[
+                  styles.brandBadge,
+                  {
+                    backgroundColor: theme.colors.secondaryContainer,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.brandBadgeLabel,
+                    { color: theme.colors.onSecondaryContainer },
+                  ]}
+                >
+                  TIU
+                </Text>
+              </View>
+              <View style={styles.headerCopy}>
+                <Text
+                  style={[
+                    styles.headerTitle,
+                    { color: theme.colors.onSurface },
+                  ]}
+                >
+                  Navigate the workspace
+                </Text>
+                <Text
+                  style={[
+                    styles.headerSubtitle,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  Jump to any major TrackItUp screen without crowding the
+                  dashboard.
+                </Text>
+              </View>
+            </View>
+            <Pressable
+              accessibilityLabel="Close navigation menu"
+              onPress={closeSidebar}
+              style={({ pressed }) => [
+                styles.closeButton,
+                {
+                  backgroundColor: theme.colors.elevation.level2,
+                  borderColor: theme.colors.outlineVariant,
+                  opacity: pressed ? 0.88 : 1,
+                },
+              ]}
+            >
+              <SymbolView
+                name={{ ios: "xmark", android: "close", web: "close" }}
+                size={18}
+                tintColor={theme.colors.onSurfaceVariant}
+              />
+            </Pressable>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingBottom: insets.bottom + uiSpace.surface },
+            ]}
+            showsVerticalScrollIndicator={false}
+          >
+            {sidebarGroups.map((group) => (
+              <View key={group.title} style={styles.group}>
+                <Text
+                  style={[
+                    styles.groupTitle,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  {group.title}
+                </Text>
+                {group.items.map((item) => {
+                  const isActive = item.matches(pathname);
+
+                  return (
+                    <Pressable
+                      key={item.id}
+                      accessibilityLabel={`Open ${item.label}`}
+                      onPress={() => {
+                        closeSidebar();
+                        router.push(item.href as never);
+                      }}
+                      style={({ pressed }) => [
+                        styles.routeRow,
+                        {
+                          backgroundColor: isActive
+                            ? theme.colors.primaryContainer
+                            : theme.colors.elevation.level1,
+                          borderColor: isActive
+                            ? theme.colors.primary
+                            : theme.colors.outlineVariant,
+                          opacity: pressed ? 0.92 : 1,
+                        },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.routeIconWrap,
+                          {
+                            backgroundColor: isActive
+                              ? theme.colors.elevation.level1
+                              : theme.colors.elevation.level2,
+                            borderColor: theme.colors.outlineVariant,
+                          },
+                        ]}
+                      >
+                        <SymbolView
+                          name={item.icon}
+                          size={20}
+                          tintColor={
+                            isActive
+                              ? theme.colors.onPrimaryContainer
+                              : theme.colors.onSurfaceVariant
+                          }
+                        />
+                      </View>
+                      <View style={styles.routeCopy}>
+                        <Text
+                          style={[
+                            styles.routeLabel,
+                            {
+                              color: isActive
+                                ? theme.colors.onPrimaryContainer
+                                : theme.colors.onSurface,
+                            },
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.routeHint,
+                            {
+                              color: isActive
+                                ? theme.colors.onPrimaryContainer
+                                : theme.colors.onSurfaceVariant,
+                            },
+                          ]}
+                        >
+                          {item.hint}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </ScrollView>
+        </Surface>
+      </Animated.View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(8, 12, 20, 0.34)",
+  },
+  drawerWrap: {
+    ...StyleSheet.absoluteFillObject,
+    left: 0,
+    right: undefined,
+    paddingLeft: uiSpace.sm,
+    paddingBottom: uiSpace.sm,
+  },
+  drawer: {
+    flex: 1,
+    borderWidth: uiBorder.hairline,
+    borderRadius: uiRadius.hero,
+    overflow: "hidden",
+    ...uiShadow.raisedCard,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: uiSpace.md,
+    paddingHorizontal: uiSpace.surface,
+    paddingTop: uiSpace.surface,
+    paddingBottom: uiSpace.lg,
+    borderBottomWidth: uiBorder.hairline,
+  },
+  brandBlock: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: uiSpace.md,
+  },
+  brandBadge: {
+    width: uiSize.headerAction,
+    height: uiSize.headerAction,
+    borderRadius: uiRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: uiBorder.hairline,
+  },
+  brandBadgeLabel: {
+    ...uiTypography.microLabel,
+    fontSize: 10,
+  },
+  headerCopy: {
+    flex: 1,
+    gap: uiSpace.xs,
+  },
+  headerTitle: {
+    ...uiTypography.titleSection,
+  },
+  headerSubtitle: {
+    ...uiTypography.bodySmall,
+  },
+  closeButton: {
+    width: uiSize.headerAction,
+    height: uiSize.headerAction,
+    borderRadius: uiRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: uiBorder.hairline,
+  },
+  scrollContent: {
+    paddingHorizontal: uiSpace.surface,
+    paddingTop: uiSpace.lg,
+    gap: uiSpace.xl,
+  },
+  group: {
+    gap: uiSpace.sm,
+  },
+  groupTitle: {
+    ...uiTypography.label,
+    textTransform: "uppercase",
+    marginBottom: uiSpace.xs,
+  },
+  routeRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: uiSpace.lg,
+    borderWidth: uiBorder.hairline,
+    borderRadius: uiRadius.panel,
+    padding: uiSpace.lg,
+    marginBottom: uiSpace.sm,
+  },
+  routeIconWrap: {
+    width: 42,
+    height: 42,
+    borderRadius: uiRadius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: uiBorder.hairline,
+  },
+  routeCopy: {
+    flex: 1,
+    gap: uiSpace.xxs,
+  },
+  routeLabel: {
+    ...uiTypography.bodyStrong,
+  },
+  routeHint: {
+    ...uiTypography.support,
+  },
+});
