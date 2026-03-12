@@ -72,7 +72,7 @@
       [
         "./plugins/withTrackItUpBootSplash.js",
         {
-          "assetsPath": "assets/bootsplash",
+          "assetsDir": "assets/bootsplash",
           "logo": "./assets/bootsplash/logo.png",
           "android": {
             "background": "#0F172A",

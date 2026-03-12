@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Animated, Platform, StyleSheet } from "react-native";
+import { Animated, Image, Platform, StyleSheet } from "react-native";
 import BootSplash from "react-native-bootsplash";
 import { AnimatedVectorLogo } from "./AnimatedVectorLogo";
 
@@ -15,28 +15,74 @@ export function AnimatedSplashScreen({
   isReady,
 }: Props) {
   const [visible, setVisible] = useState(true);
+  const [splashOverlayVisible, setSplashOverlayVisible] = useState(
+    Platform.OS !== "web",
+  );
+  const [vectorAnimationStarted, setVectorAnimationStarted] = useState(
+    Platform.OS === "web",
+  );
   const [svgAnimationFinished, setSvgAnimationFinished] = useState(false);
   const opacity = useState(new Animated.Value(1))[0];
+  const splashOpacity = useState(new Animated.Value(1))[0];
+  const vectorOpacity = useState(
+    new Animated.Value(Platform.OS === "web" ? 1 : 0),
+  )[0];
+
+  const shouldUseNativeBootSplash =
+    Platform.OS === "android" || Platform.OS === "ios";
+
+  const { container: splashContainer, logo } = BootSplash.useHideAnimation({
+    manifest: require("../assets/bootsplash/manifest.json"),
+    logo: require("../assets/bootsplash/logo.png"),
+    ready: shouldUseNativeBootSplash ? isReady : false,
+    statusBarTranslucent: true,
+    navigationBarTranslucent: false,
+    animate: () => {
+      setVectorAnimationStarted(true);
+
+      Animated.parallel([
+        Animated.timing(splashOpacity, {
+          useNativeDriver: Platform.OS !== "web",
+          toValue: 0,
+          duration: 450,
+        }),
+        Animated.timing(vectorOpacity, {
+          useNativeDriver: Platform.OS !== "web",
+          toValue: 1,
+          duration: 320,
+          delay: 120,
+        }),
+      ]).start(() => {
+        setSplashOverlayVisible(false);
+      });
+    },
+  });
 
   useEffect(() => {
-    // Hide the NATIVE BootSplash immediately when this React component mounts.
-    // This allows our custom 60FPS React Native SVG animation to instantly take over the screen visually!
-    BootSplash.hide();
-  }, []);
+    if (!shouldUseNativeBootSplash && isReady) {
+      setVectorAnimationStarted(true);
+    }
+  }, [isReady, shouldUseNativeBootSplash]);
 
-  // Wait until the App is fully ready AND the beautiful vector animation finishes playing its first loop.
   useEffect(() => {
-    if (isReady && svgAnimationFinished && visible) {
+    if (vectorAnimationStarted && isReady && svgAnimationFinished && visible) {
       Animated.timing(opacity, {
         useNativeDriver: Platform.OS !== "web",
         toValue: 0,
-        duration: 800, // Smooth slow fadeout of the whole background
+        duration: 800,
       }).start(() => {
         setVisible(false);
         onAnimationEnd?.();
       });
     }
-  }, [isReady, svgAnimationFinished, visible]);
+  }, [
+    isReady,
+    onAnimationEnd,
+    opacity,
+    svgAnimationFinished,
+    vectorAnimationStarted,
+    visible,
+  ]);
 
   return (
     <>
@@ -44,9 +90,21 @@ export function AnimatedSplashScreen({
 
       {visible && (
         <Animated.View style={[styles.container, { opacity }]}>
-          <AnimatedVectorLogo
-            onAnimationFinish={() => setSvgAnimationFinished(true)}
-          />
+          <Animated.View style={{ opacity: vectorOpacity }}>
+            <AnimatedVectorLogo
+              shouldAnimate={vectorAnimationStarted}
+              onAnimationFinish={() => setSvgAnimationFinished(true)}
+            />
+          </Animated.View>
+
+          {splashOverlayVisible ? (
+            <Animated.View
+              {...splashContainer}
+              style={[splashContainer.style, { opacity: splashOpacity }]}
+            >
+              <Image {...logo} fadeDuration={0} />
+            </Animated.View>
+          ) : null}
         </Animated.View>
       )}
     </>
