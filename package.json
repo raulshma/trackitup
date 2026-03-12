@@ -39,6 +39,7 @@
     "expo-status-bar": "~55.0.4",
     "expo-symbols": "~55.0.5",
     "expo-system-ui": "~55.0.9",
+    "expo-updates": "~55.0.13",
     "expo-web-browser": "~55.0.9",
     "immer": "^11.1.4",
     "react": "19.2.0",
