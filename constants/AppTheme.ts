@@ -11,8 +11,13 @@ import {
     type MD3Theme,
 } from "react-native-paper";
 
-import Colors from "@/constants/Colors";
+import Colors, {
+    type AppColorScheme,
+    type AppPalette,
+} from "@/constants/Colors";
 import { uiRadius } from "@/constants/UiTokens";
+
+export type { AppColorScheme, AppPalette };
 
 const { LightTheme: AdaptedNavigationLight, DarkTheme: AdaptedNavigationDark } =
   adaptNavigationTheme({
@@ -86,9 +91,6 @@ const appFonts = configureFonts({
     },
   },
 });
-
-export type AppColorScheme = keyof typeof Colors;
-export type AppPalette = (typeof Colors)["light"];
 
 export function getAppPalette(colorScheme: AppColorScheme): AppPalette {
   return Colors[colorScheme];

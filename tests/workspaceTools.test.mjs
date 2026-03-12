@@ -88,9 +88,12 @@ const { getLinkedLogEntries } =
 const { applyTemplateImportToWorkspace, parseTemplateImportUrl } =
   await import("../services/templates/templateImport.ts");
 const {
+  DEFAULT_THEME_ACCENT_COLOR,
   DEFAULT_THEME_PREFERENCE,
+  getThemeAccentLabel,
   getThemeBackgroundColor,
   isDarkThemePreference,
+  normalizeThemeAccentColor,
   normalizeThemePreference,
 } = await import("../services/theme/themePreferences.ts");
 const {
@@ -1232,10 +1235,16 @@ test("persistence strategy prefers file-system fallback when localStorage is una
 
 test("theme preferences default to dark and support oled selection", () => {
   assert.equal(DEFAULT_THEME_PREFERENCE, "dark");
+  assert.equal(DEFAULT_THEME_ACCENT_COLOR, "#1a73e8");
   assert.equal(normalizeThemePreference("light"), "light");
   assert.equal(normalizeThemePreference("dark"), "dark");
   assert.equal(normalizeThemePreference("oled"), "oled");
   assert.equal(normalizeThemePreference("system"), "dark");
+  assert.equal(normalizeThemeAccentColor("#abc"), "#aabbcc");
+  assert.equal(normalizeThemeAccentColor("7C3AED"), "#7c3aed");
+  assert.equal(normalizeThemeAccentColor("banana"), "#1a73e8");
+  assert.equal(getThemeAccentLabel("#10b981"), "Emerald");
+  assert.equal(getThemeAccentLabel("#7c3aed"), "Custom");
   assert.equal(isDarkThemePreference("light"), false);
   assert.equal(isDarkThemePreference("dark"), true);
   assert.equal(isDarkThemePreference("oled"), true);

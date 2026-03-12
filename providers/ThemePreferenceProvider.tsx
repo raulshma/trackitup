@@ -8,19 +8,26 @@ import {
     useState,
 } from "react";
 
+import { setThemeAccentColor as setRuntimeThemeAccentColor } from "@/constants/Colors";
 import {
+    loadThemeAccentColor,
     loadThemePreference,
+    persistThemeAccentColor,
     persistThemePreference,
 } from "@/services/theme/themePreferencePersistence";
 import {
+    DEFAULT_THEME_ACCENT_COLOR,
     DEFAULT_THEME_PREFERENCE,
     getThemeBackgroundColor,
+    normalizeThemeAccentColor,
     type ThemePreference,
 } from "@/services/theme/themePreferences";
 
 type ThemePreferenceContextValue = {
   themePreference: ThemePreference;
+  themeAccentColor: string;
   setThemePreference: (preference: ThemePreference) => void;
+  setThemeAccentColor: (color: string) => void;
   isLoaded: boolean;
 };
 
@@ -35,6 +42,9 @@ export function ThemePreferenceProvider({
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>(
     DEFAULT_THEME_PREFERENCE,
   );
+  const [themeAccentColor, setThemeAccentColorState] = useState<string>(
+    DEFAULT_THEME_ACCENT_COLOR,
+  );
   const [isLoaded, setIsLoaded] = useState(false);
   const hasUserSelectedPreferenceRef = useRef(false);
 
@@ -42,10 +52,14 @@ export function ThemePreferenceProvider({
     let isMounted = true;
 
     void (async () => {
-      const storedPreference = await loadThemePreference();
+      const [storedPreference, storedAccentColor] = await Promise.all([
+        loadThemePreference(),
+        loadThemeAccentColor(),
+      ]);
       if (!isMounted || hasUserSelectedPreferenceRef.current) return;
 
       setThemePreferenceState(storedPreference);
+      setThemeAccentColorState(storedAccentColor);
       setIsLoaded(true);
     })();
 
@@ -68,7 +82,11 @@ export function ThemePreferenceProvider({
         getThemeBackgroundColor(themePreference),
       );
     }
-  }, [themePreference]);
+    document.documentElement.style.setProperty(
+      "--trackitup-accent",
+      themeAccentColor,
+    );
+  }, [themeAccentColor, themePreference]);
 
   const setThemePreference = useCallback((preference: ThemePreference) => {
     hasUserSelectedPreferenceRef.current = true;
@@ -77,9 +95,31 @@ export function ThemePreferenceProvider({
     void persistThemePreference(preference);
   }, []);
 
+  const setAccentPreference = useCallback((color: string) => {
+    hasUserSelectedPreferenceRef.current = true;
+    const normalizedColor = normalizeThemeAccentColor(color);
+    setThemeAccentColorState(normalizedColor);
+    setIsLoaded(true);
+    void persistThemeAccentColor(normalizedColor);
+  }, []);
+
+  setRuntimeThemeAccentColor(themeAccentColor);
+
   const value = useMemo(
-    () => ({ themePreference, setThemePreference, isLoaded }),
-    [isLoaded, setThemePreference, themePreference],
+    () => ({
+      themePreference,
+      themeAccentColor,
+      setThemePreference,
+      setThemeAccentColor: setAccentPreference,
+      isLoaded,
+    }),
+    [
+      isLoaded,
+      setAccentPreference,
+      setThemePreference,
+      themeAccentColor,
+      themePreference,
+    ],
   );
 
   return (

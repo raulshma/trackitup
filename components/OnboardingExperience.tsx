@@ -11,6 +11,7 @@ import { Button, Chip, SegmentedButtons, Surface } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
+import { AccentColorPicker } from "@/components/ui/AccentColorPicker";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
 import {
@@ -124,7 +125,12 @@ export function OnboardingExperience({
   const palette = getAppPalette(colorScheme);
   const insets = useSafeAreaInsets();
   const auth = useAppAuth();
-  const { themePreference, setThemePreference } = useThemePreference();
+  const {
+    themePreference,
+    themeAccentColor,
+    setThemePreference,
+    setThemeAccentColor,
+  } = useThemePreference();
   const [activeIndex, setActiveIndex] = useState(0);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -321,7 +327,9 @@ export function OnboardingExperience({
                   <PersonalizeShowcase
                     palette={palette}
                     themePreference={themePreference}
+                    themeAccentColor={themeAccentColor}
                     setThemePreference={setThemePreference}
+                    setThemeAccentColor={setThemeAccentColor}
                   />
                 )}
               </Surface>
@@ -665,11 +673,15 @@ function CaptureShowcase({
 function PersonalizeShowcase({
   palette,
   themePreference,
+  themeAccentColor,
   setThemePreference,
+  setThemeAccentColor,
 }: {
   palette: ReturnType<typeof getAppPalette>;
   themePreference: ThemePreference;
+  themeAccentColor: string;
   setThemePreference: (preference: ThemePreference) => void;
+  setThemeAccentColor: (color: string) => void;
 }) {
   return (
     <View style={styles.showcaseStack}>
@@ -728,6 +740,14 @@ function PersonalizeShowcase({
             );
           })}
         </View>
+
+        <AccentColorPicker
+          palette={palette}
+          value={themeAccentColor}
+          onChange={setThemeAccentColor}
+          title="Accent color"
+          description="Pick a ready-made accent, or drag through the custom picker for a signature color before you enter the app."
+        />
       </View>
 
       <View style={styles.preferenceList}>

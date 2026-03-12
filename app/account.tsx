@@ -18,6 +18,7 @@ import {
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { AccentColorPicker } from "@/components/ui/AccentColorPicker";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
 import {
@@ -62,6 +63,7 @@ import {
     type WorkspacePrivacyMode,
 } from "@/services/offline/workspacePrivacyMode";
 import {
+    getThemeAccentLabel,
     THEME_PREFERENCE_OPTIONS,
     type ThemePreference,
 } from "@/services/theme/themePreferences";
@@ -86,7 +88,12 @@ export default function AccountScreen() {
   const aiPreferences = useAiPreferences();
   const auth = useAppAuth();
   const workspace = useWorkspace();
-  const { themePreference, setThemePreference } = useThemePreference();
+  const {
+    themePreference,
+    themeAccentColor,
+    setThemePreference,
+    setThemeAccentColor,
+  } = useThemePreference();
   const [statusMessage, setStatusMessage] = useState(auth.note);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [openRouterApiKeyInput, setOpenRouterApiKeyInput] = useState("");
@@ -241,9 +248,9 @@ export default function AccountScreen() {
           web: "palette",
         },
         hint: "Theme preference and dashboard-friendly display choices",
-        meta: `${themeOptionLabels[themePreference]} active`,
+        meta: `${themeOptionLabels[themePreference]} • ${getThemeAccentLabel(themeAccentColor)}`,
         badges: [
-          "Dark default",
+          getThemeAccentLabel(themeAccentColor),
           Platform.OS === "web" ? "Web preview" : Platform.OS,
         ],
         accentColor: palette.secondary,
@@ -289,6 +296,7 @@ export default function AccountScreen() {
       palette.tint,
       reminderNotificationLabel,
       syncStateLabel,
+      themeAccentColor,
       themePreference,
       workspace.biometricLockEnabled,
       workspace.privacyMode,
@@ -457,7 +465,8 @@ export default function AccountScreen() {
           >
             <Text style={[styles.copy, paletteStyles.mutedText]}>
               The app defaults to dark mode, and you can switch between light,
-              dark, and OLED at any time.
+              dark, and OLED at any time while dialing in an accent that feels
+              more like your workspace.
             </Text>
             <SegmentedButtons
               value={themePreference}
@@ -475,12 +484,17 @@ export default function AccountScreen() {
                 Active: {themeOptionLabels[themePreference]}
               </Chip>
               <Chip compact style={styles.themeChip}>
-                Default: Dark
+                Accent: {getThemeAccentLabel(themeAccentColor)}
               </Chip>
             </ChipRow>
             <Text style={[styles.meta, paletteStyles.mutedText]}>
               OLED uses pure-black backgrounds for the darkest nighttime look.
             </Text>
+            <AccentColorPicker
+              palette={palette}
+              value={themeAccentColor}
+              onChange={setThemeAccentColor}
+            />
           </SectionSurface>
         ) : null}
 
