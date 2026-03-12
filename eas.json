@@ -5,10 +5,12 @@
   },
   "build": {
     "development": {
+      "environment": "development",
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "environment": "preview",
       "android": {
         "buildType": "apk"
       },
@@ -17,6 +19,7 @@
     "production": {
       "autoIncrement": true,
       "channel": "production",
+      "environment": "production",
       "android": {
         "buildType": "apk",
         "credentialsSource": "remote"

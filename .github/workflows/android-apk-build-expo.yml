@@ -39,6 +39,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Validate Clerk publishable key is configured on EAS production environment
+        run: |
+          if ! eas env:list production --format short --non-interactive | grep -q "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY"; then
+            echo "Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY on the EAS production environment."
+            echo "Create it in Expo/EAS project environment variables before running the cloud build workflow."
+            exit 1
+          fi
+
       - name: Get version from package.json
         id: package_version
         run: |

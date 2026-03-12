@@ -48,6 +48,16 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Validate Clerk publishable key is configured for CI
+        env:
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+        run: |
+          if [ -z "${EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY}" ]; then
+            echo "Missing EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY GitHub secret."
+            echo "Add it under Settings -> Secrets and variables -> Actions so local CI builds can inject the Expo public env var."
+            exit 1
+          fi
+
       - name: Get version from package.json
         id: package_version
         run: |
@@ -55,6 +65,8 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Build Android app locally
+        env:
+          EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY }}
         run: eas build --platform android --profile preview --local --output ${{ github.workspace }}/app-release.apk
 
       - name: Upload APK artifact
