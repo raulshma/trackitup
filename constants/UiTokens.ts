@@ -47,6 +47,17 @@ export const uiElevation = {
   chrome: 4,
 } as const;
 
+export const uiMotion = {
+  quick: 140,
+  standard: 220,
+  slow: 320,
+  stagger: 60,
+  enterOffset: 14,
+  pressScale: 0.985,
+  hoverScale: 1.01,
+  hoverLift: 4,
+} as const;
+
 export const uiTypography = {
   chip: { fontSize: 12, lineHeight: 16, fontWeight: "600", letterSpacing: 0.2 },
   label: {

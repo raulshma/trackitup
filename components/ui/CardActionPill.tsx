@@ -1,8 +1,14 @@
-import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from "react-native";
+import { StyleSheet, type StyleProp, type ViewStyle } from "react-native";
 import { useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
-import { uiBorder, uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
+import {
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
+import { MotionPressable } from "./Motion";
 
 type CardActionPillProps = {
   label: string;
@@ -23,16 +29,18 @@ export function CardActionPill({
   const tint = accentColor ?? theme.colors.primary;
 
   return (
-    <Pressable
+    <MotionPressable
       accessibilityRole="button"
       disabled={disabled}
       onPress={() => void onPress()}
-      style={({ pressed }) => [
+      style={[
         styles.pill,
         {
-          backgroundColor: disabled ? theme.colors.elevation.level1 : `${tint}14`,
+          backgroundColor: disabled
+            ? theme.colors.elevation.level1
+            : `${tint}14`,
           borderColor: disabled ? theme.colors.outlineVariant : `${tint}26`,
-          opacity: disabled ? 0.6 : pressed ? 0.9 : 1,
+          opacity: disabled ? 0.6 : 1,
         },
         style,
       ]}
@@ -45,7 +53,7 @@ export function CardActionPill({
       >
         {label}
       </Text>
-    </Pressable>
+    </MotionPressable>
   );
 }
 

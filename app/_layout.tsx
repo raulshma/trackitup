@@ -154,7 +154,16 @@ function WorkspaceNavigator({ palette }: { palette: string }) {
   return (
     <Stack
       screenOptions={{
+        animation:
+          Platform.OS === "android"
+            ? "fade_from_bottom"
+            : Platform.OS === "ios"
+              ? "default"
+              : "fade",
+        animationMatchesGesture: true,
         contentStyle: { backgroundColor: palette },
+        fullScreenGestureEnabled: Platform.OS === "ios",
+        gestureEnabled: true,
         header: (props) => (
           <MaterialCompactTopAppBar
             canGoBack={Boolean(props.back)}
@@ -200,11 +209,15 @@ function WorkspaceNavigator({ palette }: { palette: string }) {
       <Stack.Screen
         name="openrouter-model-picker"
         options={{
+          animation: "slide_from_bottom",
           title: "OpenRouter models",
           presentation: "modal",
         }}
       />
-      <Stack.Screen name="modal" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="modal"
+        options={{ animation: "fade_from_bottom", headerShown: false }}
+      />
     </Stack>
   );
 }

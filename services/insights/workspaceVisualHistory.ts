@@ -41,7 +41,15 @@ export type VisualHistoryMonthlyRecap = {
   items: VisualHistoryPhotoItem[];
 };
 
-export type VisualRecapCoverSelections = Record<string, string>;
+export type VisualRecapSelectionEntry = {
+  coverPhotoId?: string;
+  orderedPhotoIds?: string[];
+};
+
+export type VisualRecapCoverSelections = Record<
+  string,
+  VisualRecapSelectionEntry
+>;
 
 export type VisualHistoryView = {
   photoCount: number;
@@ -87,32 +95,75 @@ export function normalizeVisualRecapCoverSelections(
 ): VisualRecapCoverSelections {
   if (!value || typeof value !== "object") return {};
 
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, string] =>
-        typeof entry[0] === "string" && typeof entry[1] === "string",
-    ),
-  );
+  const normalizedSelections: VisualRecapCoverSelections = {};
+
+  for (const [key, selection] of Object.entries(value)) {
+    if (typeof key !== "string") continue;
+
+    if (typeof selection === "string") {
+      normalizedSelections[key] = { coverPhotoId: selection };
+      continue;
+    }
+
+    if (!selection || typeof selection !== "object") {
+      continue;
+    }
+
+    normalizedSelections[key] = {
+      coverPhotoId:
+        typeof (selection as { coverPhotoId?: unknown }).coverPhotoId ===
+        "string"
+          ? (selection as { coverPhotoId: string }).coverPhotoId
+          : undefined,
+      orderedPhotoIds: Array.isArray(
+        (selection as { orderedPhotoIds?: unknown }).orderedPhotoIds,
+      )
+        ? (selection as { orderedPhotoIds: unknown[] }).orderedPhotoIds.filter(
+            (photoId): photoId is string => typeof photoId === "string",
+          )
+        : undefined,
+    };
+  }
+
+  return normalizedSelections;
 }
 
 function applyVisualRecapCoverSelection(
   recap: VisualHistoryMonthlyRecap,
-  selectedPhotoId?: string,
+  selection?: VisualRecapSelectionEntry | string,
 ): VisualHistoryMonthlyRecap {
-  const coverItem = selectedPhotoId
-    ? recap.items.find((item) => item.id === selectedPhotoId)
-    : undefined;
-  const orderedItems = coverItem
-    ? [coverItem, ...recap.items.filter((item) => item.id !== coverItem.id)]
+  const normalizedSelection =
+    typeof selection === "string"
+      ? ({ coverPhotoId: selection } satisfies VisualRecapSelectionEntry)
+      : selection;
+
+  const orderedItems = normalizedSelection?.orderedPhotoIds?.length
+    ? [
+        ...normalizedSelection.orderedPhotoIds
+          .map((photoId) => recap.items.find((item) => item.id === photoId))
+          .filter((item): item is VisualHistoryPhotoItem => Boolean(item)),
+        ...recap.items.filter(
+          (item) => !normalizedSelection.orderedPhotoIds?.includes(item.id),
+        ),
+      ]
     : recap.items;
-  const resolvedCover = orderedItems[0];
+  const selectedCover = normalizedSelection?.coverPhotoId
+    ? orderedItems.find((item) => item.id === normalizedSelection.coverPhotoId)
+    : orderedItems[0];
+  const orderedWithCoverFirst = selectedCover
+    ? [
+        selectedCover,
+        ...orderedItems.filter((item) => item.id !== selectedCover.id),
+      ]
+    : orderedItems;
+  const resolvedCover = orderedWithCoverFirst[0];
 
   return {
     ...recap,
     coverPhotoId: resolvedCover?.id,
     coverUri: resolvedCover?.uri,
-    highlightUris: orderedItems.slice(0, 3).map((item) => item.uri),
-    items: orderedItems,
+    highlightUris: orderedWithCoverFirst.slice(0, 3).map((item) => item.uri),
+    items: orderedWithCoverFirst,
   };
 }
 

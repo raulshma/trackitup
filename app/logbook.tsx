@@ -15,8 +15,11 @@ import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
+import { WorkspacePageSkeleton } from "@/components/ui/LoadingSkeleton";
+import { MotionView } from "@/components/ui/Motion";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
+import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import {
@@ -26,6 +29,7 @@ import {
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
     uiBorder,
+    uiMotion,
     uiRadius,
     uiSpace,
     uiTypography,
@@ -681,6 +685,38 @@ export default function LogbookScreen() {
     router.replace({ pathname: "/logbook" });
   }
 
+  if (!isHydrated) {
+    return (
+      <View style={[styles.screen, paletteStyles.screenBackground]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Stack.Screen options={{ title: screenTitle }} />
+          <ScreenHero
+            palette={palette}
+            title={screenTitle}
+            subtitle="TrackItUp is hydrating your workspace snapshot and preparing the next recording flow."
+            badges={[
+              {
+                label: "TrackItUp logbook",
+                backgroundColor: theme.colors.primaryContainer,
+                textColor: theme.colors.onPrimaryContainer,
+              },
+              {
+                label: "Loading",
+                backgroundColor: theme.colors.surface,
+                textColor: theme.colors.onSurface,
+              },
+            ]}
+          />
+          <WorkspacePageSkeleton palette={palette} sectionCount={4} />
+        </ScrollView>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.screen, paletteStyles.screenBackground]}>
       <ScrollView
@@ -964,18 +1000,26 @@ export default function LogbookScreen() {
                   Metrics
                 </Text>
                 <Text style={styles.sectionTitle}>Metric readings</Text>
-                {relatedMetrics.map(({ reading, definition }) => (
-                  <View key={reading.metricId} style={styles.listItem}>
-                    <Text style={styles.listTitle}>
-                      {definition?.name ?? "Unknown metric"}
-                    </Text>
-                    <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                      {String(reading.value)}{" "}
-                      {reading.unitLabel ?? definition?.unitLabel ?? ""} • Safe
-                      zone{" "}
-                      {formatSafeZone(definition?.safeMin, definition?.safeMax)}
-                    </Text>
-                  </View>
+                {relatedMetrics.map(({ reading, definition }, index) => (
+                  <MotionView
+                    key={reading.metricId}
+                    delay={uiMotion.stagger * (index + 1)}
+                  >
+                    <View style={styles.listItem}>
+                      <Text style={styles.listTitle}>
+                        {definition?.name ?? "Unknown metric"}
+                      </Text>
+                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                        {String(reading.value)}{" "}
+                        {reading.unitLabel ?? definition?.unitLabel ?? ""} •
+                        Safe zone{" "}
+                        {formatSafeZone(
+                          definition?.safeMin,
+                          definition?.safeMax,
+                        )}
+                      </Text>
+                    </View>
+                  </MotionView>
                 ))}
               </Surface>
             ) : null}
@@ -989,13 +1033,18 @@ export default function LogbookScreen() {
                   Assets
                 </Text>
                 <Text style={styles.sectionTitle}>Related assets</Text>
-                {relatedAssets.map((asset) => (
-                  <View key={asset.id} style={styles.listItem}>
-                    <Text style={styles.listTitle}>{asset.name}</Text>
-                    <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                      {asset.category} • {asset.note}
-                    </Text>
-                  </View>
+                {relatedAssets.map((asset, index) => (
+                  <MotionView
+                    key={asset.id}
+                    delay={uiMotion.stagger * (index + 1)}
+                  >
+                    <View style={styles.listItem}>
+                      <Text style={styles.listTitle}>{asset.name}</Text>
+                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
+                        {asset.category} • {asset.note}
+                      </Text>
+                    </View>
+                  </MotionView>
                 ))}
               </Surface>
             ) : null}
@@ -1053,28 +1102,51 @@ export default function LogbookScreen() {
                     Open parent run: {parentEntry.title}
                   </Button>
                 ) : null}
-                {childEntries.map((childEntry) => (
-                  <View key={childEntry.id} style={styles.linkedLogRow}>
-                    <View style={styles.linkedLogCopy}>
-                      <Text style={styles.listTitle}>{childEntry.title}</Text>
-                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                        {logTypeLabels[childEntry.kind]} •{" "}
-                        {formatDateTime(childEntry.occurredAt)}
-                      </Text>
-                    </View>
-                    <Button
-                      mode="text"
-                      onPress={() =>
-                        router.replace({
-                          pathname: "/logbook",
-                          params: { entryId: childEntry.id },
-                        })
-                      }
-                      compact
+                {childEntries.map((childEntry, index) => (
+                  <MotionView
+                    key={childEntry.id}
+                    delay={uiMotion.stagger * (index + 1)}
+                  >
+                    <SwipeActionCard
+                      rightActions={[
+                        {
+                          label: "Open",
+                          accentColor: palette.tint,
+                          onPress: () =>
+                            router.replace({
+                              pathname: "/logbook",
+                              params: { entryId: childEntry.id },
+                            }),
+                        },
+                      ]}
                     >
-                      Open
-                    </Button>
-                  </View>
+                      <View style={styles.linkedLogRow}>
+                        <View style={styles.linkedLogCopy}>
+                          <Text style={styles.listTitle}>
+                            {childEntry.title}
+                          </Text>
+                          <Text
+                            style={[styles.listCopy, paletteStyles.mutedText]}
+                          >
+                            {logTypeLabels[childEntry.kind]} •{" "}
+                            {formatDateTime(childEntry.occurredAt)}
+                          </Text>
+                        </View>
+                        <Button
+                          mode="text"
+                          onPress={() =>
+                            router.replace({
+                              pathname: "/logbook",
+                              params: { entryId: childEntry.id },
+                            })
+                          }
+                          compact
+                        >
+                          Open
+                        </Button>
+                      </View>
+                    </SwipeActionCard>
+                  </MotionView>
                 ))}
               </Surface>
             ) : null}
@@ -1235,13 +1307,21 @@ export default function LogbookScreen() {
                     Suggestions
                   </Text>
                   <Text style={styles.sectionTitle}>Suggested spaces</Text>
-                  {suggestedSpaces.map((space) => (
-                    <View key={space.id} style={styles.listItem}>
-                      <Text style={styles.listTitle}>{space.name}</Text>
-                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                        {space.templateName ?? "Custom space"} • {space.summary}
-                      </Text>
-                    </View>
+                  {suggestedSpaces.map((space, index) => (
+                    <MotionView
+                      key={space.id}
+                      delay={uiMotion.stagger * (index + 1)}
+                    >
+                      <View style={styles.listItem}>
+                        <Text style={styles.listTitle}>{space.name}</Text>
+                        <Text
+                          style={[styles.listCopy, paletteStyles.mutedText]}
+                        >
+                          {space.templateName ?? "Custom space"} •{" "}
+                          {space.summary}
+                        </Text>
+                      </View>
+                    </MotionView>
                   ))}
                 </Surface>
 
@@ -1258,16 +1338,21 @@ export default function LogbookScreen() {
                     <Text style={styles.sectionTitle}>
                       Ready-to-log metrics
                     </Text>
-                    {suggestedMetrics.map((metric) => (
-                      <View key={metric.id} style={styles.listItem}>
-                        <Text style={styles.listTitle}>{metric.name}</Text>
-                        <Text
-                          style={[styles.listCopy, paletteStyles.mutedText]}
-                        >
-                          {metric.unitLabel ?? "No unit"} • Safe zone{" "}
-                          {formatSafeZone(metric.safeMin, metric.safeMax)}
-                        </Text>
-                      </View>
+                    {suggestedMetrics.map((metric, index) => (
+                      <MotionView
+                        key={metric.id}
+                        delay={uiMotion.stagger * (index + 1)}
+                      >
+                        <View style={styles.listItem}>
+                          <Text style={styles.listTitle}>{metric.name}</Text>
+                          <Text
+                            style={[styles.listCopy, paletteStyles.mutedText]}
+                          >
+                            {metric.unitLabel ?? "No unit"} • Safe zone{" "}
+                            {formatSafeZone(metric.safeMin, metric.safeMax)}
+                          </Text>
+                        </View>
+                      </MotionView>
                     ))}
                   </Surface>
                 ) : null}
@@ -1295,15 +1380,22 @@ export default function LogbookScreen() {
                         {draftProofPhotoCount} proof photo(s) attached
                       </Chip>
                     </ActionButtonRow>
-                    {suggestedRoutines.map((routine) => (
-                      <View key={routine.id} style={styles.listItem}>
-                        <Text style={styles.listTitle}>{routine.name}</Text>
-                        <Text
-                          style={[styles.listCopy, paletteStyles.mutedText]}
-                        >
-                          {routine.steps.map((step) => step.label).join(" • ")}
-                        </Text>
-                      </View>
+                    {suggestedRoutines.map((routine, index) => (
+                      <MotionView
+                        key={routine.id}
+                        delay={uiMotion.stagger * (index + 1)}
+                      >
+                        <View style={styles.listItem}>
+                          <Text style={styles.listTitle}>{routine.name}</Text>
+                          <Text
+                            style={[styles.listCopy, paletteStyles.mutedText]}
+                          >
+                            {routine.steps
+                              .map((step) => step.label)
+                              .join(" • ")}
+                          </Text>
+                        </View>
+                      </MotionView>
                     ))}
                   </Surface>
                 ) : null}
@@ -1336,29 +1428,59 @@ export default function LogbookScreen() {
                         <Chip compact>{selectedReminder.title}</Chip>
                       ) : null}
                     </ActionButtonRow>
-                    {suggestedReminders.map((reminder) => (
-                      <View key={reminder.id} style={styles.listItem}>
-                        <Text style={styles.listTitle}>{reminder.title}</Text>
-                        <Text
-                          style={[styles.listCopy, paletteStyles.mutedText]}
+                    {suggestedReminders.map((reminder, index) => (
+                      <MotionView
+                        key={reminder.id}
+                        delay={uiMotion.stagger * (index + 1)}
+                      >
+                        <SwipeActionCard
+                          rightActions={[
+                            {
+                              label: "Select",
+                              accentColor: palette.tint,
+                              onPress: () => handleSelectReminder(reminder),
+                            },
+                            {
+                              label: "Proof",
+                              accentColor: palette.secondary,
+                              onPress: () =>
+                                router.push({
+                                  pathname: "/logbook",
+                                  params: {
+                                    actionId: "quick-log",
+                                    reminderId: reminder.id,
+                                    spaceId: reminder.spaceId,
+                                  },
+                                }),
+                            },
+                          ]}
                         >
-                          {reminder.description}
-                        </Text>
-                        <ActionButtonRow>
-                          <Button
-                            mode={
-                              selectedReminder?.id === reminder.id
-                                ? "contained-tonal"
-                                : "outlined"
-                            }
-                            onPress={() => handleSelectReminder(reminder)}
-                          >
-                            {selectedReminder?.id === reminder.id
-                              ? "Selected for proof"
-                              : "Log with proof"}
-                          </Button>
-                        </ActionButtonRow>
-                      </View>
+                          <View style={styles.listItemCard}>
+                            <Text style={styles.listTitle}>
+                              {reminder.title}
+                            </Text>
+                            <Text
+                              style={[styles.listCopy, paletteStyles.mutedText]}
+                            >
+                              {reminder.description}
+                            </Text>
+                            <ActionButtonRow>
+                              <Button
+                                mode={
+                                  selectedReminder?.id === reminder.id
+                                    ? "contained-tonal"
+                                    : "outlined"
+                                }
+                                onPress={() => handleSelectReminder(reminder)}
+                              >
+                                {selectedReminder?.id === reminder.id
+                                  ? "Selected for proof"
+                                  : "Log with proof"}
+                              </Button>
+                            </ActionButtonRow>
+                          </View>
+                        </SwipeActionCard>
+                      </MotionView>
                     ))}
                   </Surface>
                 ) : null}
@@ -1406,36 +1528,64 @@ export default function LogbookScreen() {
                 Choose the flow that best matches the event. TrackItUp will
                 guide the rest of the fields from there.
               </Text>
-              {workspace.quickActions.map((quickAction) => (
-                <View key={quickAction.id} style={styles.linkedLogRow}>
-                  <View style={styles.linkedLogCopy}>
-                    <Text style={styles.listTitle}>{quickAction.label}</Text>
-                    <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                      {actionDescriptions[quickAction.kind]}
-                    </Text>
-                  </View>
-                  <Button
-                    mode={
-                      quickAction.kind === "quick-log"
-                        ? "contained"
-                        : "outlined"
-                    }
-                    onPress={() =>
-                      hasSpaces
-                        ? router.push({
-                            pathname: "/logbook",
-                            params: { actionId: quickAction.id },
-                          })
-                        : router.push({
-                            pathname: "/space-create",
-                            params: { actionId: quickAction.id },
-                          })
-                    }
-                    compact
+              {workspace.quickActions.map((quickAction, index) => (
+                <MotionView
+                  key={quickAction.id}
+                  delay={uiMotion.stagger * (index + 1)}
+                >
+                  <SwipeActionCard
+                    rightActions={[
+                      {
+                        label: hasSpaces ? "Start" : "Space",
+                        accentColor: palette.tint,
+                        onPress: () =>
+                          hasSpaces
+                            ? router.push({
+                                pathname: "/logbook",
+                                params: { actionId: quickAction.id },
+                              })
+                            : router.push({
+                                pathname: "/space-create",
+                                params: { actionId: quickAction.id },
+                              }),
+                      },
+                    ]}
                   >
-                    {hasSpaces ? "Start" : "Create space first"}
-                  </Button>
-                </View>
+                    <View style={styles.linkedLogRow}>
+                      <View style={styles.linkedLogCopy}>
+                        <Text style={styles.listTitle}>
+                          {quickAction.label}
+                        </Text>
+                        <Text
+                          style={[styles.listCopy, paletteStyles.mutedText]}
+                        >
+                          {actionDescriptions[quickAction.kind]}
+                        </Text>
+                      </View>
+                      <Button
+                        mode={
+                          quickAction.kind === "quick-log"
+                            ? "contained"
+                            : "outlined"
+                        }
+                        onPress={() =>
+                          hasSpaces
+                            ? router.push({
+                                pathname: "/logbook",
+                                params: { actionId: quickAction.id },
+                              })
+                            : router.push({
+                                pathname: "/space-create",
+                                params: { actionId: quickAction.id },
+                              })
+                        }
+                        compact
+                      >
+                        {hasSpaces ? "Start" : "Create space first"}
+                      </Button>
+                    </View>
+                  </SwipeActionCard>
+                </MotionView>
               ))}
             </Surface>
 
@@ -1452,32 +1602,58 @@ export default function LogbookScreen() {
                   If you already know the exact format you want, jump straight
                   into a saved template.
                 </Text>
-                {featuredTemplates.map((template) => (
-                  <View key={template.id} style={styles.linkedLogRow}>
-                    <View style={styles.linkedLogCopy}>
-                      <Text style={styles.listTitle}>{template.name}</Text>
-                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                        {template.summary}
-                      </Text>
-                    </View>
-                    <Button
-                      mode="outlined"
-                      onPress={() =>
-                        hasSpaces
-                          ? router.push({
-                              pathname: "/logbook",
-                              params: { templateId: template.id },
-                            })
-                          : router.push({
-                              pathname: "/space-create",
-                              params: { templateId: template.id },
-                            })
-                      }
-                      compact
+                {featuredTemplates.map((template, index) => (
+                  <MotionView
+                    key={template.id}
+                    delay={uiMotion.stagger * (index + 1)}
+                  >
+                    <SwipeActionCard
+                      rightActions={[
+                        {
+                          label: hasSpaces ? "Open" : "Space",
+                          accentColor: palette.tint,
+                          onPress: () =>
+                            hasSpaces
+                              ? router.push({
+                                  pathname: "/logbook",
+                                  params: { templateId: template.id },
+                                })
+                              : router.push({
+                                  pathname: "/space-create",
+                                  params: { templateId: template.id },
+                                }),
+                        },
+                      ]}
                     >
-                      {hasSpaces ? "Open" : "Create space first"}
-                    </Button>
-                  </View>
+                      <View style={styles.linkedLogRow}>
+                        <View style={styles.linkedLogCopy}>
+                          <Text style={styles.listTitle}>{template.name}</Text>
+                          <Text
+                            style={[styles.listCopy, paletteStyles.mutedText]}
+                          >
+                            {template.summary}
+                          </Text>
+                        </View>
+                        <Button
+                          mode="outlined"
+                          onPress={() =>
+                            hasSpaces
+                              ? router.push({
+                                  pathname: "/logbook",
+                                  params: { templateId: template.id },
+                                })
+                              : router.push({
+                                  pathname: "/space-create",
+                                  params: { templateId: template.id },
+                                })
+                          }
+                          compact
+                        >
+                          {hasSpaces ? "Open" : "Create space first"}
+                        </Button>
+                      </View>
+                    </SwipeActionCard>
+                  </MotionView>
                 ))}
               </Surface>
             ) : null}
@@ -1495,28 +1671,51 @@ export default function LogbookScreen() {
                   Need context before you record? Use a recent entry as your
                   reference point.
                 </Text>
-                {recentEntries.map((recentEntry) => (
-                  <View key={recentEntry.id} style={styles.linkedLogRow}>
-                    <View style={styles.linkedLogCopy}>
-                      <Text style={styles.listTitle}>{recentEntry.title}</Text>
-                      <Text style={[styles.listCopy, paletteStyles.mutedText]}>
-                        {logTypeLabels[recentEntry.kind]} •{" "}
-                        {formatDateTime(recentEntry.occurredAt)}
-                      </Text>
-                    </View>
-                    <Button
-                      mode="text"
-                      onPress={() =>
-                        router.push({
-                          pathname: "/logbook",
-                          params: { entryId: recentEntry.id },
-                        })
-                      }
-                      compact
+                {recentEntries.map((recentEntry, index) => (
+                  <MotionView
+                    key={recentEntry.id}
+                    delay={uiMotion.stagger * (index + 1)}
+                  >
+                    <SwipeActionCard
+                      rightActions={[
+                        {
+                          label: "View",
+                          accentColor: palette.tint,
+                          onPress: () =>
+                            router.push({
+                              pathname: "/logbook",
+                              params: { entryId: recentEntry.id },
+                            }),
+                        },
+                      ]}
                     >
-                      View
-                    </Button>
-                  </View>
+                      <View style={styles.linkedLogRow}>
+                        <View style={styles.linkedLogCopy}>
+                          <Text style={styles.listTitle}>
+                            {recentEntry.title}
+                          </Text>
+                          <Text
+                            style={[styles.listCopy, paletteStyles.mutedText]}
+                          >
+                            {logTypeLabels[recentEntry.kind]} •{" "}
+                            {formatDateTime(recentEntry.occurredAt)}
+                          </Text>
+                        </View>
+                        <Button
+                          mode="text"
+                          onPress={() =>
+                            router.push({
+                              pathname: "/logbook",
+                              params: { entryId: recentEntry.id },
+                            })
+                          }
+                          compact
+                        >
+                          View
+                        </Button>
+                      </View>
+                    </SwipeActionCard>
+                  </MotionView>
                 ))}
               </Surface>
             ) : null}
@@ -1718,6 +1917,9 @@ const styles = StyleSheet.create({
   },
   linkedLogCopy: { flex: 1 },
   listItem: { marginBottom: uiSpace.lg },
+  listItemCard: {
+    paddingTop: uiSpace.xs,
+  },
   listTitle: { ...uiTypography.titleSm, marginBottom: uiSpace.xs },
   listCopy: uiTypography.body,
   photoPreviewRow: {

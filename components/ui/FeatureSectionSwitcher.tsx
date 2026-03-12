@@ -1,11 +1,17 @@
 import { SymbolView } from "expo-symbols";
 import React from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
-import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
+import {
+    uiMotion,
+    uiRadius,
+    uiSpace,
+    uiTypography,
+} from "@/constants/UiTokens";
+import { MotionPressable, MotionView } from "./Motion";
 import { SectionSurface } from "./SectionSurface";
 
 type SectionIconName = React.ComponentProps<typeof SymbolView>["name"];
@@ -44,74 +50,45 @@ export function FeatureSectionSwitcher<T extends string>({
     items.find((item) => item.id === activeId) ?? items[0] ?? null;
 
   return (
-    <SectionSurface palette={palette} label={label} title={title}>
+    <SectionSurface
+      palette={palette}
+      label={label}
+      title={title}
+      motionDelay={uiMotion.stagger * 2}
+    >
       <Text style={[styles.description, { color: palette.muted }]}>
         {description}
       </Text>
       <View style={styles.sectionSwitcherGrid}>
-        {items.map((item) => {
+        {items.map((item, index) => {
           const isActive = activeId === item.id;
           const accentColor = item.accentColor ?? theme.colors.primary;
 
           return (
-            <Pressable
+            <MotionView
               key={item.id}
-              accessibilityLabel={`Show ${item.label} section`}
-              onPress={() => onChange(item.id)}
-              style={({ pressed }) => [
-                styles.sectionSwitchCard,
-                {
-                  backgroundColor: isActive
-                    ? theme.colors.primaryContainer
-                    : theme.colors.elevation.level1,
-                  borderColor: isActive
-                    ? accentColor
-                    : theme.colors.outlineVariant,
-                  opacity: pressed ? 0.92 : 1,
-                },
-              ]}
+              delay={uiMotion.stagger * (index + 1)}
+              style={styles.sectionSwitchMotionWrap}
             >
-              <View style={styles.sectionSwitchHeader}>
-                <View
-                  style={[
-                    styles.sectionSwitchIconWrap,
-                    {
-                      backgroundColor: isActive
-                        ? theme.colors.elevation.level1
-                        : theme.colors.elevation.level2,
-                      borderColor: isActive
-                        ? accentColor
-                        : theme.colors.outlineVariant,
-                    },
-                  ]}
-                >
-                  <SymbolView
-                    name={item.icon}
-                    size={18}
-                    tintColor={
-                      isActive ? theme.colors.onPrimaryContainer : accentColor
-                    }
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.sectionSwitchTitle,
-                    {
-                      color: isActive
-                        ? theme.colors.onPrimaryContainer
-                        : theme.colors.onSurface,
-                    },
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </View>
-              <View style={styles.sectionSwitchBadgeRow}>
-                {item.badges.map((badge) => (
+              <MotionPressable
+                accessibilityLabel={`Show ${item.label} section`}
+                onPress={() => onChange(item.id)}
+                style={[
+                  styles.sectionSwitchCard,
+                  {
+                    backgroundColor: isActive
+                      ? theme.colors.primaryContainer
+                      : theme.colors.elevation.level1,
+                    borderColor: isActive
+                      ? accentColor
+                      : theme.colors.outlineVariant,
+                  },
+                ]}
+              >
+                <View style={styles.sectionSwitchHeader}>
                   <View
-                    key={`${item.id}-${badge}`}
                     style={[
-                      styles.sectionSwitchBadge,
+                      styles.sectionSwitchIconWrap,
                       {
                         backgroundColor: isActive
                           ? theme.colors.elevation.level1
@@ -122,85 +99,127 @@ export function FeatureSectionSwitcher<T extends string>({
                       },
                     ]}
                   >
-                    <Text
+                    <SymbolView
+                      name={item.icon}
+                      size={18}
+                      tintColor={
+                        isActive ? theme.colors.onPrimaryContainer : accentColor
+                      }
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.sectionSwitchTitle,
+                      {
+                        color: isActive
+                          ? theme.colors.onPrimaryContainer
+                          : theme.colors.onSurface,
+                      },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                </View>
+                <View style={styles.sectionSwitchBadgeRow}>
+                  {item.badges.map((badge) => (
+                    <View
+                      key={`${item.id}-${badge}`}
                       style={[
-                        styles.sectionSwitchBadgeLabel,
+                        styles.sectionSwitchBadge,
                         {
-                          color: isActive
-                            ? theme.colors.onPrimaryContainer
-                            : theme.colors.onSurfaceVariant,
+                          backgroundColor: isActive
+                            ? theme.colors.elevation.level1
+                            : theme.colors.elevation.level2,
+                          borderColor: isActive
+                            ? accentColor
+                            : theme.colors.outlineVariant,
                         },
                       ]}
                     >
-                      {badge}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-              <Text
-                style={[
-                  styles.sectionSwitchHint,
-                  {
-                    color: isActive
-                      ? theme.colors.onPrimaryContainer
-                      : theme.colors.onSurfaceVariant,
-                  },
-                ]}
-              >
-                {item.hint}
-              </Text>
-              <Text
-                style={[
-                  styles.sectionSwitchMeta,
-                  {
-                    color: isActive
-                      ? theme.colors.onPrimaryContainer
-                      : accentColor,
-                  },
-                ]}
-              >
-                {item.meta}
-              </Text>
-            </Pressable>
+                      <Text
+                        style={[
+                          styles.sectionSwitchBadgeLabel,
+                          {
+                            color: isActive
+                              ? theme.colors.onPrimaryContainer
+                              : theme.colors.onSurfaceVariant,
+                          },
+                        ]}
+                      >
+                        {badge}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <Text
+                  style={[
+                    styles.sectionSwitchHint,
+                    {
+                      color: isActive
+                        ? theme.colors.onPrimaryContainer
+                        : theme.colors.onSurfaceVariant,
+                    },
+                  ]}
+                >
+                  {item.hint}
+                </Text>
+                <Text
+                  style={[
+                    styles.sectionSwitchMeta,
+                    {
+                      color: isActive
+                        ? theme.colors.onPrimaryContainer
+                        : accentColor,
+                    },
+                  ]}
+                >
+                  {item.meta}
+                </Text>
+              </MotionPressable>
+            </MotionView>
           );
         })}
       </View>
 
       {activeItem ? (
-        <Surface
-          style={[
-            styles.activeSectionCard,
-            {
-              backgroundColor: theme.colors.elevation.level2,
-              borderColor: theme.colors.outlineVariant,
-            },
-          ]}
-          elevation={1}
-        >
-          <View style={styles.activeSectionSummaryRow}>
-            <View
-              style={[
-                styles.activeSectionIconWrap,
-                {
-                  backgroundColor: theme.colors.elevation.level3,
-                  borderColor: activeItem.accentColor ?? theme.colors.primary,
-                },
-              ]}
-            >
-              <SymbolView
-                name={activeItem.icon}
-                size={18}
-                tintColor={activeItem.accentColor ?? theme.colors.primary}
-              />
+        <MotionView key={activeItem.id} delay={uiMotion.stagger}>
+          <Surface
+            style={[
+              styles.activeSectionCard,
+              {
+                backgroundColor: theme.colors.elevation.level2,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+            elevation={1}
+          >
+            <View style={styles.activeSectionSummaryRow}>
+              <View
+                style={[
+                  styles.activeSectionIconWrap,
+                  {
+                    backgroundColor: theme.colors.elevation.level3,
+                    borderColor: activeItem.accentColor ?? theme.colors.primary,
+                  },
+                ]}
+              >
+                <SymbolView
+                  name={activeItem.icon}
+                  size={18}
+                  tintColor={activeItem.accentColor ?? theme.colors.primary}
+                />
+              </View>
+              <Text style={styles.widgetListTitle}>
+                {activeItem.label} view
+              </Text>
             </View>
-            <Text style={styles.widgetListTitle}>{activeItem.label} view</Text>
-          </View>
-          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
-            {activeItem.hint}. Use the section switcher above to move between
-            this page&apos;s feature clusters without dragging every tool into
-            view at the same time.
-          </Text>
-        </Surface>
+            <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
+              {activeItem.hint}. Use the section switcher above to move between
+              this page&apos;s feature clusters without dragging every tool into
+              view at the same time.
+            </Text>
+          </Surface>
+        </MotionView>
       ) : null}
     </SectionSurface>
   );
@@ -224,6 +243,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     gap: 6,
+  },
+  sectionSwitchMotionWrap: {
+    flexGrow: 1,
+    flexBasis: 148,
+    minWidth: 148,
   },
   sectionSwitchHeader: {
     flexDirection: "row",

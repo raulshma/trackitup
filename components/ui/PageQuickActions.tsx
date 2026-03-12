@@ -1,20 +1,17 @@
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import {
-    Surface,
-    TouchableRipple,
-    useTheme,
-    type MD3Theme,
-} from "react-native-paper";
+import { Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
 import {
     uiBorder,
+    uiMotion,
     uiRadius,
     uiSpace,
     uiTypography,
 } from "@/constants/UiTokens";
 
+import { MotionPressable, MotionView } from "./Motion";
 import { SectionSurface } from "./SectionSurface";
 
 export type PageQuickActionItem = {
@@ -77,6 +74,7 @@ export function PageQuickActions({
       label="Quick actions"
       title={title}
       style={style}
+      motionDelay={uiMotion.stagger * 3}
     >
       {description ? (
         <Text style={[styles.description, { color: palette.muted }]}>
@@ -84,85 +82,102 @@ export function PageQuickActions({
         </Text>
       ) : null}
       <View style={styles.grid}>
-        {actions.map((action) => {
+        {actions.map((action, index) => {
           const accentColor = action.accentColor ?? theme.colors.primary;
           const ctaLabel = formatQuickActionCtaLabel(action.label);
 
           return (
-            <Surface
+            <MotionView
               key={action.id}
-              style={[
-                styles.pressable,
-                styles.card,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: action.disabled
-                    ? theme.colors.outlineVariant
-                    : `${accentColor}26`,
-                  opacity: action.disabled ? 0.6 : 1,
-                },
-              ]}
-              elevation={0}
+              delay={uiMotion.stagger * (index + 1)}
+              style={styles.gridItem}
             >
-              <TouchableRipple
-                accessibilityRole="button"
-                accessibilityState={{ disabled: action.disabled }}
-                borderless={false}
-                disabled={action.disabled}
-                onPress={() => void action.onPress()}
-                rippleColor={`${accentColor}1A`}
-                style={styles.touchable}
+              <Surface
+                style={[
+                  styles.pressable,
+                  styles.card,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: action.disabled
+                      ? theme.colors.outlineVariant
+                      : `${accentColor}26`,
+                    opacity: action.disabled ? 0.6 : 1,
+                  },
+                ]}
+                elevation={0}
               >
-                <View style={styles.cardContent}>
-                  <View
-                    style={[styles.accentBar, { backgroundColor: accentColor }]}
-                  />
-                  <View style={styles.copyColumn}>
-                    <Text
-                      style={[styles.label, { color: theme.colors.onSurface }]}
-                    >
-                      {action.label}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.hint,
-                        { color: theme.colors.onSurfaceVariant },
-                      ]}
-                    >
-                      {action.hint}
-                    </Text>
-                  </View>
-                  <View style={styles.cardFooter}>
+                <MotionPressable
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: action.disabled }}
+                  disabled={action.disabled}
+                  onPress={() => void action.onPress()}
+                  style={styles.touchable}
+                >
+                  <View pointerEvents="none" style={styles.ambientLayer}>
                     <View
                       style={[
-                        styles.actionButton,
-                        {
-                          backgroundColor: action.disabled
-                            ? theme.colors.elevation.level1
-                            : `${accentColor}14`,
-                          borderColor: action.disabled
-                            ? theme.colors.outlineVariant
-                            : `${accentColor}26`,
-                        },
+                        styles.accentGlow,
+                        { backgroundColor: `${accentColor}14` },
                       ]}
-                    >
+                    />
+                  </View>
+                  <View style={styles.cardContent}>
+                    <View
+                      style={[
+                        styles.accentBar,
+                        { backgroundColor: accentColor },
+                      ]}
+                    />
+                    <View style={styles.copyColumn}>
                       <Text
                         style={[
-                          styles.actionButtonLabel,
+                          styles.label,
+                          { color: theme.colors.onSurface },
+                        ]}
+                      >
+                        {action.label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.hint,
+                          { color: theme.colors.onSurfaceVariant },
+                        ]}
+                      >
+                        {action.hint}
+                      </Text>
+                    </View>
+                    <View style={styles.cardFooter}>
+                      <View
+                        style={[
+                          styles.actionButton,
                           {
-                            color: action.disabled
-                              ? theme.colors.onSurfaceVariant
-                              : accentColor,
+                            backgroundColor: action.disabled
+                              ? theme.colors.elevation.level1
+                              : `${accentColor}14`,
+                            borderColor: action.disabled
+                              ? theme.colors.outlineVariant
+                              : `${accentColor}26`,
                           },
                         ]}
                       >
-                        {ctaLabel}
-                      </Text>
+                        <Text
+                          style={[
+                            styles.actionButtonLabel,
+                            {
+                              color: action.disabled
+                                ? theme.colors.onSurfaceVariant
+                                : accentColor,
+                            },
+                          ]}
+                        >
+                          {ctaLabel}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              </TouchableRipple>
-            </Surface>
+                </MotionPressable>
+              </Surface>
+            </MotionView>
           );
         })}
       </View>
@@ -180,6 +195,11 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: uiSpace.md,
   },
+  gridItem: {
+    flexGrow: 1,
+    flexBasis: 220,
+    minWidth: 220,
+  },
   pressable: {
     flexGrow: 1,
     flexBasis: 220,
@@ -192,6 +212,18 @@ const styles = StyleSheet.create({
   },
   touchable: {
     flex: 1,
+    overflow: "hidden",
+  },
+  ambientLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  accentGlow: {
+    position: "absolute",
+    width: 132,
+    height: 132,
+    borderRadius: uiRadius.pill,
+    top: -42,
+    right: -28,
   },
   cardContent: {
     flex: 1,

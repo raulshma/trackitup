@@ -3,6 +3,7 @@ import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
     Animated,
+    PanResponder,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -16,6 +17,7 @@ import { Text } from "@/components/Themed";
 import {
     uiBorder,
     uiElevation,
+    uiMotion,
     uiRadius,
     uiShadow,
     uiSize,
@@ -205,22 +207,34 @@ const sidebarGroups: Array<{
 ];
 
 export function AppSidebar() {
-  const { isOpen, closeSidebar } = useAppSidebar();
+  const { isOpen, closeSidebar, openSidebar } = useAppSidebar();
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme<MD3Theme>();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const progress = React.useRef(new Animated.Value(0)).current;
+  const progressValueRef = React.useRef(0);
+  const gestureStartValueRef = React.useRef(0);
   const [isVisible, setIsVisible] = React.useState(isOpen);
   const drawerWidth = Math.min(320, Math.max(280, width * 0.84));
+
+  React.useEffect(() => {
+    const subscription = progress.addListener(({ value }) => {
+      progressValueRef.current = value;
+    });
+
+    return () => {
+      progress.removeListener(subscription);
+    };
+  }, [progress]);
 
   React.useEffect(() => {
     if (isOpen) {
       setIsVisible(true);
       Animated.timing(progress, {
         toValue: 1,
-        duration: 220,
+        duration: uiMotion.standard,
         useNativeDriver: true,
       }).start();
       return;
@@ -228,7 +242,7 @@ export function AppSidebar() {
 
     Animated.timing(progress, {
       toValue: 0,
-      duration: 180,
+      duration: uiMotion.quick,
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (finished) {
@@ -261,193 +275,266 @@ export function AppSidebar() {
     [progress],
   );
 
-  if (!isVisible) {
-    return null;
-  }
+  const drawerPanResponder = React.useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (event, gestureState) => {
+          if (Math.abs(gestureState.dx) < 10) return false;
+          if (Math.abs(gestureState.dx) < Math.abs(gestureState.dy) * 1.1) {
+            return false;
+          }
+
+          if (isVisible) {
+            return true;
+          }
+
+          return event.nativeEvent.pageX <= uiSpace.hero && gestureState.dx > 0;
+        },
+        onPanResponderGrant: () => {
+          if (!isVisible) {
+            setIsVisible(true);
+          }
+
+          progress.stopAnimation((value) => {
+            gestureStartValueRef.current = value;
+          });
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const nextValue = isOpen
+            ? Math.min(
+                1,
+                Math.max(
+                  0,
+                  gestureStartValueRef.current + gestureState.dx / drawerWidth,
+                ),
+              )
+            : Math.min(1, Math.max(0, gestureState.dx / drawerWidth));
+          progress.setValue(nextValue);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const projectedValue = isOpen
+            ? Math.min(
+                1,
+                Math.max(
+                  0,
+                  gestureStartValueRef.current + gestureState.dx / drawerWidth,
+                ),
+              )
+            : Math.min(1, Math.max(0, gestureState.dx / drawerWidth));
+
+          if (gestureState.vx > 0.55 || projectedValue > 0.38) {
+            openSidebar();
+            return;
+          }
+
+          closeSidebar();
+        },
+        onPanResponderTerminate: () => {
+          if (progressValueRef.current > 0.5) {
+            openSidebar();
+          } else {
+            closeSidebar();
+          }
+        },
+      }),
+    [closeSidebar, drawerWidth, isOpen, isVisible, openSidebar, progress],
+  );
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
-      <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
-        <Pressable
-          accessibilityLabel="Close sidebar"
-          onPress={closeSidebar}
-          style={StyleSheet.absoluteFill}
+      {!isVisible ? (
+        <View
+          pointerEvents="box-none"
+          style={styles.edgeSwipeArea}
+          {...drawerPanResponder.panHandlers}
         />
-      </Animated.View>
-      <Animated.View
-        style={[
-          styles.drawerWrap,
-          drawerAnimatedStyle,
-          { paddingTop: insets.top + uiSpace.sm, width: drawerWidth },
-        ]}
-      >
-        <Surface
-          style={[
-            styles.drawer,
-            {
-              backgroundColor: theme.colors.elevation.level1,
-              borderColor: theme.colors.outlineVariant,
-              shadowColor: theme.colors.shadow,
-            },
-          ]}
-          elevation={uiElevation.chrome}
-        >
-          <View style={styles.headerRow}>
-            <View style={styles.brandBlock}>
-              <View
-                style={[
-                  styles.brandBadge,
-                  {
-                    backgroundColor: theme.colors.secondaryContainer,
-                    borderColor: theme.colors.outlineVariant,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.brandBadgeLabel,
-                    { color: theme.colors.onSecondaryContainer },
-                  ]}
-                >
-                  TIU
-                </Text>
-              </View>
-              <View style={styles.headerCopy}>
-                <Text
-                  style={[
-                    styles.headerTitle,
-                    { color: theme.colors.onSurface },
-                  ]}
-                >
-                  Navigate the workspace
-                </Text>
-                <Text
-                  style={[
-                    styles.headerSubtitle,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  Jump to any major TrackItUp screen without crowding the
-                  dashboard.
-                </Text>
-              </View>
-            </View>
+      ) : null}
+      {isVisible ? (
+        <>
+          <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
             <Pressable
-              accessibilityLabel="Close navigation menu"
+              accessibilityLabel="Close sidebar"
               onPress={closeSidebar}
-              style={({ pressed }) => [
-                styles.closeButton,
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+          <Animated.View
+            {...drawerPanResponder.panHandlers}
+            style={[
+              styles.drawerWrap,
+              drawerAnimatedStyle,
+              { paddingTop: insets.top + uiSpace.sm, width: drawerWidth },
+            ]}
+          >
+            <Surface
+              style={[
+                styles.drawer,
                 {
-                  backgroundColor: theme.colors.elevation.level2,
+                  backgroundColor: theme.colors.elevation.level1,
                   borderColor: theme.colors.outlineVariant,
-                  opacity: pressed ? 0.88 : 1,
+                  shadowColor: theme.colors.shadow,
                 },
               ]}
+              elevation={uiElevation.chrome}
             >
-              <SymbolView
-                name={{ ios: "xmark", android: "close", web: "close" }}
-                size={18}
-                tintColor={theme.colors.onSurfaceVariant}
-              />
-            </Pressable>
-          </View>
-
-          <ScrollView
-            contentContainerStyle={[
-              styles.scrollContent,
-              { paddingBottom: insets.bottom + uiSpace.surface },
-            ]}
-            showsVerticalScrollIndicator={false}
-          >
-            {sidebarGroups.map((group) => (
-              <View key={group.title} style={styles.group}>
-                <Text
-                  style={[
-                    styles.groupTitle,
-                    { color: theme.colors.onSurfaceVariant },
-                  ]}
-                >
-                  {group.title}
-                </Text>
-                {group.items.map((item) => {
-                  const isActive = item.matches(pathname);
-
-                  return (
-                    <Pressable
-                      key={item.id}
-                      accessibilityLabel={`Open ${item.label}`}
-                      onPress={() => {
-                        closeSidebar();
-                        router.push(item.href as never);
-                      }}
-                      style={({ pressed }) => [
-                        styles.routeRow,
-                        {
-                          backgroundColor: isActive
-                            ? theme.colors.primaryContainer
-                            : theme.colors.elevation.level1,
-                          borderColor: isActive
-                            ? theme.colors.primary
-                            : theme.colors.outlineVariant,
-                          opacity: pressed ? 0.92 : 1,
-                        },
+              <View style={styles.headerRow}>
+                <View style={styles.brandBlock}>
+                  <View
+                    style={[
+                      styles.brandBadge,
+                      {
+                        backgroundColor: theme.colors.secondaryContainer,
+                        borderColor: theme.colors.outlineVariant,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.brandBadgeLabel,
+                        { color: theme.colors.onSecondaryContainer },
                       ]}
                     >
-                      <View
-                        style={[
-                          styles.routeIconWrap,
-                          {
-                            backgroundColor: isActive
-                              ? theme.colors.elevation.level1
-                              : theme.colors.elevation.level2,
-                            borderColor: theme.colors.outlineVariant,
-                          },
-                        ]}
-                      >
-                        <SymbolView
-                          name={item.icon}
-                          size={20}
-                          tintColor={
-                            isActive
-                              ? theme.colors.onPrimaryContainer
-                              : theme.colors.onSurfaceVariant
-                          }
-                        />
-                      </View>
-                      <View style={styles.routeCopy}>
-                        <Text
-                          style={[
-                            styles.routeLabel,
-                            {
-                              color: isActive
-                                ? theme.colors.onPrimaryContainer
-                                : theme.colors.onSurface,
-                            },
-                          ]}
-                        >
-                          {item.label}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.routeHint,
-                            {
-                              color: isActive
-                                ? theme.colors.onPrimaryContainer
-                                : theme.colors.onSurfaceVariant,
-                            },
-                          ]}
-                        >
-                          {item.hint}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
+                      TIU
+                    </Text>
+                  </View>
+                  <View style={styles.headerCopy}>
+                    <Text
+                      style={[
+                        styles.headerTitle,
+                        { color: theme.colors.onSurface },
+                      ]}
+                    >
+                      Navigate the workspace
+                    </Text>
+                    <Text
+                      style={[
+                        styles.headerSubtitle,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      Jump to any major TrackItUp screen without crowding the
+                      dashboard.
+                    </Text>
+                  </View>
+                </View>
+                <Pressable
+                  accessibilityLabel="Close navigation menu"
+                  onPress={closeSidebar}
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    {
+                      backgroundColor: theme.colors.elevation.level2,
+                      borderColor: theme.colors.outlineVariant,
+                      opacity: pressed ? 0.88 : 1,
+                    },
+                  ]}
+                >
+                  <SymbolView
+                    name={{ ios: "xmark", android: "close", web: "close" }}
+                    size={18}
+                    tintColor={theme.colors.onSurfaceVariant}
+                  />
+                </Pressable>
               </View>
-            ))}
-          </ScrollView>
-        </Surface>
-      </Animated.View>
+
+              <ScrollView
+                contentContainerStyle={[
+                  styles.scrollContent,
+                  { paddingBottom: insets.bottom + uiSpace.surface },
+                ]}
+                showsVerticalScrollIndicator={false}
+              >
+                {sidebarGroups.map((group) => (
+                  <View key={group.title} style={styles.group}>
+                    <Text
+                      style={[
+                        styles.groupTitle,
+                        { color: theme.colors.onSurfaceVariant },
+                      ]}
+                    >
+                      {group.title}
+                    </Text>
+                    {group.items.map((item) => {
+                      const isActive = item.matches(pathname);
+
+                      return (
+                        <Pressable
+                          key={item.id}
+                          accessibilityLabel={`Open ${item.label}`}
+                          onPress={() => {
+                            closeSidebar();
+                            router.push(item.href as never);
+                          }}
+                          style={({ pressed }) => [
+                            styles.routeRow,
+                            {
+                              backgroundColor: isActive
+                                ? theme.colors.primaryContainer
+                                : theme.colors.elevation.level1,
+                              borderColor: isActive
+                                ? theme.colors.primary
+                                : theme.colors.outlineVariant,
+                              opacity: pressed ? 0.92 : 1,
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.routeIconWrap,
+                              {
+                                backgroundColor: isActive
+                                  ? theme.colors.elevation.level1
+                                  : theme.colors.elevation.level2,
+                                borderColor: theme.colors.outlineVariant,
+                              },
+                            ]}
+                          >
+                            <SymbolView
+                              name={item.icon}
+                              size={20}
+                              tintColor={
+                                isActive
+                                  ? theme.colors.onPrimaryContainer
+                                  : theme.colors.onSurfaceVariant
+                              }
+                            />
+                          </View>
+                          <View style={styles.routeCopy}>
+                            <Text
+                              style={[
+                                styles.routeLabel,
+                                {
+                                  color: isActive
+                                    ? theme.colors.onPrimaryContainer
+                                    : theme.colors.onSurface,
+                                },
+                              ]}
+                            >
+                              {item.label}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.routeHint,
+                                {
+                                  color: isActive
+                                    ? theme.colors.onPrimaryContainer
+                                    : theme.colors.onSurfaceVariant,
+                                },
+                              ]}
+                            >
+                              {item.hint}
+                            </Text>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ))}
+              </ScrollView>
+            </Surface>
+          </Animated.View>
+        </>
+      ) : null}
     </View>
   );
 }
@@ -463,6 +550,13 @@ const styles = StyleSheet.create({
     right: undefined,
     paddingLeft: uiSpace.sm,
     paddingBottom: uiSpace.sm,
+  },
+  edgeSwipeArea: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: uiSpace.hero,
   },
   drawer: {
     flex: 1,

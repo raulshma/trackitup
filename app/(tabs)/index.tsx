@@ -19,13 +19,15 @@ import { CardActionPill } from "@/components/ui/CardActionPill";
 import { CollapsibleSectionCard } from "@/components/ui/CollapsibleSectionCard";
 import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { MotionPressable, MotionView } from "@/components/ui/Motion";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
+import { ReorderGestureCard } from "@/components/ui/ReorderGestureCard";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
-import { uiRadius, uiSpace } from "@/constants/UiTokens";
+import { uiMotion, uiRadius, uiSpace } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiDashboardPulseCopy } from "@/services/ai/aiConsentCopy";
@@ -40,6 +42,7 @@ import {
 } from "@/services/ai/aiDashboardPulse";
 import { buildDashboardPulsePrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
+import { triggerSelectionFeedback } from "@/services/device/haptics";
 import {
     loadHomeDashboardSectionPreference,
     persistHomeDashboardSectionPreference,
@@ -410,6 +413,11 @@ export default function TabOneScreen() {
     router.push("/action-center");
   }
 
+  function moveWidgetWithFeedback(widgetId: string, direction: "up" | "down") {
+    moveDashboardWidget(widgetId, direction);
+    triggerSelectionFeedback();
+  }
+
   function openDashboardPulseDestination(
     destination?: AiDashboardPulseDraft["suggestedDestination"],
     sourceSpaceId?: string,
@@ -761,20 +769,25 @@ export default function TabOneScreen() {
       </ScreenHero>
 
       <View style={styles.statRow}>
-        {overviewStats.map((stat) => (
-          <Surface
+        {overviewStats.map((stat, index) => (
+          <MotionView
             key={stat.label}
-            style={[styles.statCard, nestedCardSurfaceStyle]}
-            elevation={1}
+            delay={uiMotion.stagger * (index + 1)}
+            style={styles.statCardMotion}
           >
-            <Text style={[styles.statEyebrow, { color: palette.muted }]}>
-              Live
-            </Text>
-            <Text style={styles.statValue}>{stat.value}</Text>
-            <Text style={[styles.statLabel, { color: palette.muted }]}>
-              {stat.label}
-            </Text>
-          </Surface>
+            <Surface
+              style={[styles.statCard, nestedCardSurfaceStyle]}
+              elevation={1}
+            >
+              <Text style={[styles.statEyebrow, { color: palette.muted }]}>
+                Live
+              </Text>
+              <Text style={styles.statValue}>{stat.value}</Text>
+              <Text style={[styles.statLabel, { color: palette.muted }]}>
+                {stat.label}
+              </Text>
+            </Surface>
+          </MotionView>
         ))}
       </View>
 
@@ -782,76 +795,41 @@ export default function TabOneScreen() {
         palette={palette}
         label="Feature groups"
         title="Focus on one workspace layer at a time"
+        motionDelay={uiMotion.stagger * 4}
       >
         <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
           Switch between overview, capture, spaces, and management tools so the
           home screen stays organized instead of showing every feature at once.
         </Text>
         <View style={styles.sectionSwitcherGrid}>
-          {homeSectionOptions.map((section) => {
+          {homeSectionOptions.map((section, index) => {
             const isActive = activeSection === section.id;
 
             return (
-              <Pressable
+              <MotionView
                 key={section.id}
-                accessibilityLabel={`Show ${section.label} section`}
-                onPress={() => setActiveSection(section.id)}
-                style={({ pressed }) => [
-                  styles.sectionSwitchCard,
-                  {
-                    backgroundColor: isActive
-                      ? theme.colors.primaryContainer
-                      : theme.colors.elevation.level1,
-                    borderColor: isActive
-                      ? theme.colors.primary
-                      : theme.colors.outlineVariant,
-                    opacity: pressed ? 0.92 : 1,
-                  },
-                ]}
+                delay={uiMotion.stagger * (index + 1)}
+                style={styles.sectionSwitchMotionWrap}
               >
-                <View style={styles.sectionSwitchHeader}>
-                  <View
-                    style={[
-                      styles.sectionSwitchIconWrap,
-                      {
-                        backgroundColor: isActive
-                          ? theme.colors.elevation.level1
-                          : theme.colors.elevation.level2,
-                        borderColor: isActive
-                          ? theme.colors.primary
-                          : theme.colors.outlineVariant,
-                      },
-                    ]}
-                  >
-                    <SymbolView
-                      name={section.icon}
-                      size={18}
-                      tintColor={
-                        isActive
-                          ? theme.colors.onPrimaryContainer
-                          : theme.colors.onSurfaceVariant
-                      }
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.sectionSwitchTitle,
-                      {
-                        color: isActive
-                          ? theme.colors.onPrimaryContainer
-                          : theme.colors.onSurface,
-                      },
-                    ]}
-                  >
-                    {section.label}
-                  </Text>
-                </View>
-                <View style={styles.sectionSwitchBadgeRow}>
-                  {section.badges.map((badge) => (
+                <MotionPressable
+                  accessibilityLabel={`Show ${section.label} section`}
+                  onPress={() => setActiveSection(section.id)}
+                  style={[
+                    styles.sectionSwitchCard,
+                    {
+                      backgroundColor: isActive
+                        ? theme.colors.primaryContainer
+                        : theme.colors.elevation.level1,
+                      borderColor: isActive
+                        ? theme.colors.primary
+                        : theme.colors.outlineVariant,
+                    },
+                  ]}
+                >
+                  <View style={styles.sectionSwitchHeader}>
                     <View
-                      key={`${section.id}-${badge}`}
                       style={[
-                        styles.sectionSwitchBadge,
+                        styles.sectionSwitchIconWrap,
                         {
                           backgroundColor: isActive
                             ? theme.colors.elevation.level1
@@ -862,78 +840,120 @@ export default function TabOneScreen() {
                         },
                       ]}
                     >
-                      <Text
+                      <SymbolView
+                        name={section.icon}
+                        size={18}
+                        tintColor={
+                          isActive
+                            ? theme.colors.onPrimaryContainer
+                            : theme.colors.onSurfaceVariant
+                        }
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.sectionSwitchTitle,
+                        {
+                          color: isActive
+                            ? theme.colors.onPrimaryContainer
+                            : theme.colors.onSurface,
+                        },
+                      ]}
+                    >
+                      {section.label}
+                    </Text>
+                  </View>
+                  <View style={styles.sectionSwitchBadgeRow}>
+                    {section.badges.map((badge) => (
+                      <View
+                        key={`${section.id}-${badge}`}
                         style={[
-                          styles.sectionSwitchBadgeLabel,
+                          styles.sectionSwitchBadge,
                           {
-                            color: isActive
-                              ? theme.colors.onPrimaryContainer
-                              : theme.colors.onSurfaceVariant,
+                            backgroundColor: isActive
+                              ? theme.colors.elevation.level1
+                              : theme.colors.elevation.level2,
+                            borderColor: isActive
+                              ? theme.colors.primary
+                              : theme.colors.outlineVariant,
                           },
                         ]}
                       >
-                        {badge}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-                <Text
-                  style={[
-                    styles.sectionSwitchHint,
-                    {
-                      color: isActive
-                        ? theme.colors.onPrimaryContainer
-                        : theme.colors.onSurfaceVariant,
-                    },
-                  ]}
-                >
-                  {section.hint}
-                </Text>
-                <Text
-                  style={[
-                    styles.sectionSwitchMeta,
-                    {
-                      color: isActive
-                        ? theme.colors.onPrimaryContainer
-                        : palette.tint,
-                    },
-                  ]}
-                >
-                  {section.meta}
-                </Text>
-              </Pressable>
+                        <Text
+                          style={[
+                            styles.sectionSwitchBadgeLabel,
+                            {
+                              color: isActive
+                                ? theme.colors.onPrimaryContainer
+                                : theme.colors.onSurfaceVariant,
+                            },
+                          ]}
+                        >
+                          {badge}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                  <Text
+                    style={[
+                      styles.sectionSwitchHint,
+                      {
+                        color: isActive
+                          ? theme.colors.onPrimaryContainer
+                          : theme.colors.onSurfaceVariant,
+                      },
+                    ]}
+                  >
+                    {section.hint}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.sectionSwitchMeta,
+                      {
+                        color: isActive
+                          ? theme.colors.onPrimaryContainer
+                          : palette.tint,
+                      },
+                    ]}
+                  >
+                    {section.meta}
+                  </Text>
+                </MotionPressable>
+              </MotionView>
             );
           })}
         </View>
-        <Surface
-          style={[styles.activeSectionCard, nestedCardSurfaceStyle]}
-          elevation={1}
-        >
-          <View style={styles.activeSectionSummaryRow}>
-            <View
-              style={[
-                styles.activeSectionIconWrap,
-                {
-                  backgroundColor: theme.colors.elevation.level3,
-                  borderColor: theme.colors.outlineVariant,
-                },
-              ]}
-            >
-              <SymbolView
-                name={activeSectionOption.icon}
-                size={18}
-                tintColor={theme.colors.onSurface}
-              />
+        <MotionView key={activeSectionOption.id} delay={uiMotion.stagger}>
+          <Surface
+            style={[styles.activeSectionCard, nestedCardSurfaceStyle]}
+            elevation={1}
+          >
+            <View style={styles.activeSectionSummaryRow}>
+              <View
+                style={[
+                  styles.activeSectionIconWrap,
+                  {
+                    backgroundColor: theme.colors.elevation.level3,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+              >
+                <SymbolView
+                  name={activeSectionOption.icon}
+                  size={18}
+                  tintColor={theme.colors.onSurface}
+                />
+              </View>
+              <Text style={styles.widgetListTitle}>
+                {activeSectionOption.label} view
+              </Text>
             </View>
-            <Text style={styles.widgetListTitle}>
-              {activeSectionOption.label} view
+            <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
+              {activeSectionOption.hint}. Use the section switcher above to jump
+              between feature clusters without scrolling through the full page.
             </Text>
-          </View>
-          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
-            {activeSectionOption.hint}. Use the section switcher above to jump
-            between feature clusters without scrolling through the full page.
-          </Text>
-        </Surface>
+          </Surface>
+        </MotionView>
       </SectionSurface>
 
       <Animated.View style={sectionContentAnimatedStyle}>
@@ -1346,83 +1366,101 @@ export default function TabOneScreen() {
               badge={`${visibleWidgets.length} visible`}
             >
               {visibleWidgets.map((widget, index) => (
-                <Surface
+                <ReorderGestureCard
                   key={widget.id}
-                  style={[styles.spaceCard, baseCardSurfaceStyle]}
-                  elevation={1}
+                  axis="vertical"
+                  onMoveBackward={
+                    index > 0
+                      ? () => moveWidgetWithFeedback(widget.id, "up")
+                      : undefined
+                  }
+                  onMoveForward={
+                    index < visibleWidgets.length - 1
+                      ? () => moveWidgetWithFeedback(widget.id, "down")
+                      : undefined
+                  }
                 >
-                  <View style={styles.spaceHeader}>
-                    <View style={styles.spaceHeadingCopy}>
-                      <Text style={styles.spaceName}>{widget.title}</Text>
-                      <Text
-                        style={[styles.spaceMeta, { color: palette.muted }]}
-                      >
-                        {widget.type} • {widget.size} card
-                      </Text>
+                  <Surface
+                    style={[styles.spaceCard, baseCardSurfaceStyle]}
+                    elevation={1}
+                  >
+                    <View style={styles.spaceHeader}>
+                      <View style={styles.spaceHeadingCopy}>
+                        <Text style={styles.spaceName}>{widget.title}</Text>
+                        <Text
+                          style={[styles.spaceMeta, { color: palette.muted }]}
+                        >
+                          {widget.type} • {widget.size} card
+                        </Text>
+                      </View>
+                      <View style={styles.widgetControls}>
+                        <Button
+                          onPress={() =>
+                            moveWidgetWithFeedback(widget.id, "up")
+                          }
+                          mode="contained-tonal"
+                          buttonColor={widgetButtonColor}
+                          textColor={widgetButtonTextColor}
+                          compact
+                          style={styles.widgetButton}
+                          contentStyle={styles.widgetButtonContent}
+                          labelStyle={styles.widgetButtonLabel}
+                        >
+                          Up
+                        </Button>
+                        <Button
+                          onPress={() =>
+                            moveWidgetWithFeedback(widget.id, "down")
+                          }
+                          mode="contained-tonal"
+                          buttonColor={widgetButtonColor}
+                          textColor={widgetButtonTextColor}
+                          compact
+                          style={styles.widgetButton}
+                          contentStyle={styles.widgetButtonContent}
+                          labelStyle={styles.widgetButtonLabel}
+                        >
+                          Down
+                        </Button>
+                        <Button
+                          onPress={() => cycleDashboardWidgetSize(widget.id)}
+                          mode="contained-tonal"
+                          buttonColor={widgetButtonColor}
+                          textColor={widgetButtonTextColor}
+                          compact
+                          style={styles.widgetButton}
+                          contentStyle={styles.widgetButtonContent}
+                          labelStyle={styles.widgetButtonLabel}
+                        >
+                          Size
+                        </Button>
+                        <Button
+                          onPress={() =>
+                            toggleDashboardWidgetVisibility(widget.id)
+                          }
+                          mode="contained-tonal"
+                          buttonColor={widgetButtonColor}
+                          textColor={widgetButtonTextColor}
+                          compact
+                          style={styles.widgetButton}
+                          contentStyle={styles.widgetButtonContent}
+                          labelStyle={styles.widgetButtonLabel}
+                        >
+                          Hide
+                        </Button>
+                      </View>
                     </View>
-                    <View style={styles.widgetControls}>
-                      <Button
-                        onPress={() => moveDashboardWidget(widget.id, "up")}
-                        mode="contained-tonal"
-                        buttonColor={widgetButtonColor}
-                        textColor={widgetButtonTextColor}
-                        compact
-                        style={styles.widgetButton}
-                        contentStyle={styles.widgetButtonContent}
-                        labelStyle={styles.widgetButtonLabel}
-                      >
-                        Up
-                      </Button>
-                      <Button
-                        onPress={() => moveDashboardWidget(widget.id, "down")}
-                        mode="contained-tonal"
-                        buttonColor={widgetButtonColor}
-                        textColor={widgetButtonTextColor}
-                        compact
-                        style={styles.widgetButton}
-                        contentStyle={styles.widgetButtonContent}
-                        labelStyle={styles.widgetButtonLabel}
-                      >
-                        Down
-                      </Button>
-                      <Button
-                        onPress={() => cycleDashboardWidgetSize(widget.id)}
-                        mode="contained-tonal"
-                        buttonColor={widgetButtonColor}
-                        textColor={widgetButtonTextColor}
-                        compact
-                        style={styles.widgetButton}
-                        contentStyle={styles.widgetButtonContent}
-                        labelStyle={styles.widgetButtonLabel}
-                      >
-                        Size
-                      </Button>
-                      <Button
-                        onPress={() =>
-                          toggleDashboardWidgetVisibility(widget.id)
-                        }
-                        mode="contained-tonal"
-                        buttonColor={widgetButtonColor}
-                        textColor={widgetButtonTextColor}
-                        compact
-                        style={styles.widgetButton}
-                        contentStyle={styles.widgetButtonContent}
-                        labelStyle={styles.widgetButtonLabel}
-                      >
-                        Hide
-                      </Button>
+                    <Text style={[styles.spaceNote, { color: palette.muted }]}>
+                      {widget.description}
+                    </Text>
+                    <View style={styles.widgetBody}>
+                      {renderWidgetBody(widget)}
                     </View>
-                  </View>
-                  <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                    {widget.description}
-                  </Text>
-                  <View style={styles.widgetBody}>
-                    {renderWidgetBody(widget)}
-                  </View>
-                  <Text style={styles.spaceFooterLabel}>
-                    Widget #{index + 1}
-                  </Text>
-                </Surface>
+                    <Text style={styles.spaceFooterLabel}>
+                      Widget #{index + 1}
+                    </Text>
+                  </Surface>
+                </ReorderGestureCard>
               ))}
               {hiddenWidgets.length > 0 ? (
                 <Surface
@@ -1631,6 +1669,10 @@ const styles = StyleSheet.create({
     gap: 12,
     flexWrap: "wrap",
   },
+  statCardMotion: {
+    flex: 1,
+    minWidth: 100,
+  },
   sectionSwitcherGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -1645,6 +1687,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 16,
     gap: 6,
+  },
+  sectionSwitchMotionWrap: {
+    flexGrow: 1,
+    flexBasis: 148,
+    minWidth: 148,
   },
   sectionSwitchHeader: {
     flexDirection: "row",

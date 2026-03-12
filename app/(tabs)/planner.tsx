@@ -12,10 +12,13 @@ import {
     FeatureSectionSwitcher,
     type FeatureSectionItem,
 } from "@/components/ui/FeatureSectionSwitcher";
+import { WorkspacePageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
+import { MotionView } from "@/components/ui/Motion";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
+import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
@@ -23,6 +26,7 @@ import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
     uiBorder,
     uiElevation,
+    uiMotion,
     uiRadius,
     uiShadow,
     uiSize,
@@ -132,6 +136,7 @@ export default function PlannerScreen() {
   const sectionTransition = useState(() => new Animated.Value(1))[0];
   const {
     completeReminder,
+    isHydrated,
     recommendations,
     skipReminder,
     snoozeReminder,
@@ -621,6 +626,48 @@ export default function PlannerScreen() {
       )
     : undefined;
 
+  if (!isHydrated) {
+    return (
+      <Animated.ScrollView
+        {...headerScroll}
+        scrollIndicatorInsets={{ top: headerHeight }}
+        style={[styles.screen, paletteStyles.screenBackground]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: uiSpace.screen + headerHeight },
+        ]}
+      >
+        <Surface
+          style={[styles.header, paletteStyles.heroSurface]}
+          elevation={uiElevation.hero}
+        >
+          <View style={styles.headerBadgeRow}>
+            <Chip
+              compact
+              style={[styles.headerBadge, paletteStyles.cardChipSurface]}
+              textStyle={[styles.headerBadgeLabel, paletteStyles.tintText]}
+            >
+              Planner
+            </Chip>
+            <Chip
+              compact
+              style={[styles.headerBadge, paletteStyles.accentChipSurface]}
+              textStyle={styles.headerBadgeLabel}
+            >
+              Loading
+            </Chip>
+          </View>
+          <Text style={styles.title}>Planner calendar</Text>
+          <Text style={[styles.subtitle, paletteStyles.mutedText]}>
+            TrackItUp is hydrating reminder schedules and preparing the next
+            calendar view.
+          </Text>
+        </Surface>
+        <WorkspacePageSkeleton palette={palette} sectionCount={4} />
+      </Animated.ScrollView>
+    );
+  }
+
   return (
     <Animated.ScrollView
       {...headerScroll}
@@ -1097,19 +1144,24 @@ export default function PlannerScreen() {
                 {activeDateKey}
               </Text>
               {selectedDayReminders.length > 0 ? (
-                selectedDayReminders.map((reminder) => {
+                selectedDayReminders.map((reminder, index) => {
                   const space = workspace.spaces.find(
                     (item) => item.id === reminder.spaceId,
                   );
 
                   return (
-                    <View key={reminder.id} style={styles.dayAgendaItem}>
-                      <Text style={styles.listTitle}>{reminder.title}</Text>
-                      <Text style={[styles.copy, paletteStyles.mutedText]}>
-                        {space?.name ?? "Unknown space"} • Due{" "}
-                        {formatDue(getReminderScheduleTimestamp(reminder))}
-                      </Text>
-                    </View>
+                    <MotionView
+                      key={reminder.id}
+                      delay={uiMotion.stagger * (index + 1)}
+                    >
+                      <View style={styles.dayAgendaItem}>
+                        <Text style={styles.listTitle}>{reminder.title}</Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {space?.name ?? "Unknown space"} • Due{" "}
+                          {formatDue(getReminderScheduleTimestamp(reminder))}
+                        </Text>
+                      </View>
+                    </MotionView>
                   );
                 })
               ) : (
@@ -1141,86 +1193,136 @@ export default function PlannerScreen() {
               plannerGroups.map((group) => (
                 <View key={group.label} style={styles.group}>
                   <Text style={styles.groupTitle}>{group.label}</Text>
-                  {group.reminders.map((reminder) => {
+                  {group.reminders.map((reminder, index) => {
                     const space = group.spacesById.get(reminder.spaceId);
 
                     return (
-                      <View
+                      <MotionView
                         key={reminder.id}
-                        style={[
-                          styles.card,
-                          paletteStyles.raisedCardSurface,
-                          {
-                            borderLeftColor: space?.themeColor ?? palette.tint,
-                          },
-                        ]}
+                        delay={uiMotion.stagger * (index + 1)}
                       >
-                        <Text style={styles.cardTitle}>{reminder.title}</Text>
-                        <View style={styles.metaRow}>
-                          <Text
+                        <SwipeActionCard
+                          rightActions={[
+                            {
+                              label: "Proof",
+                              accentColor: palette.secondary,
+                              onPress: () =>
+                                router.push({
+                                  pathname: "/logbook",
+                                  params: {
+                                    actionId: "quick-log",
+                                    reminderId: reminder.id,
+                                    spaceId: reminder.spaceId,
+                                  },
+                                }),
+                            },
+                            {
+                              label: "Done",
+                              accentColor: palette.tint,
+                              onPress: () => completeReminder(reminder.id),
+                            },
+                            {
+                              label: "Snooze",
+                              accentColor: palette.muted,
+                              onPress: () => snoozeReminder(reminder.id),
+                            },
+                          ]}
+                        >
+                          <View
                             style={[
-                              styles.meta,
-                              { color: space?.themeColor ?? palette.tint },
+                              styles.card,
+                              paletteStyles.raisedCardSurface,
+                              {
+                                borderLeftColor:
+                                  space?.themeColor ?? palette.tint,
+                              },
                             ]}
                           >
-                            {space?.name ?? "Unknown space"}
-                          </Text>
-                          <Chip compact>{reminder.status.toUpperCase()}</Chip>
-                        </View>
-                        <Text style={[styles.copy, paletteStyles.mutedText]}>
-                          {reminder.description}
-                        </Text>
-                        <Text style={[styles.copy, paletteStyles.mutedText]}>
-                          Due{" "}
-                          {formatDue(reminder.snoozedUntil ?? reminder.dueAt)}
-                        </Text>
-                        {reminder.ruleLabel || reminder.triggerCondition ? (
-                          <Text style={[styles.copy, paletteStyles.mutedText]}>
-                            {reminder.ruleLabel ?? reminder.triggerCondition}
-                          </Text>
-                        ) : null}
-                        {reminder.skipReason ? (
-                          <Text style={[styles.copy, paletteStyles.mutedText]}>
-                            Last skip: {reminder.skipReason}
-                          </Text>
-                        ) : null}
+                            <Text style={styles.cardTitle}>
+                              {reminder.title}
+                            </Text>
+                            <View style={styles.metaRow}>
+                              <Text
+                                style={[
+                                  styles.meta,
+                                  { color: space?.themeColor ?? palette.tint },
+                                ]}
+                              >
+                                {space?.name ?? "Unknown space"}
+                              </Text>
+                              <Chip compact>
+                                {reminder.status.toUpperCase()}
+                              </Chip>
+                            </View>
+                            <Text
+                              style={[styles.copy, paletteStyles.mutedText]}
+                            >
+                              {reminder.description}
+                            </Text>
+                            <Text
+                              style={[styles.copy, paletteStyles.mutedText]}
+                            >
+                              Due{" "}
+                              {formatDue(
+                                reminder.snoozedUntil ?? reminder.dueAt,
+                              )}
+                            </Text>
+                            {reminder.ruleLabel || reminder.triggerCondition ? (
+                              <Text
+                                style={[styles.copy, paletteStyles.mutedText]}
+                              >
+                                {reminder.ruleLabel ??
+                                  reminder.triggerCondition}
+                              </Text>
+                            ) : null}
+                            {reminder.skipReason ? (
+                              <Text
+                                style={[styles.copy, paletteStyles.mutedText]}
+                              >
+                                Last skip: {reminder.skipReason}
+                              </Text>
+                            ) : null}
 
-                        <View style={styles.buttonRow}>
-                          <Button
-                            mode="contained"
-                            onPress={() => completeReminder(reminder.id)}
-                            style={styles.button}
-                          >
-                            Complete
-                          </Button>
-                          <Button
-                            mode="outlined"
-                            onPress={() => snoozeReminder(reminder.id)}
-                            style={styles.button}
-                          >
-                            Snooze
-                          </Button>
-                          <Button
-                            mode="outlined"
-                            onPress={() => skipReminder(reminder.id)}
-                            style={styles.button}
-                          >
-                            Skip
-                          </Button>
-                        </View>
+                            <View style={styles.buttonRow}>
+                              <Button
+                                mode="contained"
+                                onPress={() => completeReminder(reminder.id)}
+                                style={styles.button}
+                              >
+                                Complete
+                              </Button>
+                              <Button
+                                mode="outlined"
+                                onPress={() => snoozeReminder(reminder.id)}
+                                style={styles.button}
+                              >
+                                Snooze
+                              </Button>
+                              <Button
+                                mode="outlined"
+                                onPress={() => skipReminder(reminder.id)}
+                                style={styles.button}
+                              >
+                                Skip
+                              </Button>
+                            </View>
 
-                        {(reminder.history ?? []).slice(0, 2).map((item) => (
-                          <Text
-                            key={item.id}
-                            style={[
-                              styles.historyItem,
-                              paletteStyles.mutedText,
-                            ]}
-                          >
-                            • {item.action} — {item.note}
-                          </Text>
-                        ))}
-                      </View>
+                            {(reminder.history ?? [])
+                              .slice(0, 2)
+                              .map((item) => (
+                                <Text
+                                  key={item.id}
+                                  style={[
+                                    styles.historyItem,
+                                    paletteStyles.mutedText,
+                                  ]}
+                                >
+                                  • {item.action} — {item.note}
+                                </Text>
+                              ))}
+                          </View>
+                        </SwipeActionCard>
+                      </MotionView>
                     );
                   })}
                 </View>

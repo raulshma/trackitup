@@ -25,19 +25,24 @@ import { BeforeAfterSlider } from "@/components/ui/BeforeAfterSlider";
 import { CardActionPill } from "@/components/ui/CardActionPill";
 import { ChipRow } from "@/components/ui/ChipRow";
 import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
+import { WorkspacePageSkeleton } from "@/components/ui/LoadingSkeleton";
+import { MotionView } from "@/components/ui/Motion";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import {
     PhotoLightbox,
     type LightboxItem,
 } from "@/components/ui/PhotoLightbox";
+import { ReorderGestureCard } from "@/components/ui/ReorderGestureCard";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
+import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
     uiBorder,
+    uiMotion,
     uiRadius,
     uiShadow,
     uiSpace,
@@ -69,6 +74,10 @@ import {
     parseAiVisualRecapDraft,
     type AiVisualRecapDraft,
 } from "@/services/ai/aiVisualRecap";
+import {
+    triggerSelectionFeedback,
+    triggerSuccessFeedback,
+} from "@/services/device/haptics";
 import {
     buildVisualRecapShareMessage,
     buildVisualRecapTitle,
@@ -160,7 +169,7 @@ export default function VisualHistoryScreen() {
   );
   const router = useRouter();
   const params = useLocalSearchParams<VisualHistoryParams>();
-  const { workspace } = useWorkspace();
+  const { isHydrated, workspace } = useWorkspace();
   const [recapCoverSelections, setRecapCoverSelections] =
     useState<VisualRecapCoverSelections>({});
 
@@ -572,15 +581,67 @@ export default function VisualHistoryScreen() {
     );
 
     setRecapCoverSelections((currentSelections) => {
+      const previousSelection = currentSelections[selectionKey];
       const nextSelections = {
         ...currentSelections,
-        [selectionKey]: photoId,
+        [selectionKey]: {
+          coverPhotoId: photoId,
+          orderedPhotoIds: previousSelection?.orderedPhotoIds,
+        },
       };
       void persistVisualRecapCoverSelections(nextSelections);
       return nextSelections;
     });
 
+    triggerSuccessFeedback();
     setExportMessage(`${formatMonth(monthKey)} cover photo updated.`);
+  }
+
+  function handleMoveRecapHighlight(
+    monthKey: string,
+    photoId: string,
+    direction: "left" | "right",
+  ) {
+    const recap = history.monthlyRecaps.find(
+      (item) => item.monthKey === monthKey,
+    );
+    if (!recap) return;
+
+    const selectionKey = getVisualRecapCoverSelectionKey(
+      historyScope,
+      monthKey,
+    );
+    const currentOrder = recap.items.map((item) => item.id);
+    const currentIndex = currentOrder.indexOf(photoId);
+    const targetIndex =
+      direction === "left" ? currentIndex - 1 : currentIndex + 1;
+
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= currentOrder.length
+    ) {
+      return;
+    }
+
+    const nextOrder = [...currentOrder];
+    const [moved] = nextOrder.splice(currentIndex, 1);
+    nextOrder.splice(targetIndex, 0, moved);
+
+    setRecapCoverSelections((currentSelections) => {
+      const previousSelection = currentSelections[selectionKey];
+      const nextSelections = {
+        ...currentSelections,
+        [selectionKey]: {
+          coverPhotoId: previousSelection?.coverPhotoId ?? nextOrder[0],
+          orderedPhotoIds: nextOrder,
+        },
+      };
+      void persistVisualRecapCoverSelections(nextSelections);
+      return nextSelections;
+    });
+
+    triggerSelectionFeedback();
   }
 
   async function handleExportRecap(monthKey: string, mode: "export" | "share") {
@@ -614,6 +675,37 @@ export default function VisualHistoryScreen() {
     } finally {
       setBusyRecapKey(null);
     }
+  }
+
+  if (!isHydrated) {
+    return (
+      <View style={[styles.screen, paletteStyles.screenBackground]}>
+        <Stack.Screen options={{ title: "Visual history" }} />
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+        >
+          <ScreenHero
+            palette={palette}
+            title={title}
+            subtitle="TrackItUp is hydrating your photo timeline and rebuilding the visual trail for this scope."
+            badges={[
+              {
+                label: "Visual history",
+                backgroundColor: theme.colors.primaryContainer,
+                textColor: theme.colors.onPrimaryContainer,
+              },
+              {
+                label: "Loading",
+                backgroundColor: theme.colors.surface,
+                textColor: theme.colors.onSurface,
+              },
+            ]}
+          />
+          <WorkspacePageSkeleton palette={palette} sectionCount={4} />
+        </ScrollView>
+      </View>
+    );
   }
 
   return (
@@ -1033,38 +1125,43 @@ export default function VisualHistoryScreen() {
                 <View style={styles.comparisonMetaRow}>
                   {[history.beforeAfter.before, history.beforeAfter.after].map(
                     (item, index) => (
-                      <Pressable
+                      <MotionView
                         key={item.id}
-                        style={({ pressed }) => [
-                          styles.comparisonCard,
-                          {
-                            backgroundColor: theme.colors.elevation.level1,
-                            borderColor: theme.colors.outlineVariant,
-                            opacity: pressed ? 0.94 : 1,
-                          },
-                        ]}
-                        onPress={() =>
-                          openLightbox(
-                            lightboxItems,
-                            lightboxItems.findIndex(
-                              (candidate) => candidate.id === item.id,
-                            ),
-                          )
-                        }
+                        delay={uiMotion.stagger * (index + 1)}
+                        style={styles.comparisonCardMotionWrap}
                       >
-                        <Text
-                          style={[
-                            styles.comparisonLabel,
-                            { color: item.spaceColor },
+                        <Pressable
+                          style={({ pressed }) => [
+                            styles.comparisonCard,
+                            {
+                              backgroundColor: theme.colors.elevation.level1,
+                              borderColor: theme.colors.outlineVariant,
+                              opacity: pressed ? 0.94 : 1,
+                            },
                           ]}
+                          onPress={() =>
+                            openLightbox(
+                              lightboxItems,
+                              lightboxItems.findIndex(
+                                (candidate) => candidate.id === item.id,
+                              ),
+                            )
+                          }
                         >
-                          {index === 0 ? "Before" : "Latest"}
-                        </Text>
-                        <Text style={styles.photoTitle}>{item.logTitle}</Text>
-                        <Text style={[styles.meta, paletteStyles.mutedText]}>
-                          {formatDateTime(item.capturedAt)}
-                        </Text>
-                      </Pressable>
+                          <Text
+                            style={[
+                              styles.comparisonLabel,
+                              { color: item.spaceColor },
+                            ]}
+                          >
+                            {index === 0 ? "Before" : "Latest"}
+                          </Text>
+                          <Text style={styles.photoTitle}>{item.logTitle}</Text>
+                          <Text style={[styles.meta, paletteStyles.mutedText]}>
+                            {formatDateTime(item.capturedAt)}
+                          </Text>
+                        </Pressable>
+                      </MotionView>
                     ),
                   )}
                 </View>
@@ -1077,38 +1174,57 @@ export default function VisualHistoryScreen() {
                 label="Assets"
                 title="Progress galleries"
               >
-                {history.assetGalleries.map((gallery) => (
-                  <Surface
+                {history.assetGalleries.map((gallery, index) => (
+                  <MotionView
                     key={gallery.id}
-                    style={[
-                      styles.galleryRow,
-                      {
-                        backgroundColor: theme.colors.elevation.level1,
-                        borderColor: theme.colors.outlineVariant,
-                      },
-                    ]}
-                    elevation={1}
+                    delay={uiMotion.stagger * (index + 1)}
                   >
-                    <Image
-                      source={{ uri: gallery.latestUri }}
-                      style={styles.galleryThumb}
-                    />
-                    <View style={styles.galleryCopy}>
-                      <Text style={styles.galleryTitle}>{gallery.label}</Text>
-                      <Text style={[styles.meta, paletteStyles.mutedText]}>
-                        {gallery.photoCount} photo(s) • {gallery.proofCount}{" "}
-                        proof shot(s)
-                      </Text>
-                    </View>
-                    <CardActionPill
-                      label="Open"
-                      onPress={() =>
-                        router.push(
-                          `/visual-history?assetId=${gallery.id}` as never,
-                        )
-                      }
-                    />
-                  </Surface>
+                    <SwipeActionCard
+                      rightActions={[
+                        {
+                          label: "Open",
+                          accentColor: palette.tint,
+                          onPress: () =>
+                            router.push(
+                              `/visual-history?assetId=${gallery.id}` as never,
+                            ),
+                        },
+                      ]}
+                    >
+                      <Surface
+                        style={[
+                          styles.galleryRow,
+                          {
+                            backgroundColor: theme.colors.elevation.level1,
+                            borderColor: theme.colors.outlineVariant,
+                          },
+                        ]}
+                        elevation={1}
+                      >
+                        <Image
+                          source={{ uri: gallery.latestUri }}
+                          style={styles.galleryThumb}
+                        />
+                        <View style={styles.galleryCopy}>
+                          <Text style={styles.galleryTitle}>
+                            {gallery.label}
+                          </Text>
+                          <Text style={[styles.meta, paletteStyles.mutedText]}>
+                            {gallery.photoCount} photo(s) • {gallery.proofCount}{" "}
+                            proof shot(s)
+                          </Text>
+                        </View>
+                        <CardActionPill
+                          label="Open"
+                          onPress={() =>
+                            router.push(
+                              `/visual-history?assetId=${gallery.id}` as never,
+                            )
+                          }
+                        />
+                      </Surface>
+                    </SwipeActionCard>
+                  </MotionView>
                 ))}
               </SectionSurface>
             ) : null}
@@ -1118,229 +1234,268 @@ export default function VisualHistoryScreen() {
               label="Highlight reels"
               title="Monthly recaps"
             >
-              {history.monthlyRecaps.map((recap) => {
+              {history.monthlyRecaps.map((recap, index) => {
                 const isPinnedCover =
                   recapCoverSelections[
                     getVisualRecapCoverSelectionKey(
                       historyScope,
                       recap.monthKey,
                     )
-                  ] === recap.coverPhotoId;
+                  ]?.coverPhotoId === recap.coverPhotoId;
 
                 return (
-                  <Surface
+                  <MotionView
                     key={recap.monthKey}
-                    style={[
-                      styles.recapCard,
-                      {
-                        backgroundColor: theme.colors.elevation.level1,
-                        borderColor: theme.colors.outlineVariant,
-                        shadowColor: theme.colors.shadow,
-                      },
-                    ]}
-                    elevation={2}
+                    delay={uiMotion.stagger * (index + 1)}
                   >
-                    <View style={styles.recapHeaderRow}>
-                      <View style={styles.recapHeaderCopy}>
-                        <Text style={styles.recapTitle}>
-                          {formatMonth(recap.monthKey)}
-                        </Text>
-                        <Text
-                          style={[styles.recapIntro, paletteStyles.mutedText]}
-                        >
-                          Featured moments captured this month. Tap the cover to
-                          open the full reel.
-                        </Text>
+                    <Surface
+                      style={[
+                        styles.recapCard,
+                        {
+                          backgroundColor: theme.colors.elevation.level1,
+                          borderColor: theme.colors.outlineVariant,
+                          shadowColor: theme.colors.shadow,
+                        },
+                      ]}
+                      elevation={2}
+                    >
+                      <View style={styles.recapHeaderRow}>
+                        <View style={styles.recapHeaderCopy}>
+                          <Text style={styles.recapTitle}>
+                            {formatMonth(recap.monthKey)}
+                          </Text>
+                          <Text
+                            style={[styles.recapIntro, paletteStyles.mutedText]}
+                          >
+                            Featured moments captured this month. Tap the cover
+                            to open the full reel.
+                          </Text>
+                        </View>
+                        {isPinnedCover ? (
+                          <Chip
+                            compact
+                            style={[
+                              styles.infoChip,
+                              {
+                                backgroundColor:
+                                  theme.colors.secondaryContainer,
+                              },
+                            ]}
+                            textStyle={[
+                              styles.infoChipText,
+                              { color: theme.colors.onSecondaryContainer },
+                            ]}
+                          >
+                            Favorite cover pinned
+                          </Chip>
+                        ) : null}
                       </View>
-                      {isPinnedCover ? (
+                      <ChipRow style={styles.recapChipRow}>
                         <Chip
                           compact
                           style={[
                             styles.infoChip,
-                            {
-                              backgroundColor: theme.colors.secondaryContainer,
-                            },
+                            { backgroundColor: theme.colors.surfaceVariant },
                           ]}
                           textStyle={[
                             styles.infoChipText,
-                            { color: theme.colors.onSecondaryContainer },
+                            { color: theme.colors.onSurfaceVariant },
                           ]}
                         >
-                          Favorite cover pinned
+                          {recap.photoCount} photo(s)
                         </Chip>
-                      ) : null}
-                    </View>
-                    <ChipRow style={styles.recapChipRow}>
-                      <Chip
-                        compact
-                        style={[
-                          styles.infoChip,
-                          { backgroundColor: theme.colors.surfaceVariant },
-                        ]}
-                        textStyle={[
-                          styles.infoChipText,
-                          { color: theme.colors.onSurfaceVariant },
-                        ]}
-                      >
-                        {recap.photoCount} photo(s)
-                      </Chip>
-                      <Chip
-                        compact
-                        style={[
-                          styles.infoChip,
-                          { backgroundColor: theme.colors.surfaceVariant },
-                        ]}
-                        textStyle={[
-                          styles.infoChipText,
-                          { color: theme.colors.onSurfaceVariant },
-                        ]}
-                      >
-                        {recap.proofCount} proof shot(s)
-                      </Chip>
-                    </ChipRow>
-                    {recap.coverUri ? (
-                      <Pressable
-                        style={styles.recapCoverFrame}
-                        onPress={() =>
-                          openLightbox(buildLightboxItems(recap.items), 0)
-                        }
-                      >
-                        <Image
-                          source={{ uri: recap.coverUri }}
-                          style={styles.recapCoverImage}
-                        />
-                        <View style={styles.recapCoverOverlay}>
-                          <View style={styles.recapCoverTopRow}>
-                            <Chip compact style={styles.recapOverlayChip}>
-                              Cover photo
-                            </Chip>
-                            {recap.proofCount > 0 ? (
+                        <Chip
+                          compact
+                          style={[
+                            styles.infoChip,
+                            { backgroundColor: theme.colors.surfaceVariant },
+                          ]}
+                          textStyle={[
+                            styles.infoChipText,
+                            { color: theme.colors.onSurfaceVariant },
+                          ]}
+                        >
+                          {recap.proofCount} proof shot(s)
+                        </Chip>
+                      </ChipRow>
+                      {recap.coverUri ? (
+                        <Pressable
+                          style={styles.recapCoverFrame}
+                          onPress={() =>
+                            openLightbox(buildLightboxItems(recap.items), 0)
+                          }
+                        >
+                          <Image
+                            source={{ uri: recap.coverUri }}
+                            style={styles.recapCoverImage}
+                          />
+                          <View style={styles.recapCoverOverlay}>
+                            <View style={styles.recapCoverTopRow}>
                               <Chip compact style={styles.recapOverlayChip}>
-                                {recap.proofCount} proof shot(s)
+                                Cover photo
                               </Chip>
-                            ) : null}
-                          </View>
-                          <View style={styles.recapCoverBottomRow}>
-                            <View style={styles.recapCoverCopy}>
-                              <Text style={styles.recapCoverTitle}>
-                                {recap.items[0]?.logTitle ??
-                                  "Monthly highlight"}
-                              </Text>
-                              <Text style={styles.recapCoverHint}>
-                                Tap to open reel • {recap.items.length} captured
-                                moment(s)
-                              </Text>
+                              {recap.proofCount > 0 ? (
+                                <Chip compact style={styles.recapOverlayChip}>
+                                  {recap.proofCount} proof shot(s)
+                                </Chip>
+                              ) : null}
+                            </View>
+                            <View style={styles.recapCoverBottomRow}>
+                              <View style={styles.recapCoverCopy}>
+                                <Text style={styles.recapCoverTitle}>
+                                  {recap.items[0]?.logTitle ??
+                                    "Monthly highlight"}
+                                </Text>
+                                <Text style={styles.recapCoverHint}>
+                                  Tap to open reel • {recap.items.length}{" "}
+                                  captured moment(s)
+                                </Text>
+                              </View>
                             </View>
                           </View>
-                        </View>
-                      </Pressable>
-                    ) : null}
-                    <View style={styles.highlightStrip}>
-                      {recap.items.map((item, index) => (
-                        <View
-                          key={item.id}
-                          style={[
-                            styles.highlightCard,
-                            {
-                              backgroundColor:
-                                recap.coverPhotoId === item.id
-                                  ? theme.colors.primaryContainer
-                                  : theme.colors.elevation.level1,
-                              borderColor:
-                                recap.coverPhotoId === item.id
-                                  ? theme.colors.primary
-                                  : theme.colors.outlineVariant,
-                            },
-                          ]}
-                        >
-                          <Pressable
-                            onPress={() =>
-                              openLightbox(
-                                buildLightboxItems(recap.items),
-                                index,
-                              )
-                            }
-                          >
-                            <Image
-                              source={{ uri: item.uri }}
-                              style={styles.highlightImage}
-                            />
-                          </Pressable>
-                          <View style={styles.highlightCopy}>
-                            <Text
-                              numberOfLines={1}
-                              style={styles.highlightTitle}
-                            >
-                              {item.logTitle}
-                            </Text>
-                            <Text
-                              numberOfLines={1}
-                              style={[
-                                styles.highlightMeta,
-                                paletteStyles.mutedText,
-                              ]}
-                            >
-                              {formatDateTime(item.capturedAt)}
-                            </Text>
-                          </View>
-                          <Button
-                            compact
-                            mode={
-                              recap.coverPhotoId === item.id
-                                ? "contained-tonal"
-                                : "text"
-                            }
-                            buttonColor={
-                              recap.coverPhotoId === item.id
-                                ? theme.colors.secondaryContainer
+                        </Pressable>
+                      ) : null}
+                      <View style={styles.highlightStrip}>
+                        {recap.items.map((item, highlightIndex) => (
+                          <ReorderGestureCard
+                            key={item.id}
+                            axis="horizontal"
+                            onMoveBackward={
+                              highlightIndex > 0
+                                ? () =>
+                                    handleMoveRecapHighlight(
+                                      recap.monthKey,
+                                      item.id,
+                                      "left",
+                                    )
                                 : undefined
                             }
-                            textColor={
-                              recap.coverPhotoId === item.id
-                                ? theme.colors.onSecondaryContainer
-                                : theme.colors.primary
-                            }
-                            contentStyle={styles.highlightButtonContent}
-                            onPress={() =>
-                              handlePinRecapCover(recap.monthKey, item.id)
+                            onMoveForward={
+                              highlightIndex < recap.items.length - 1
+                                ? () =>
+                                    handleMoveRecapHighlight(
+                                      recap.monthKey,
+                                      item.id,
+                                      "right",
+                                    )
+                                : undefined
                             }
                           >
-                            {recap.coverPhotoId === item.id
-                              ? "Pinned cover"
-                              : "Pin cover"}
-                          </Button>
-                        </View>
-                      ))}
-                    </View>
-                    <ActionButtonRow
-                      separated
-                      separatorColor={theme.colors.outlineVariant}
-                      style={styles.recapActionRow}
-                    >
-                      <Button
-                        mode="contained"
-                        buttonColor={theme.colors.primary}
-                        textColor={theme.colors.onPrimary}
-                        onPress={() =>
-                          void handleExportRecap(recap.monthKey, "share")
-                        }
-                        loading={busyRecapKey === recap.monthKey}
-                        disabled={busyRecapKey !== null}
+                            <View
+                              style={[
+                                styles.highlightCard,
+                                {
+                                  backgroundColor:
+                                    recap.coverPhotoId === item.id
+                                      ? theme.colors.primaryContainer
+                                      : theme.colors.elevation.level1,
+                                  borderColor:
+                                    recap.coverPhotoId === item.id
+                                      ? theme.colors.primary
+                                      : theme.colors.outlineVariant,
+                                },
+                              ]}
+                            >
+                              <Pressable
+                                onPress={() =>
+                                  openLightbox(
+                                    buildLightboxItems(recap.items),
+                                    highlightIndex,
+                                  )
+                                }
+                              >
+                                <Image
+                                  source={{ uri: item.uri }}
+                                  style={styles.highlightImage}
+                                />
+                              </Pressable>
+                              <View style={styles.highlightCopy}>
+                                <Text
+                                  numberOfLines={1}
+                                  style={styles.highlightTitle}
+                                >
+                                  {item.logTitle}
+                                </Text>
+                                <Text
+                                  numberOfLines={1}
+                                  style={[
+                                    styles.highlightMeta,
+                                    paletteStyles.mutedText,
+                                  ]}
+                                >
+                                  {formatDateTime(item.capturedAt)}
+                                </Text>
+                              </View>
+                              <Text
+                                style={[
+                                  styles.reorderHint,
+                                  paletteStyles.mutedText,
+                                ]}
+                              >
+                                Drag sideways to reorder
+                              </Text>
+                              <Button
+                                compact
+                                mode={
+                                  recap.coverPhotoId === item.id
+                                    ? "contained-tonal"
+                                    : "text"
+                                }
+                                buttonColor={
+                                  recap.coverPhotoId === item.id
+                                    ? theme.colors.secondaryContainer
+                                    : undefined
+                                }
+                                textColor={
+                                  recap.coverPhotoId === item.id
+                                    ? theme.colors.onSecondaryContainer
+                                    : theme.colors.primary
+                                }
+                                contentStyle={styles.highlightButtonContent}
+                                onPress={() =>
+                                  handlePinRecapCover(recap.monthKey, item.id)
+                                }
+                              >
+                                {recap.coverPhotoId === item.id
+                                  ? "Pinned cover"
+                                  : "Pin cover"}
+                              </Button>
+                            </View>
+                          </ReorderGestureCard>
+                        ))}
+                      </View>
+                      <ActionButtonRow
+                        separated
+                        separatorColor={theme.colors.outlineVariant}
+                        style={styles.recapActionRow}
                       >
-                        {Platform.OS === "web" ? "Export recap" : "Share recap"}
-                      </Button>
-                      <Button
-                        mode="outlined"
-                        textColor={theme.colors.primary}
-                        onPress={() =>
-                          void handleExportRecap(recap.monthKey, "export")
-                        }
-                        disabled={busyRecapKey !== null}
-                      >
-                        Export PDF
-                      </Button>
-                    </ActionButtonRow>
-                  </Surface>
+                        <Button
+                          mode="contained"
+                          buttonColor={theme.colors.primary}
+                          textColor={theme.colors.onPrimary}
+                          onPress={() =>
+                            void handleExportRecap(recap.monthKey, "share")
+                          }
+                          loading={busyRecapKey === recap.monthKey}
+                          disabled={busyRecapKey !== null}
+                        >
+                          {Platform.OS === "web"
+                            ? "Export recap"
+                            : "Share recap"}
+                        </Button>
+                        <Button
+                          mode="outlined"
+                          textColor={theme.colors.primary}
+                          onPress={() =>
+                            void handleExportRecap(recap.monthKey, "export")
+                          }
+                          disabled={busyRecapKey !== null}
+                        >
+                          Export PDF
+                        </Button>
+                      </ActionButtonRow>
+                    </Surface>
+                  </MotionView>
                 );
               })}
             </SectionSurface>
@@ -1350,111 +1505,143 @@ export default function VisualHistoryScreen() {
               label="Timeline"
               title="Progress gallery"
             >
-              {history.photos.map((photo) => (
-                <Surface
+              {history.photos.map((photo, index) => (
+                <MotionView
                   key={photo.id}
-                  style={[
-                    styles.photoCard,
-                    {
-                      backgroundColor: theme.colors.elevation.level1,
-                      borderColor: theme.colors.outlineVariant,
-                    },
-                  ]}
-                  elevation={1}
+                  delay={uiMotion.stagger * (index + 1)}
                 >
-                  <Pressable
-                    onPress={() =>
-                      openLightbox(
-                        lightboxItems,
-                        lightboxItems.findIndex((item) => item.id === photo.id),
-                      )
-                    }
-                  >
-                    <Image
-                      source={{ uri: photo.uri }}
-                      style={styles.photoImage}
-                    />
-                  </Pressable>
-                  <View style={styles.photoCopy}>
-                    <ChipRow style={styles.photoChipRow}>
-                      <Chip
-                        compact
-                        style={[
-                          styles.infoChip,
-                          { backgroundColor: theme.colors.surfaceVariant },
-                        ]}
-                        textStyle={[
-                          styles.infoChipText,
-                          { color: theme.colors.onSurfaceVariant },
-                        ]}
-                      >
-                        {photo.spaceName}
-                      </Chip>
-                      <Chip
-                        compact
-                        style={[
-                          styles.infoChip,
-                          { backgroundColor: theme.colors.surfaceVariant },
-                        ]}
-                        textStyle={[
-                          styles.infoChipText,
-                          { color: theme.colors.onSurfaceVariant },
-                        ]}
-                      >
-                        {formatDateTime(photo.capturedAt)}
-                      </Chip>
-                      {photo.proofLabel ? (
-                        <Chip
-                          compact
-                          style={[
-                            styles.infoChip,
-                            {
-                              backgroundColor: theme.colors.secondaryContainer,
-                            },
-                          ]}
-                          textStyle={[
-                            styles.infoChipText,
-                            { color: theme.colors.onSecondaryContainer },
-                          ]}
-                        >
-                          {photo.proofLabel}
-                        </Chip>
-                      ) : null}
-                    </ChipRow>
-                    <Text style={styles.photoTitle}>{photo.logTitle}</Text>
-                    <Text style={[styles.copy, paletteStyles.mutedText]}>
-                      {photo.logNote}
-                    </Text>
-                    {photo.assetNames.length > 0 ? (
-                      <Text style={[styles.meta, paletteStyles.mutedText]}>
-                        Assets: {photo.assetNames.join(" • ")}
-                      </Text>
-                    ) : null}
-                    <ActionButtonRow
-                      separated
-                      separatorColor={theme.colors.outlineVariant}
-                    >
-                      <CardActionPill
-                        label="Open log"
-                        onPress={() =>
+                  <SwipeActionCard
+                    rightActions={[
+                      {
+                        label: "Open log",
+                        accentColor: palette.tint,
+                        onPress: () =>
                           router.push(
                             `/logbook?entryId=${photo.logId}` as never,
+                          ),
+                      },
+                      ...(!assetId && photo.assetIds.length === 1
+                        ? [
+                            {
+                              label: "Asset",
+                              accentColor: palette.secondary,
+                              onPress: () =>
+                                router.push(
+                                  `/visual-history?assetId=${photo.assetIds[0]}` as never,
+                                ),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  >
+                    <Surface
+                      style={[
+                        styles.photoCard,
+                        {
+                          backgroundColor: theme.colors.elevation.level1,
+                          borderColor: theme.colors.outlineVariant,
+                        },
+                      ]}
+                      elevation={1}
+                    >
+                      <Pressable
+                        onPress={() =>
+                          openLightbox(
+                            lightboxItems,
+                            lightboxItems.findIndex(
+                              (item) => item.id === photo.id,
+                            ),
                           )
                         }
-                      />
-                      {!assetId && photo.assetIds.length === 1 ? (
-                        <CardActionPill
-                          label="Asset gallery"
-                          onPress={() =>
-                            router.push(
-                              `/visual-history?assetId=${photo.assetIds[0]}` as never,
-                            )
-                          }
+                      >
+                        <Image
+                          source={{ uri: photo.uri }}
+                          style={styles.photoImage}
                         />
-                      ) : null}
-                    </ActionButtonRow>
-                  </View>
-                </Surface>
+                      </Pressable>
+                      <View style={styles.photoCopy}>
+                        <ChipRow style={styles.photoChipRow}>
+                          <Chip
+                            compact
+                            style={[
+                              styles.infoChip,
+                              { backgroundColor: theme.colors.surfaceVariant },
+                            ]}
+                            textStyle={[
+                              styles.infoChipText,
+                              { color: theme.colors.onSurfaceVariant },
+                            ]}
+                          >
+                            {photo.spaceName}
+                          </Chip>
+                          <Chip
+                            compact
+                            style={[
+                              styles.infoChip,
+                              { backgroundColor: theme.colors.surfaceVariant },
+                            ]}
+                            textStyle={[
+                              styles.infoChipText,
+                              { color: theme.colors.onSurfaceVariant },
+                            ]}
+                          >
+                            {formatDateTime(photo.capturedAt)}
+                          </Chip>
+                          {photo.proofLabel ? (
+                            <Chip
+                              compact
+                              style={[
+                                styles.infoChip,
+                                {
+                                  backgroundColor:
+                                    theme.colors.secondaryContainer,
+                                },
+                              ]}
+                              textStyle={[
+                                styles.infoChipText,
+                                { color: theme.colors.onSecondaryContainer },
+                              ]}
+                            >
+                              {photo.proofLabel}
+                            </Chip>
+                          ) : null}
+                        </ChipRow>
+                        <Text style={styles.photoTitle}>{photo.logTitle}</Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {photo.logNote}
+                        </Text>
+                        {photo.assetNames.length > 0 ? (
+                          <Text style={[styles.meta, paletteStyles.mutedText]}>
+                            Assets: {photo.assetNames.join(" • ")}
+                          </Text>
+                        ) : null}
+                        <ActionButtonRow
+                          separated
+                          separatorColor={theme.colors.outlineVariant}
+                        >
+                          <CardActionPill
+                            label="Open log"
+                            onPress={() =>
+                              router.push(
+                                `/logbook?entryId=${photo.logId}` as never,
+                              )
+                            }
+                          />
+                          {!assetId && photo.assetIds.length === 1 ? (
+                            <CardActionPill
+                              label="Asset gallery"
+                              onPress={() =>
+                                router.push(
+                                  `/visual-history?assetId=${photo.assetIds[0]}` as never,
+                                )
+                              }
+                            />
+                          ) : null}
+                        </ActionButtonRow>
+                      </View>
+                    </Surface>
+                  </SwipeActionCard>
+                </MotionView>
               ))}
             </SectionSurface>
           </>
@@ -1504,6 +1691,10 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.xl,
     padding: uiSpace.surface,
     borderWidth: uiBorder.standard,
+  },
+  comparisonCardMotionWrap: {
+    flex: 1,
+    minWidth: 150,
   },
   comparisonLabel: { ...uiTypography.label, marginBottom: 4 },
   galleryRow: {
@@ -1602,6 +1793,10 @@ const styles = StyleSheet.create({
   highlightCopy: { gap: 2 },
   highlightTitle: uiTypography.label,
   highlightMeta: uiTypography.bodySmall,
+  reorderHint: {
+    ...uiTypography.bodySmall,
+    marginTop: 2,
+  },
   highlightButtonContent: {
     minHeight: 30,
   },

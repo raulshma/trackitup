@@ -10,6 +10,7 @@ import {
     uiSpace,
     uiTypography,
 } from "@/constants/UiTokens";
+import { MotionView } from "./Motion";
 
 type SectionSurfaceProps = {
   palette: AppPalette;
@@ -18,6 +19,7 @@ type SectionSurfaceProps = {
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
   elevation?: 0 | 1 | 2 | 3 | 4 | 5;
+  motionDelay?: number;
 };
 
 export function SectionSurface({
@@ -27,6 +29,7 @@ export function SectionSurface({
   children,
   style,
   elevation = 1,
+  motionDelay = 0,
 }: SectionSurfaceProps) {
   const theme = useTheme<MD3Theme>();
   const surfaceColor =
@@ -35,43 +38,45 @@ export function SectionSurface({
       : theme.colors.elevation[`level${elevation}`];
 
   return (
-    <Surface
-      style={[
-        styles.card,
-        {
-          backgroundColor: surfaceColor,
-          borderColor: theme.colors.outlineVariant,
-        },
-        style,
-      ]}
-      elevation={elevation}
-    >
-      {label || title ? (
-        <View style={styles.header}>
-          {label ? (
-            <View
-              style={[
-                styles.labelBadge,
-                {
-                  backgroundColor: palette.accentSoft,
-                  borderColor: theme.colors.outlineVariant,
-                },
-              ]}
-            >
-              <Text style={[styles.label, { color: theme.colors.primary }]}>
-                {label}
+    <MotionView delay={motionDelay}>
+      <Surface
+        style={[
+          styles.card,
+          {
+            backgroundColor: surfaceColor,
+            borderColor: theme.colors.outlineVariant,
+          },
+          style,
+        ]}
+        elevation={elevation}
+      >
+        {label || title ? (
+          <View style={styles.header}>
+            {label ? (
+              <View
+                style={[
+                  styles.labelBadge,
+                  {
+                    backgroundColor: palette.accentSoft,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+              >
+                <Text style={[styles.label, { color: theme.colors.primary }]}>
+                  {label}
+                </Text>
+              </View>
+            ) : null}
+            {title ? (
+              <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+                {title}
               </Text>
-            </View>
-          ) : null}
-          {title ? (
-            <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-              {title}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-      {children}
-    </Surface>
+            ) : null}
+          </View>
+        ) : null}
+        {children}
+      </Surface>
+    </MotionView>
   );
 }
 
