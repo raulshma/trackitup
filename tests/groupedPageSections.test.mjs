@@ -35,3 +35,21 @@ test("account uses grouped page sections", () => {
   assert.match(source, /activeSection === "assistant"/);
   assert.match(source, /activeSection === "privacy"/);
 });
+
+test("planner uses grouped page sections", () => {
+  const source = readWorkspaceFile("app/(tabs)/planner.tsx");
+
+  assert.match(source, /FeatureSectionSwitcher/);
+  assert.match(source, /activeSection === "focus"/);
+  assert.match(source, /activeSection === "calendar"/);
+  assert.match(source, /activeSection === "schedule"/);
+});
+
+test("inventory uses grouped page sections", () => {
+  const source = readWorkspaceFile("app/(tabs)/inventory.tsx");
+
+  assert.match(source, /FeatureSectionSwitcher/);
+  assert.match(source, /activeSection === "overview"/);
+  assert.match(source, /activeSection === "assist"/);
+  assert.match(source, /activeSection === "assets"/);
+});

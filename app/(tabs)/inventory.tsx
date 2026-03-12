@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Animated, StyleSheet, View } from "react-native";
 import { Chip, Surface, useTheme, type MD3Theme } from "react-native-paper";
 
@@ -8,6 +8,10 @@ import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { CardActionPill } from "@/components/ui/CardActionPill";
 import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
+import {
+    FeatureSectionSwitcher,
+    type FeatureSectionItem,
+} from "@/components/ui/FeatureSectionSwitcher";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { SectionMessage } from "@/components/ui/SectionMessage";
@@ -53,6 +57,8 @@ type GeneratedAiInventoryLifecycle = {
   draft: AiInventoryLifecycleDraft;
 };
 
+type InventorySection = "overview" | "assist" | "assets";
+
 function formatCurrency(amount: number, currency = "USD") {
   return new Intl.NumberFormat(undefined, {
     style: "currency",
@@ -71,6 +77,7 @@ export default function InventoryScreen() {
     [palette],
   );
   const router = useRouter();
+  const sectionTransition = useState(() => new Animated.Value(1))[0];
   const { workspace } = useWorkspace();
   const [inventoryLifecycleRequest, setInventoryLifecycleRequest] =
     useState("");
@@ -82,6 +89,8 @@ export default function InventoryScreen() {
     useState<GeneratedAiInventoryLifecycle | null>(null);
   const [appliedInventoryLifecycle, setAppliedInventoryLifecycle] =
     useState<GeneratedAiInventoryLifecycle | null>(null);
+  const [activeSection, setActiveSection] =
+    useState<InventorySection>("overview");
   const visualHistory = useMemo(
     () => buildWorkspaceVisualHistory(workspace),
     [workspace],
@@ -175,6 +184,94 @@ export default function InventoryScreen() {
         }),
     },
   ];
+  const inventorySections = useMemo<FeatureSectionItem<InventorySection>[]>(
+    () => [
+      {
+        id: "overview",
+        label: "Overview",
+        icon: {
+          ios: "shippingbox.fill",
+          android: "inventory_2",
+          web: "inventory_2",
+        },
+        hint: "Ownership totals, scan shortcuts, and lifecycle highlights",
+        meta: formatCurrency(totalOwnership),
+        badges: [
+          `${assetCards.length} asset${assetCards.length === 1 ? "" : "s"}`,
+          `${visualHistory.photoCount} photo${visualHistory.photoCount === 1 ? "" : "s"}`,
+        ],
+        accentColor: palette.tint,
+      },
+      {
+        id: "assist",
+        label: "Assist",
+        icon: {
+          ios: "brain.head.profile",
+          android: "psychology",
+          web: "psychology",
+        },
+        hint: "AI lifecycle briefing and grounded next-step guidance",
+        meta: `${inventoryLifecycle.attentionAssets.length} attention asset${inventoryLifecycle.attentionAssets.length === 1 ? "" : "s"}`,
+        badges: [
+          `${inventoryLifecycle.summary.warrantyRiskCount} warranty risk${inventoryLifecycle.summary.warrantyRiskCount === 1 ? "" : "s"}`,
+          `${inventoryLifecycle.summary.documentationGapCount} doc gap${inventoryLifecycle.summary.documentationGapCount === 1 ? "" : "s"}`,
+        ],
+        accentColor: palette.secondary,
+      },
+      {
+        id: "assets",
+        label: "Assets",
+        icon: {
+          ios: "list.bullet.rectangle.portrait.fill",
+          android: "view_list",
+          web: "view_list",
+        },
+        hint: "Tracked asset cards, ownership notes, and photo timelines",
+        meta: `${workspace.expenses.length} expense entr${workspace.expenses.length === 1 ? "y" : "ies"}`,
+        badges: [
+          preferredQuickLogAction ? preferredQuickLogAction.label : "Quick log",
+          assetCards.length > 0 ? "Ready to review" : "No assets yet",
+        ],
+        accentColor: palette.tint,
+      },
+    ],
+    [
+      assetCards.length,
+      inventoryLifecycle.attentionAssets.length,
+      inventoryLifecycle.summary.documentationGapCount,
+      inventoryLifecycle.summary.warrantyRiskCount,
+      palette.secondary,
+      palette.tint,
+      preferredQuickLogAction,
+      totalOwnership,
+      visualHistory.photoCount,
+      workspace.expenses.length,
+    ],
+  );
+
+  useEffect(() => {
+    sectionTransition.setValue(0);
+    Animated.timing(sectionTransition, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [activeSection, sectionTransition]);
+
+  const sectionContentAnimatedStyle = useMemo(
+    () => ({
+      opacity: sectionTransition,
+      transform: [
+        {
+          translateY: sectionTransition.interpolate({
+            inputRange: [0, 1],
+            outputRange: [10, 0],
+          }),
+        },
+      ],
+    }),
+    [sectionTransition],
+  );
 
   function openInventoryLifecycleDestination(
     destination?: "inventory" | "logbook" | "visual-history",
@@ -354,237 +451,274 @@ export default function InventoryScreen() {
         actions={pageQuickActions}
       />
 
-      <Surface
-        style={[styles.summaryCard, paletteStyles.cardSurface]}
-        elevation={uiElevation.card}
-      >
-        <Text style={styles.summaryTitle}>Tracked ownership cost</Text>
-        <Text style={styles.summaryValue}>
-          {formatCurrency(totalOwnership)}
-        </Text>
-        <Text style={[styles.summaryCopy, paletteStyles.mutedText]}>
-          {workspace.expenses.length} expense entries linked to assets and
-          recurring care logs.
-        </Text>
-        <View style={styles.summaryActionRow}>
-          <CardActionPill
-            label="Scan barcode / QR"
-            onPress={() => router.push("/scanner" as never)}
-          />
-          <CardActionPill
-            label="Open photo gallery"
-            onPress={() => router.push("/visual-history" as never)}
-          />
-        </View>
-      </Surface>
-
-      <AiPromptComposerCard
+      <FeatureSectionSwitcher
         palette={palette}
-        label="AI inventory lifecycle"
-        title="Generate a grounded inventory brief"
-        value={inventoryLifecycleRequest}
-        onChangeText={setInventoryLifecycleRequest}
-        onSubmit={() => void handleGenerateInventoryLifecycle()}
-        isBusy={isGeneratingInventoryLifecycle}
-        contextChips={inventoryLifecycleContextChips}
-        placeholder="Example: Which tracked assets need documentation or warranty review next, and which screen should I open?"
-        helperText={aiInventoryLifecycleCopy.helperText}
-        consentLabel={aiInventoryLifecycleCopy.consentLabel}
-        footerNote={aiInventoryLifecycleCopy.promptFooterNote}
-        submitLabel="Generate inventory brief"
+        label="Feature groups"
+        title="Focus on one inventory layer at a time"
+        description="Switch between inventory overview, AI assistance, and asset records so the page stays easier to scan and manage."
+        items={inventorySections}
+        activeId={activeSection}
+        onChange={setActiveSection}
       />
 
-      {inventoryLifecycleStatusMessage ? (
-        <SectionMessage
-          palette={palette}
-          label="AI inventory lifecycle"
-          title="Latest inventory brief status"
-          message={inventoryLifecycleStatusMessage}
-        />
-      ) : null}
+      <Animated.View style={sectionContentAnimatedStyle}>
+        {activeSection === "overview" ? (
+          <>
+            <Surface
+              style={[styles.summaryCard, paletteStyles.cardSurface]}
+              elevation={uiElevation.card}
+            >
+              <Text style={styles.summaryTitle}>Tracked ownership cost</Text>
+              <Text style={styles.summaryValue}>
+                {formatCurrency(totalOwnership)}
+              </Text>
+              <Text style={[styles.summaryCopy, paletteStyles.mutedText]}>
+                {workspace.expenses.length} expense entries linked to assets and
+                recurring care logs.
+              </Text>
+              <View style={styles.summaryActionRow}>
+                <CardActionPill
+                  label="Scan barcode / QR"
+                  onPress={() => router.push("/scanner" as never)}
+                />
+                <CardActionPill
+                  label="Open photo gallery"
+                  onPress={() => router.push("/visual-history" as never)}
+                />
+              </View>
+            </Surface>
+          </>
+        ) : null}
 
-      {generatedInventoryLifecycle ? (
-        <AiDraftReviewCard
-          palette={palette}
-          title="Review the AI inventory brief"
-          draftKindLabel="Inventory lifecycle"
-          summary={`Prompt: ${generatedInventoryLifecycle.request}`}
-          consentLabel={generatedInventoryLifecycle.consentLabel}
-          footerNote={aiInventoryLifecycleCopy.reviewFooterNote}
-          statusLabel="Draft ready"
-          modelLabel={generatedInventoryLifecycle.modelId}
-          usage={generatedInventoryLifecycle.usage}
-          contextChips={[
-            `${generatedInventoryLifecycle.draft.citedSourceIds.length} cited source${generatedInventoryLifecycle.draft.citedSourceIds.length === 1 ? "" : "s"}`,
-          ]}
-          items={buildAiInventoryLifecycleReviewItems(
-            generatedInventoryLifecycle.draft,
-            generatedInventoryLifecycle.sources,
-          )}
-          acceptLabel="Apply brief"
-          editLabel="Dismiss draft"
-          regenerateLabel="Generate again"
-          onAccept={handleApplyInventoryLifecycle}
-          onEdit={handleDismissInventoryLifecycle}
-          onRegenerate={() => void handleGenerateInventoryLifecycle()}
-          isBusy={isGeneratingInventoryLifecycle}
-        />
-      ) : null}
+        {activeSection === "assist" ? (
+          <>
+            <AiPromptComposerCard
+              palette={palette}
+              label="AI inventory lifecycle"
+              title="Generate a grounded inventory brief"
+              value={inventoryLifecycleRequest}
+              onChangeText={setInventoryLifecycleRequest}
+              onSubmit={() => void handleGenerateInventoryLifecycle()}
+              isBusy={isGeneratingInventoryLifecycle}
+              contextChips={inventoryLifecycleContextChips}
+              placeholder="Example: Which tracked assets need documentation or warranty review next, and which screen should I open?"
+              helperText={aiInventoryLifecycleCopy.helperText}
+              consentLabel={aiInventoryLifecycleCopy.consentLabel}
+              footerNote={aiInventoryLifecycleCopy.promptFooterNote}
+              submitLabel="Generate inventory brief"
+            />
 
-      {appliedInventoryLifecycle ? (
-        <Surface
-          style={[styles.summaryCard, paletteStyles.cardSurface]}
-          elevation={uiElevation.card}
-        >
-          <View style={styles.briefTitleRow}>
-            <Text style={styles.summaryTitle}>
-              {appliedInventoryLifecycle.draft.headline}
-            </Text>
-            {appliedInventoryLifecycle.draft.suggestedDestination ? (
-              <Chip
-                compact
-                style={[styles.highlightPill, paletteStyles.cardChipSurface]}
-              >
-                {formatAiInventoryLifecycleDestinationLabel(
-                  appliedInventoryLifecycle.draft.suggestedDestination,
-                )}
-              </Chip>
-            ) : null}
-          </View>
-          {appliedInventoryLifecycle.draft.summary ? (
-            <Text style={[styles.summaryCopy, paletteStyles.mutedText]}>
-              {appliedInventoryLifecycle.draft.summary}
-            </Text>
-          ) : null}
-          {appliedInventoryLifecycle.draft.priorities.map((priority) => (
-            <View key={priority} style={styles.priorityRow}>
-              <View
-                style={[styles.priorityDot, { backgroundColor: palette.tint }]}
+            {inventoryLifecycleStatusMessage ? (
+              <SectionMessage
+                palette={palette}
+                label="AI inventory lifecycle"
+                title="Latest inventory brief status"
+                message={inventoryLifecycleStatusMessage}
               />
-              <Text style={[styles.copy, styles.priorityCopy]}>{priority}</Text>
-            </View>
-          ))}
-          {appliedInventoryLifecycle.draft.caution ? (
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              Caution: {appliedInventoryLifecycle.draft.caution}
-            </Text>
-          ) : null}
-          <View style={styles.appliedSourceList}>
-            {appliedInventoryLifecycle.draft.citedSourceIds
-              .map((sourceId) =>
-                appliedInventoryLifecycle.sources.find(
-                  (source) => source.id === sourceId,
-                ),
-              )
-              .filter((source): source is AiInventoryLifecycleSource =>
-                Boolean(source),
-              )
-              .map((source) => (
-                <Surface
-                  key={source.id}
-                  style={[styles.sourceCard, paletteStyles.raisedCardSurface]}
-                  elevation={uiElevation.raisedCard}
+            ) : null}
+
+            {generatedInventoryLifecycle ? (
+              <AiDraftReviewCard
+                palette={palette}
+                title="Review the AI inventory brief"
+                draftKindLabel="Inventory lifecycle"
+                summary={`Prompt: ${generatedInventoryLifecycle.request}`}
+                consentLabel={generatedInventoryLifecycle.consentLabel}
+                footerNote={aiInventoryLifecycleCopy.reviewFooterNote}
+                statusLabel="Draft ready"
+                modelLabel={generatedInventoryLifecycle.modelId}
+                usage={generatedInventoryLifecycle.usage}
+                contextChips={[
+                  `${generatedInventoryLifecycle.draft.citedSourceIds.length} cited source${generatedInventoryLifecycle.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+                ]}
+                items={buildAiInventoryLifecycleReviewItems(
+                  generatedInventoryLifecycle.draft,
+                  generatedInventoryLifecycle.sources,
+                )}
+                acceptLabel="Apply brief"
+                editLabel="Dismiss draft"
+                regenerateLabel="Generate again"
+                onAccept={handleApplyInventoryLifecycle}
+                onEdit={handleDismissInventoryLifecycle}
+                onRegenerate={() => void handleGenerateInventoryLifecycle()}
+                isBusy={isGeneratingInventoryLifecycle}
+              />
+            ) : null}
+
+            {appliedInventoryLifecycle ? (
+              <Surface
+                style={[styles.summaryCard, paletteStyles.cardSurface]}
+                elevation={uiElevation.card}
+              >
+                <View style={styles.briefTitleRow}>
+                  <Text style={styles.summaryTitle}>
+                    {appliedInventoryLifecycle.draft.headline}
+                  </Text>
+                  {appliedInventoryLifecycle.draft.suggestedDestination ? (
+                    <Chip
+                      compact
+                      style={[
+                        styles.highlightPill,
+                        paletteStyles.cardChipSurface,
+                      ]}
+                    >
+                      {formatAiInventoryLifecycleDestinationLabel(
+                        appliedInventoryLifecycle.draft.suggestedDestination,
+                      )}
+                    </Chip>
+                  ) : null}
+                </View>
+                {appliedInventoryLifecycle.draft.summary ? (
+                  <Text style={[styles.summaryCopy, paletteStyles.mutedText]}>
+                    {appliedInventoryLifecycle.draft.summary}
+                  </Text>
+                ) : null}
+                {appliedInventoryLifecycle.draft.priorities.map((priority) => (
+                  <View key={priority} style={styles.priorityRow}>
+                    <View
+                      style={[
+                        styles.priorityDot,
+                        { backgroundColor: palette.tint },
+                      ]}
+                    />
+                    <Text style={[styles.copy, styles.priorityCopy]}>
+                      {priority}
+                    </Text>
+                  </View>
+                ))}
+                {appliedInventoryLifecycle.draft.caution ? (
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    Caution: {appliedInventoryLifecycle.draft.caution}
+                  </Text>
+                ) : null}
+                <View style={styles.appliedSourceList}>
+                  {appliedInventoryLifecycle.draft.citedSourceIds
+                    .map((sourceId) =>
+                      appliedInventoryLifecycle.sources.find(
+                        (source) => source.id === sourceId,
+                      ),
+                    )
+                    .filter((source): source is AiInventoryLifecycleSource =>
+                      Boolean(source),
+                    )
+                    .map((source) => (
+                      <Surface
+                        key={source.id}
+                        style={[
+                          styles.sourceCard,
+                          paletteStyles.raisedCardSurface,
+                        ]}
+                        elevation={uiElevation.raisedCard}
+                      >
+                        <Text style={styles.cardTitle}>
+                          {formatAiInventoryLifecycleSourceLabel(source)}
+                        </Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {source.snippet}
+                        </Text>
+                        <View style={styles.summaryActionRow}>
+                          <CardActionPill
+                            label={formatAiInventoryLifecycleDestinationLabel(
+                              source.route,
+                            )}
+                            onPress={() => openInventoryLifecycleSource(source)}
+                          />
+                        </View>
+                      </Surface>
+                    ))}
+                </View>
+                <View style={styles.summaryActionRow}>
+                  <CardActionPill
+                    label="Clear brief"
+                    onPress={() => setAppliedInventoryLifecycle(null)}
+                  />
+                  <CardActionPill
+                    label={formatAiInventoryLifecycleDestinationLabel(
+                      appliedInventoryLifecycle.draft.suggestedDestination ??
+                        "inventory",
+                    )}
+                    onPress={() =>
+                      openInventoryLifecycleDestination(
+                        appliedInventoryLifecycle.draft.suggestedDestination,
+                      )
+                    }
+                  />
+                </View>
+              </Surface>
+            ) : null}
+          </>
+        ) : null}
+
+        {activeSection === "assets" ? (
+          <>
+            {assetCards.length === 0 ? (
+              <EmptyStateCard
+                palette={palette}
+                icon={{
+                  ios: "shippingbox",
+                  android: "inventory_2",
+                  web: "inventory_2",
+                }}
+                title="No tracked assets yet"
+                message="Asset records will appear here once real workspace data is synced, imported, or captured on this device."
+                actionLabel="Open scanner"
+                onAction={() => router.push("/scanner" as never)}
+              />
+            ) : (
+              assetCards.map((asset) => (
+                <View
+                  key={asset.id}
+                  style={[
+                    styles.card,
+                    paletteStyles.raisedCardSurface,
+                    { borderLeftColor: palette.tint },
+                  ]}
                 >
-                  <Text style={styles.cardTitle}>
-                    {formatAiInventoryLifecycleSourceLabel(source)}
+                  <Text style={styles.cardTitle}>{asset.name}</Text>
+                  <Text style={[styles.meta, { color: palette.tint }]}>
+                    {asset.spaceName} • {asset.category} •{" "}
+                    {asset.status.toUpperCase()}
                   </Text>
                   <Text style={[styles.copy, paletteStyles.mutedText]}>
-                    {source.snippet}
+                    {asset.note}
+                  </Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    Purchase: {asset.purchaseDate ?? "n/a"} •{" "}
+                    {formatCurrency(asset.purchasePrice ?? 0)}
+                  </Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    Warranty: {asset.warrantyExpiresAt ?? "n/a"}
+                    {asset.warrantyNote ? ` • ${asset.warrantyNote}` : ""}
+                  </Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    Linked logs: {asset.relatedLogCount} • Ownership cost:{" "}
+                    {formatCurrency(asset.expenseTotal)}
                   </Text>
                   <View style={styles.summaryActionRow}>
                     <CardActionPill
-                      label={formatAiInventoryLifecycleDestinationLabel(
-                        source.route,
-                      )}
-                      onPress={() => openInventoryLifecycleSource(source)}
+                      label={
+                        asset.photoCount
+                          ? `Photo timeline (${asset.photoCount})`
+                          : "Photo timeline"
+                      }
+                      onPress={() =>
+                        router.push(
+                          `/visual-history?assetId=${asset.id}` as never,
+                        )
+                      }
                     />
                   </View>
-                </Surface>
-              ))}
-          </View>
-          <View style={styles.summaryActionRow}>
-            <CardActionPill
-              label="Clear brief"
-              onPress={() => setAppliedInventoryLifecycle(null)}
-            />
-            <CardActionPill
-              label={formatAiInventoryLifecycleDestinationLabel(
-                appliedInventoryLifecycle.draft.suggestedDestination ??
-                  "inventory",
-              )}
-              onPress={() =>
-                openInventoryLifecycleDestination(
-                  appliedInventoryLifecycle.draft.suggestedDestination,
-                )
-              }
-            />
-          </View>
-        </Surface>
-      ) : null}
-
-      {assetCards.length === 0 ? (
-        <EmptyStateCard
-          palette={palette}
-          icon={{
-            ios: "shippingbox",
-            android: "inventory_2",
-            web: "inventory_2",
-          }}
-          title="No tracked assets yet"
-          message="Asset records will appear here once real workspace data is synced, imported, or captured on this device."
-          actionLabel="Open scanner"
-          onAction={() => router.push("/scanner" as never)}
-        />
-      ) : (
-        assetCards.map((asset) => (
-          <View
-            key={asset.id}
-            style={[
-              styles.card,
-              paletteStyles.raisedCardSurface,
-              { borderLeftColor: palette.tint },
-            ]}
-          >
-            <Text style={styles.cardTitle}>{asset.name}</Text>
-            <Text style={[styles.meta, { color: palette.tint }]}>
-              {asset.spaceName} • {asset.category} •{" "}
-              {asset.status.toUpperCase()}
-            </Text>
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              {asset.note}
-            </Text>
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              Purchase: {asset.purchaseDate ?? "n/a"} •{" "}
-              {formatCurrency(asset.purchasePrice ?? 0)}
-            </Text>
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              Warranty: {asset.warrantyExpiresAt ?? "n/a"}
-              {asset.warrantyNote ? ` • ${asset.warrantyNote}` : ""}
-            </Text>
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              Linked logs: {asset.relatedLogCount} • Ownership cost:{" "}
-              {formatCurrency(asset.expenseTotal)}
-            </Text>
-            <View style={styles.summaryActionRow}>
-              <CardActionPill
-                label={
-                  asset.photoCount
-                    ? `Photo timeline (${asset.photoCount})`
-                    : "Photo timeline"
-                }
-                onPress={() =>
-                  router.push(`/visual-history?assetId=${asset.id}` as never)
-                }
-              />
-            </View>
-            {asset.barcodeValue || asset.qrCodeValue ? (
-              <Text style={[styles.copy, paletteStyles.mutedText]}>
-                Codes: {asset.barcodeValue ?? asset.qrCodeValue}
-              </Text>
-            ) : null}
-          </View>
-        ))
-      )}
+                  {asset.barcodeValue || asset.qrCodeValue ? (
+                    <Text style={[styles.copy, paletteStyles.mutedText]}>
+                      Codes: {asset.barcodeValue ?? asset.qrCodeValue}
+                    </Text>
+                  ) : null}
+                </View>
+              ))
+            )}
+          </>
+        ) : null}
+      </Animated.View>
     </Animated.ScrollView>
   );
 }

@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { Button, Chip, Surface } from "react-native-paper";
 
@@ -8,6 +8,10 @@ import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { ChipRow } from "@/components/ui/ChipRow";
+import {
+    FeatureSectionSwitcher,
+    type FeatureSectionItem,
+} from "@/components/ui/FeatureSectionSwitcher";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { SectionMessage } from "@/components/ui/SectionMessage";
@@ -86,6 +90,8 @@ type GeneratedAiPlannerRiskBrief = {
   draft: AiPlannerRiskDraft;
 };
 
+type PlannerSection = "focus" | "calendar" | "schedule";
+
 function formatDue(timestamp: string) {
   return new Date(timestamp).toLocaleString([], {
     month: "short",
@@ -123,6 +129,7 @@ export default function PlannerScreen() {
     [palette],
   );
   const router = useRouter();
+  const sectionTransition = useState(() => new Animated.Value(1))[0];
   const {
     completeReminder,
     recommendations,
@@ -148,6 +155,7 @@ export default function PlannerScreen() {
     useState<GeneratedAiPlannerRiskBrief | null>(null);
   const [appliedRiskBrief, setAppliedRiskBrief] =
     useState<GeneratedAiPlannerRiskBrief | null>(null);
+  const [activeSection, setActiveSection] = useState<PlannerSection>("focus");
 
   const referenceMonth = useMemo(() => {
     const date = new Date(workspace.generatedAt);
@@ -290,6 +298,95 @@ export default function PlannerScreen() {
       onPress: () => router.push("/action-center" as never),
     },
   ];
+  const plannerSections = useMemo<FeatureSectionItem<PlannerSection>[]>(
+    () => [
+      {
+        id: "focus",
+        label: "Focus",
+        icon: {
+          ios: "brain.head.profile",
+          android: "psychology",
+          web: "psychology",
+        },
+        hint: "AI copilot, risk briefs, and selected-day guidance",
+        meta: `${selectedDayReminders.length} on selected day`,
+        badges: [
+          `${plannerRiskSummary.summary.overdueCount} overdue`,
+          `${plannerRiskSummary.summary.deferralCount} deferral${plannerRiskSummary.summary.deferralCount === 1 ? "" : "s"}`,
+        ],
+        accentColor: palette.tint,
+      },
+      {
+        id: "calendar",
+        label: "Calendar",
+        icon: {
+          ios: "calendar",
+          android: "calendar_month",
+          web: "calendar_month",
+        },
+        hint: "Month view and the currently selected day agenda",
+        meta: calendar.monthLabel,
+        badges: [
+          `${calendar.weeks.length} week${calendar.weeks.length === 1 ? "" : "s"}`,
+          activeDateKey,
+        ],
+        accentColor: palette.secondary,
+      },
+      {
+        id: "schedule",
+        label: "Schedule",
+        icon: {
+          ios: "list.bullet.rectangle.portrait.fill",
+          android: "view_agenda",
+          web: "view_agenda",
+        },
+        hint: "Upcoming grouped reminders and action-ready schedule lanes",
+        meta: `${plannerGroups.length} day group${plannerGroups.length === 1 ? "" : "s"}`,
+        badges: [
+          `${workspace.reminders.length} reminder${workspace.reminders.length === 1 ? "" : "s"}`,
+          recommendations.length > 0 ? "Recommendations live" : "No alerts",
+        ],
+        accentColor: palette.tint,
+      },
+    ],
+    [
+      activeDateKey,
+      calendar.monthLabel,
+      calendar.weeks.length,
+      palette.secondary,
+      palette.tint,
+      plannerGroups.length,
+      plannerRiskSummary.summary.deferralCount,
+      plannerRiskSummary.summary.overdueCount,
+      recommendations.length,
+      selectedDayReminders.length,
+      workspace.reminders.length,
+    ],
+  );
+
+  useEffect(() => {
+    sectionTransition.setValue(0);
+    Animated.timing(sectionTransition, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: true,
+    }).start();
+  }, [activeSection, sectionTransition]);
+
+  const sectionContentAnimatedStyle = useMemo(
+    () => ({
+      opacity: sectionTransition,
+      transform: [
+        {
+          translateY: sectionTransition.interpolate({
+            inputRange: [0, 1],
+            outputRange: [10, 0],
+          }),
+        },
+      ],
+    }),
+    [sectionTransition],
+  );
 
   async function handleGenerateAiDraft() {
     const trimmedRequest = aiRequest.trim();
@@ -579,512 +676,559 @@ export default function PlannerScreen() {
         actions={pageQuickActions}
       />
 
-      <AiPromptComposerCard
+      <FeatureSectionSwitcher
         palette={palette}
-        label="AI planner copilot"
-        title="Draft the next best plan for the current calendar"
-        value={aiRequest}
-        onChangeText={setAiRequest}
-        onSubmit={() => void handleGenerateAiDraft()}
-        isBusy={isGeneratingAiDraft}
-        contextChips={[
-          activeDateKey,
-          `${selectedDayReminders.length} on selected day`,
-          `${plannerGroups.length} day groups visible`,
-        ]}
-        helperText={aiPlannerCopilotCopy.getHelperText(activeDateKey)}
-        consentLabel={aiPlannerCopilotCopy.consentLabel}
-        footerNote={aiPlannerCopilotCopy.promptFooterNote}
-        placeholder="Example: Prioritize the selected day, call out what I should log proof for, and tell me what can wait until later this week."
-        submitLabel="Generate planner draft"
+        label="Feature groups"
+        title="Focus on one planner layer at a time"
+        description="Switch between AI focus tools, the calendar view, and the schedule lanes so the planner stays organized instead of showing every layer at once."
+        items={plannerSections}
+        activeId={activeSection}
+        onChange={setActiveSection}
       />
 
-      {aiStatusMessage ? (
-        <SectionMessage
-          palette={palette}
-          label="AI planner"
-          title="Latest copilot status"
-          message={aiStatusMessage}
-        />
-      ) : null}
+      <Animated.View style={sectionContentAnimatedStyle}>
+        {activeSection === "focus" ? (
+          <>
+            <AiPromptComposerCard
+              palette={palette}
+              label="AI planner copilot"
+              title="Draft the next best plan for the current calendar"
+              value={aiRequest}
+              onChangeText={setAiRequest}
+              onSubmit={() => void handleGenerateAiDraft()}
+              isBusy={isGeneratingAiDraft}
+              contextChips={[
+                activeDateKey,
+                `${selectedDayReminders.length} on selected day`,
+                `${plannerGroups.length} day groups visible`,
+              ]}
+              helperText={aiPlannerCopilotCopy.getHelperText(activeDateKey)}
+              consentLabel={aiPlannerCopilotCopy.consentLabel}
+              footerNote={aiPlannerCopilotCopy.promptFooterNote}
+              placeholder="Example: Prioritize the selected day, call out what I should log proof for, and tell me what can wait until later this week."
+              submitLabel="Generate planner draft"
+            />
 
-      {generatedAiDraft ? (
-        <AiDraftReviewCard
-          palette={palette}
-          title="Review the AI planner draft"
-          draftKindLabel={`Planner • ${activeDateKey}`}
-          summary={`Prompt: ${generatedAiDraft.request}`}
-          consentLabel={generatedAiDraft.consentLabel}
-          footerNote={aiPlannerCopilotCopy.reviewFooterNote}
-          statusLabel="Draft ready"
-          modelLabel={generatedAiDraft.modelId}
-          usage={generatedAiDraft.usage}
-          contextChips={[
-            generatedAiDraft.draft.focusDateKey ?? activeDateKey,
-            `${generatedAiDraft.draft.suggestedActions.length} suggested action${generatedAiDraft.draft.suggestedActions.length === 1 ? "" : "s"}`,
-          ]}
-          items={buildAiPlannerCopilotReviewItems(generatedAiDraft.draft)}
-          acceptLabel="Apply to planner"
-          editLabel="Dismiss draft"
-          regenerateLabel="Generate again"
-          onAccept={handleApplyAiDraft}
-          onEdit={handleDismissAiDraft}
-          onRegenerate={() => void handleGenerateAiDraft()}
-          isBusy={isGeneratingAiDraft}
-        />
-      ) : null}
-
-      {appliedAiDraft ? (
-        <SectionSurface
-          palette={palette}
-          label="AI plan"
-          title={appliedAiDraft.draft.headline}
-        >
-          <ChipRow style={styles.aiChipRow}>
-            <Chip compact>
-              Focus {appliedAiDraft.draft.focusDateKey ?? activeDateKey}
-            </Chip>
-            <Chip compact>{recommendations.length} recommendations live</Chip>
-          </ChipRow>
-          {appliedAiDraft.draft.summary ? (
-            <Text style={styles.copy}>{appliedAiDraft.draft.summary}</Text>
-          ) : null}
-          {appliedAiDraft.draft.groupedPlan.length > 0 ? (
-            <View style={styles.aiList}>
-              {appliedAiDraft.draft.groupedPlan.map((item) => (
-                <Text key={item} style={styles.historyItem}>
-                  • {item}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-          {appliedAiDraft.draft.suggestedActions.length > 0 ? (
-            <View style={styles.aiList}>
-              {appliedAiDraft.draft.suggestedActions.map((item) => (
-                <Text key={item.reminderId} style={styles.historyItem}>
-                  • {item.title} — {getPlannerSuggestedActionLabel(item.action)}{" "}
-                  • {item.reason}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-          {appliedAiDraft.draft.caution ? (
-            <Text style={styles.historyItem}>
-              Caution: {appliedAiDraft.draft.caution}
-            </Text>
-          ) : null}
-          <ActionButtonRow style={styles.buttonRow}>
-            <Button
-              mode="outlined"
-              onPress={() => setAppliedAiDraft(null)}
-              style={styles.button}
-            >
-              Clear plan
-            </Button>
-            {appliedAiDraft.draft.focusDateKey ? (
-              <Button
-                mode="outlined"
-                onPress={() => {
-                  setSelectedDateKey(
-                    appliedAiDraft.draft.focusDateKey ?? activeDateKey,
-                  );
-                  setMonthOffset(
-                    getMonthOffsetForDate(
-                      workspace.generatedAt,
-                      appliedAiDraft.draft.focusDateKey ?? activeDateKey,
-                    ),
-                  );
-                }}
-                style={styles.button}
-              >
-                Focus suggested day
-              </Button>
+            {aiStatusMessage ? (
+              <SectionMessage
+                palette={palette}
+                label="AI planner"
+                title="Latest copilot status"
+                message={aiStatusMessage}
+              />
             ) : null}
-            <Button
-              mode="outlined"
-              onPress={() => router.push("/action-center" as never)}
-              style={styles.button}
-            >
-              Open action center
-            </Button>
-            {appliedAiReminder ? (
-              <Button
-                mode="contained"
-                onPress={() =>
-                  router.push({
-                    pathname: "/logbook",
-                    params: {
-                      actionId: "quick-log",
-                      reminderId: appliedAiReminder.id,
-                      spaceId: appliedAiReminder.spaceId,
-                    },
-                  })
-                }
-                style={styles.button}
-              >
-                Log proof
-              </Button>
-            ) : null}
-            <Button
-              mode="contained-tonal"
-              onPress={() => void handleGenerateAiDraft()}
-              style={styles.button}
-              disabled={isGeneratingAiDraft}
-            >
-              Refresh plan
-            </Button>
-          </ActionButtonRow>
-        </SectionSurface>
-      ) : null}
 
-      <AiPromptComposerCard
-        palette={palette}
-        label="AI planner risk"
-        title="Explain what looks risky or safely deferrable"
-        value={riskRequest}
-        onChangeText={setRiskRequest}
-        onSubmit={() => void handleGenerateRiskBrief()}
-        isBusy={isGeneratingRiskBrief}
-        contextChips={[
-          activeDateKey,
-          `${plannerRiskSummary.summary.overdueCount} overdue`,
-          `${plannerRiskSummary.summary.deferralCount} recent deferral${plannerRiskSummary.summary.deferralCount === 1 ? "" : "s"}`,
-        ]}
-        helperText={aiPlannerRiskCopy.getHelperText(activeDateKey)}
-        consentLabel={aiPlannerRiskCopy.consentLabel}
-        footerNote={aiPlannerRiskCopy.promptFooterNote}
-        placeholder="Example: Explain what can safely wait until later this week, what is most likely to slip, and whether I should jump to action center or logbook next."
-        submitLabel="Generate risk brief"
-      />
-
-      {riskStatusMessage ? (
-        <SectionMessage
-          palette={palette}
-          label="AI planner risk"
-          title="Latest risk brief status"
-          message={riskStatusMessage}
-        />
-      ) : null}
-
-      {generatedRiskBrief ? (
-        <AiDraftReviewCard
-          palette={palette}
-          title="Review the AI planner risk brief"
-          draftKindLabel={`Planner risk • ${generatedRiskBrief.activeDateKey}`}
-          summary={`Prompt: ${generatedRiskBrief.request}`}
-          consentLabel={generatedRiskBrief.consentLabel}
-          footerNote={aiPlannerRiskCopy.reviewFooterNote}
-          statusLabel="Draft ready"
-          modelLabel={generatedRiskBrief.modelId}
-          usage={generatedRiskBrief.usage}
-          contextChips={[
-            generatedRiskBrief.activeDateKey,
-            `${generatedRiskBrief.draft.citedSourceIds.length} cited source${generatedRiskBrief.draft.citedSourceIds.length === 1 ? "" : "s"}`,
-          ]}
-          items={buildAiPlannerRiskReviewItems(
-            generatedRiskBrief.draft,
-            generatedRiskBrief.sources,
-          )}
-          acceptLabel="Apply brief"
-          editLabel="Dismiss draft"
-          regenerateLabel="Generate again"
-          onAccept={handleApplyRiskBrief}
-          onEdit={handleDismissRiskBrief}
-          onRegenerate={() => void handleGenerateRiskBrief()}
-          isBusy={isGeneratingRiskBrief}
-        />
-      ) : null}
-
-      {appliedRiskBrief ? (
-        <SectionSurface
-          palette={palette}
-          label="AI risk"
-          title={appliedRiskBrief.draft.headline}
-        >
-          <ChipRow style={styles.aiChipRow}>
-            <Chip compact>Day {appliedRiskBrief.activeDateKey}</Chip>
-            <Chip compact>
-              {formatAiPlannerRiskDestinationLabel(
-                appliedRiskBrief.draft.suggestedDestination ?? "planner",
-              )}
-            </Chip>
-          </ChipRow>
-          {appliedRiskBrief.draft.summary ? (
-            <Text style={styles.copy}>{appliedRiskBrief.draft.summary}</Text>
-          ) : null}
-          {appliedRiskBrief.draft.keyRisks.length > 0 ? (
-            <View style={styles.aiList}>
-              {appliedRiskBrief.draft.keyRisks.map((risk) => (
-                <Text key={risk} style={[styles.meta, paletteStyles.mutedText]}>
-                  • {risk}
-                </Text>
-              ))}
-            </View>
-          ) : null}
-          {appliedRiskBrief.draft.caution ? (
-            <Text style={[styles.meta, paletteStyles.mutedText]}>
-              Caution: {appliedRiskBrief.draft.caution}
-            </Text>
-          ) : null}
-          {appliedRiskBrief.sources
-            .filter((source) =>
-              appliedRiskBrief.draft.citedSourceIds.includes(source.id),
-            )
-            .map((source) => (
-              <Surface
-                key={source.id}
-                style={[
-                  styles.riskSourceCard,
-                  paletteStyles.raisedCardSurface,
-                  { borderColor: palette.border },
+            {generatedAiDraft ? (
+              <AiDraftReviewCard
+                palette={palette}
+                title="Review the AI planner draft"
+                draftKindLabel={`Planner • ${activeDateKey}`}
+                summary={`Prompt: ${generatedAiDraft.request}`}
+                consentLabel={generatedAiDraft.consentLabel}
+                footerNote={aiPlannerCopilotCopy.reviewFooterNote}
+                statusLabel="Draft ready"
+                modelLabel={generatedAiDraft.modelId}
+                usage={generatedAiDraft.usage}
+                contextChips={[
+                  generatedAiDraft.draft.focusDateKey ?? activeDateKey,
+                  `${generatedAiDraft.draft.suggestedActions.length} suggested action${generatedAiDraft.draft.suggestedActions.length === 1 ? "" : "s"}`,
                 ]}
-                elevation={uiElevation.raisedCard}
+                items={buildAiPlannerCopilotReviewItems(generatedAiDraft.draft)}
+                acceptLabel="Apply to planner"
+                editLabel="Dismiss draft"
+                regenerateLabel="Generate again"
+                onAccept={handleApplyAiDraft}
+                onEdit={handleDismissAiDraft}
+                onRegenerate={() => void handleGenerateAiDraft()}
+                isBusy={isGeneratingAiDraft}
+              />
+            ) : null}
+
+            {appliedAiDraft ? (
+              <SectionSurface
+                palette={palette}
+                label="AI plan"
+                title={appliedAiDraft.draft.headline}
               >
-                <View>
-                  <Text style={styles.listTitle}>
-                    {formatAiPlannerRiskSourceLabel(source)}
+                <ChipRow style={styles.aiChipRow}>
+                  <Chip compact>
+                    Focus {appliedAiDraft.draft.focusDateKey ?? activeDateKey}
+                  </Chip>
+                  <Chip compact>
+                    {recommendations.length} recommendations live
+                  </Chip>
+                </ChipRow>
+                {appliedAiDraft.draft.summary ? (
+                  <Text style={styles.copy}>
+                    {appliedAiDraft.draft.summary}
                   </Text>
-                  <Text style={[styles.copy, paletteStyles.mutedText]}>
-                    {source.snippet}
-                  </Text>
-                </View>
-                <Button
-                  mode="outlined"
-                  onPress={() => openPlannerRiskSource(source)}
-                  style={styles.button}
-                >
-                  {formatAiPlannerRiskDestinationLabel(source.route)}
-                </Button>
-              </Surface>
-            ))}
-          <ActionButtonRow style={styles.riskActionRow}>
-            <Button
-              mode="outlined"
-              onPress={() => setAppliedRiskBrief(null)}
-              style={styles.button}
-            >
-              Clear brief
-            </Button>
-            <Button
-              mode="outlined"
-              onPress={() =>
-                openPlannerRiskDestination(
-                  appliedRiskBrief.draft.suggestedDestination,
-                )
-              }
-              style={styles.button}
-            >
-              {formatAiPlannerRiskDestinationLabel(
-                appliedRiskBrief.draft.suggestedDestination ?? "planner",
-              )}
-            </Button>
-            <Button
-              mode="contained-tonal"
-              onPress={() => void handleGenerateRiskBrief()}
-              style={styles.button}
-              disabled={isGeneratingRiskBrief}
-            >
-              Refresh brief
-            </Button>
-          </ActionButtonRow>
-        </SectionSurface>
-      ) : null}
-
-      <Surface
-        style={[styles.calendarCard, paletteStyles.cardSurface]}
-        elevation={uiElevation.card}
-      >
-        <View style={styles.calendarHeader}>
-          <Button
-            mode="text"
-            onPress={() => setMonthOffset((current) => current - 1)}
-          >
-            Previous
-          </Button>
-          <Text style={styles.calendarTitle}>{calendar.monthLabel}</Text>
-          <Button
-            mode="text"
-            onPress={() => setMonthOffset((current) => current + 1)}
-          >
-            Next
-          </Button>
-        </View>
-
-        <View style={styles.weekdayRow}>
-          {weekdayLabels.map((label) => (
-            <Text
-              key={label}
-              style={[styles.weekdayLabel, paletteStyles.mutedText]}
-            >
-              {label}
-            </Text>
-          ))}
-        </View>
-
-        {calendar.weeks.map((week, weekIndex) => (
-          <View key={`week-${weekIndex}`} style={styles.calendarWeek}>
-            {week.map((cell) => {
-              const isSelected = cell.key === activeDateKey;
-
-              return (
-                <Pressable
-                  key={cell.key}
-                  onPress={() => setSelectedDateKey(cell.key)}
-                  style={[
-                    styles.calendarDay,
-                    {
-                      backgroundColor: isSelected
-                        ? `${palette.tint}16`
-                        : palette.background,
-                      borderColor: isSelected
-                        ? palette.tint
-                        : cell.isToday
-                          ? `${palette.tint}77`
-                          : palette.border,
-                      opacity: cell.inMonth ? 1 : 0.55,
-                    },
-                  ]}
-                >
-                  <Text style={styles.calendarDayLabel}>{cell.label}</Text>
-                  <Text
-                    style={[styles.calendarDayMeta, paletteStyles.mutedText]}
-                  >
-                    {cell.reminders.length > 0
-                      ? `${cell.reminders.length} task${cell.reminders.length === 1 ? "" : "s"}`
-                      : "—"}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ))}
-      </Surface>
-
-      <View style={[styles.dayAgendaCard, paletteStyles.raisedCardSurface]}>
-        <Text style={styles.sectionTitle}>Selected day agenda</Text>
-        <Text style={[styles.selectedDateMeta, paletteStyles.mutedText]}>
-          {activeDateKey}
-        </Text>
-        {selectedDayReminders.length > 0 ? (
-          selectedDayReminders.map((reminder) => {
-            const space = workspace.spaces.find(
-              (item) => item.id === reminder.spaceId,
-            );
-
-            return (
-              <View key={reminder.id} style={styles.dayAgendaItem}>
-                <Text style={styles.listTitle}>{reminder.title}</Text>
-                <Text style={[styles.copy, paletteStyles.mutedText]}>
-                  {space?.name ?? "Unknown space"} • Due{" "}
-                  {formatDue(getReminderScheduleTimestamp(reminder))}
-                </Text>
-              </View>
-            );
-          })
-        ) : (
-          <Text style={[styles.copy, paletteStyles.mutedText]}>
-            No reminders are scheduled for this day.
-          </Text>
-        )}
-      </View>
-
-      {plannerGroups.length === 0 ? (
-        <View
-          style={[
-            styles.card,
-            paletteStyles.raisedCardSurface,
-            { borderLeftColor: palette.border },
-          ]}
-        >
-          <Text style={styles.cardTitle}>No reminders yet</Text>
-          <Text style={[styles.copy, paletteStyles.mutedText]}>
-            Upcoming reminders will appear here when real workspace tasks are
-            synced, imported, or created.
-          </Text>
-        </View>
-      ) : (
-        plannerGroups.map((group) => (
-          <View key={group.label} style={styles.group}>
-            <Text style={styles.groupTitle}>{group.label}</Text>
-            {group.reminders.map((reminder) => {
-              const space = group.spacesById.get(reminder.spaceId);
-
-              return (
-                <View
-                  key={reminder.id}
-                  style={[
-                    styles.card,
-                    paletteStyles.raisedCardSurface,
-                    { borderLeftColor: space?.themeColor ?? palette.tint },
-                  ]}
-                >
-                  <Text style={styles.cardTitle}>{reminder.title}</Text>
-                  <View style={styles.metaRow}>
-                    <Text
-                      style={[
-                        styles.meta,
-                        { color: space?.themeColor ?? palette.tint },
-                      ]}
-                    >
-                      {space?.name ?? "Unknown space"}
-                    </Text>
-                    <Chip compact>{reminder.status.toUpperCase()}</Chip>
+                ) : null}
+                {appliedAiDraft.draft.groupedPlan.length > 0 ? (
+                  <View style={styles.aiList}>
+                    {appliedAiDraft.draft.groupedPlan.map((item) => (
+                      <Text key={item} style={styles.historyItem}>
+                        • {item}
+                      </Text>
+                    ))}
                   </View>
-                  <Text style={[styles.copy, paletteStyles.mutedText]}>
-                    {reminder.description}
+                ) : null}
+                {appliedAiDraft.draft.suggestedActions.length > 0 ? (
+                  <View style={styles.aiList}>
+                    {appliedAiDraft.draft.suggestedActions.map((item) => (
+                      <Text key={item.reminderId} style={styles.historyItem}>
+                        • {item.title} —{" "}
+                        {getPlannerSuggestedActionLabel(item.action)} •{" "}
+                        {item.reason}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {appliedAiDraft.draft.caution ? (
+                  <Text style={styles.historyItem}>
+                    Caution: {appliedAiDraft.draft.caution}
                   </Text>
-                  <Text style={[styles.copy, paletteStyles.mutedText]}>
-                    Due {formatDue(reminder.snoozedUntil ?? reminder.dueAt)}
-                  </Text>
-                  {reminder.ruleLabel || reminder.triggerCondition ? (
-                    <Text style={[styles.copy, paletteStyles.mutedText]}>
-                      {reminder.ruleLabel ?? reminder.triggerCondition}
-                    </Text>
+                ) : null}
+                <ActionButtonRow style={styles.buttonRow}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setAppliedAiDraft(null)}
+                    style={styles.button}
+                  >
+                    Clear plan
+                  </Button>
+                  {appliedAiDraft.draft.focusDateKey ? (
+                    <Button
+                      mode="outlined"
+                      onPress={() => {
+                        setSelectedDateKey(
+                          appliedAiDraft.draft.focusDateKey ?? activeDateKey,
+                        );
+                        setMonthOffset(
+                          getMonthOffsetForDate(
+                            workspace.generatedAt,
+                            appliedAiDraft.draft.focusDateKey ?? activeDateKey,
+                          ),
+                        );
+                      }}
+                      style={styles.button}
+                    >
+                      Focus suggested day
+                    </Button>
                   ) : null}
-                  {reminder.skipReason ? (
-                    <Text style={[styles.copy, paletteStyles.mutedText]}>
-                      Last skip: {reminder.skipReason}
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.buttonRow}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => router.push("/action-center" as never)}
+                    style={styles.button}
+                  >
+                    Open action center
+                  </Button>
+                  {appliedAiReminder ? (
                     <Button
                       mode="contained"
-                      onPress={() => completeReminder(reminder.id)}
+                      onPress={() =>
+                        router.push({
+                          pathname: "/logbook",
+                          params: {
+                            actionId: "quick-log",
+                            reminderId: appliedAiReminder.id,
+                            spaceId: appliedAiReminder.spaceId,
+                          },
+                        })
+                      }
                       style={styles.button}
                     >
-                      Complete
+                      Log proof
                     </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={() => snoozeReminder(reminder.id)}
-                      style={styles.button}
-                    >
-                      Snooze
-                    </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={() => skipReminder(reminder.id)}
-                      style={styles.button}
-                    >
-                      Skip
-                    </Button>
-                  </View>
+                  ) : null}
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() => void handleGenerateAiDraft()}
+                    style={styles.button}
+                    disabled={isGeneratingAiDraft}
+                  >
+                    Refresh plan
+                  </Button>
+                </ActionButtonRow>
+              </SectionSurface>
+            ) : null}
 
-                  {(reminder.history ?? []).slice(0, 2).map((item) => (
-                    <Text
-                      key={item.id}
-                      style={[styles.historyItem, paletteStyles.mutedText]}
+            <AiPromptComposerCard
+              palette={palette}
+              label="AI planner risk"
+              title="Explain what looks risky or safely deferrable"
+              value={riskRequest}
+              onChangeText={setRiskRequest}
+              onSubmit={() => void handleGenerateRiskBrief()}
+              isBusy={isGeneratingRiskBrief}
+              contextChips={[
+                activeDateKey,
+                `${plannerRiskSummary.summary.overdueCount} overdue`,
+                `${plannerRiskSummary.summary.deferralCount} recent deferral${plannerRiskSummary.summary.deferralCount === 1 ? "" : "s"}`,
+              ]}
+              helperText={aiPlannerRiskCopy.getHelperText(activeDateKey)}
+              consentLabel={aiPlannerRiskCopy.consentLabel}
+              footerNote={aiPlannerRiskCopy.promptFooterNote}
+              placeholder="Example: Explain what can safely wait until later this week, what is most likely to slip, and whether I should jump to action center or logbook next."
+              submitLabel="Generate risk brief"
+            />
+
+            {riskStatusMessage ? (
+              <SectionMessage
+                palette={palette}
+                label="AI planner risk"
+                title="Latest risk brief status"
+                message={riskStatusMessage}
+              />
+            ) : null}
+
+            {generatedRiskBrief ? (
+              <AiDraftReviewCard
+                palette={palette}
+                title="Review the AI planner risk brief"
+                draftKindLabel={`Planner risk • ${generatedRiskBrief.activeDateKey}`}
+                summary={`Prompt: ${generatedRiskBrief.request}`}
+                consentLabel={generatedRiskBrief.consentLabel}
+                footerNote={aiPlannerRiskCopy.reviewFooterNote}
+                statusLabel="Draft ready"
+                modelLabel={generatedRiskBrief.modelId}
+                usage={generatedRiskBrief.usage}
+                contextChips={[
+                  generatedRiskBrief.activeDateKey,
+                  `${generatedRiskBrief.draft.citedSourceIds.length} cited source${generatedRiskBrief.draft.citedSourceIds.length === 1 ? "" : "s"}`,
+                ]}
+                items={buildAiPlannerRiskReviewItems(
+                  generatedRiskBrief.draft,
+                  generatedRiskBrief.sources,
+                )}
+                acceptLabel="Apply brief"
+                editLabel="Dismiss draft"
+                regenerateLabel="Generate again"
+                onAccept={handleApplyRiskBrief}
+                onEdit={handleDismissRiskBrief}
+                onRegenerate={() => void handleGenerateRiskBrief()}
+                isBusy={isGeneratingRiskBrief}
+              />
+            ) : null}
+
+            {appliedRiskBrief ? (
+              <SectionSurface
+                palette={palette}
+                label="AI risk"
+                title={appliedRiskBrief.draft.headline}
+              >
+                <ChipRow style={styles.aiChipRow}>
+                  <Chip compact>Day {appliedRiskBrief.activeDateKey}</Chip>
+                  <Chip compact>
+                    {formatAiPlannerRiskDestinationLabel(
+                      appliedRiskBrief.draft.suggestedDestination ?? "planner",
+                    )}
+                  </Chip>
+                </ChipRow>
+                {appliedRiskBrief.draft.summary ? (
+                  <Text style={styles.copy}>
+                    {appliedRiskBrief.draft.summary}
+                  </Text>
+                ) : null}
+                {appliedRiskBrief.draft.keyRisks.length > 0 ? (
+                  <View style={styles.aiList}>
+                    {appliedRiskBrief.draft.keyRisks.map((risk) => (
+                      <Text
+                        key={risk}
+                        style={[styles.meta, paletteStyles.mutedText]}
+                      >
+                        • {risk}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+                {appliedRiskBrief.draft.caution ? (
+                  <Text style={[styles.meta, paletteStyles.mutedText]}>
+                    Caution: {appliedRiskBrief.draft.caution}
+                  </Text>
+                ) : null}
+                {appliedRiskBrief.sources
+                  .filter((source) =>
+                    appliedRiskBrief.draft.citedSourceIds.includes(source.id),
+                  )
+                  .map((source) => (
+                    <Surface
+                      key={source.id}
+                      style={[
+                        styles.riskSourceCard,
+                        paletteStyles.raisedCardSurface,
+                        { borderColor: palette.border },
+                      ]}
+                      elevation={uiElevation.raisedCard}
                     >
-                      • {item.action} — {item.note}
-                    </Text>
+                      <View>
+                        <Text style={styles.listTitle}>
+                          {formatAiPlannerRiskSourceLabel(source)}
+                        </Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {source.snippet}
+                        </Text>
+                      </View>
+                      <Button
+                        mode="outlined"
+                        onPress={() => openPlannerRiskSource(source)}
+                        style={styles.button}
+                      >
+                        {formatAiPlannerRiskDestinationLabel(source.route)}
+                      </Button>
+                    </Surface>
                   ))}
+                <ActionButtonRow style={styles.riskActionRow}>
+                  <Button
+                    mode="outlined"
+                    onPress={() => setAppliedRiskBrief(null)}
+                    style={styles.button}
+                  >
+                    Clear brief
+                  </Button>
+                  <Button
+                    mode="outlined"
+                    onPress={() =>
+                      openPlannerRiskDestination(
+                        appliedRiskBrief.draft.suggestedDestination,
+                      )
+                    }
+                    style={styles.button}
+                  >
+                    {formatAiPlannerRiskDestinationLabel(
+                      appliedRiskBrief.draft.suggestedDestination ?? "planner",
+                    )}
+                  </Button>
+                  <Button
+                    mode="contained-tonal"
+                    onPress={() => void handleGenerateRiskBrief()}
+                    style={styles.button}
+                    disabled={isGeneratingRiskBrief}
+                  >
+                    Refresh brief
+                  </Button>
+                </ActionButtonRow>
+              </SectionSurface>
+            ) : null}
+          </>
+        ) : null}
+
+        {activeSection === "calendar" ? (
+          <>
+            <Surface
+              style={[styles.calendarCard, paletteStyles.cardSurface]}
+              elevation={uiElevation.card}
+            >
+              <View style={styles.calendarHeader}>
+                <Button
+                  mode="text"
+                  onPress={() => setMonthOffset((current) => current - 1)}
+                >
+                  Previous
+                </Button>
+                <Text style={styles.calendarTitle}>{calendar.monthLabel}</Text>
+                <Button
+                  mode="text"
+                  onPress={() => setMonthOffset((current) => current + 1)}
+                >
+                  Next
+                </Button>
+              </View>
+
+              <View style={styles.weekdayRow}>
+                {weekdayLabels.map((label) => (
+                  <Text
+                    key={label}
+                    style={[styles.weekdayLabel, paletteStyles.mutedText]}
+                  >
+                    {label}
+                  </Text>
+                ))}
+              </View>
+
+              {calendar.weeks.map((week, weekIndex) => (
+                <View key={`week-${weekIndex}`} style={styles.calendarWeek}>
+                  {week.map((cell) => {
+                    const isSelected = cell.key === activeDateKey;
+
+                    return (
+                      <Pressable
+                        key={cell.key}
+                        onPress={() => setSelectedDateKey(cell.key)}
+                        style={[
+                          styles.calendarDay,
+                          {
+                            backgroundColor: isSelected
+                              ? `${palette.tint}16`
+                              : palette.background,
+                            borderColor: isSelected
+                              ? palette.tint
+                              : cell.isToday
+                                ? `${palette.tint}77`
+                                : palette.border,
+                            opacity: cell.inMonth ? 1 : 0.55,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.calendarDayLabel}>
+                          {cell.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.calendarDayMeta,
+                            paletteStyles.mutedText,
+                          ]}
+                        >
+                          {cell.reminders.length > 0
+                            ? `${cell.reminders.length} task${cell.reminders.length === 1 ? "" : "s"}`
+                            : "—"}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
-              );
-            })}
-          </View>
-        ))
-      )}
+              ))}
+            </Surface>
+
+            <View
+              style={[styles.dayAgendaCard, paletteStyles.raisedCardSurface]}
+            >
+              <Text style={styles.sectionTitle}>Selected day agenda</Text>
+              <Text style={[styles.selectedDateMeta, paletteStyles.mutedText]}>
+                {activeDateKey}
+              </Text>
+              {selectedDayReminders.length > 0 ? (
+                selectedDayReminders.map((reminder) => {
+                  const space = workspace.spaces.find(
+                    (item) => item.id === reminder.spaceId,
+                  );
+
+                  return (
+                    <View key={reminder.id} style={styles.dayAgendaItem}>
+                      <Text style={styles.listTitle}>{reminder.title}</Text>
+                      <Text style={[styles.copy, paletteStyles.mutedText]}>
+                        {space?.name ?? "Unknown space"} • Due{" "}
+                        {formatDue(getReminderScheduleTimestamp(reminder))}
+                      </Text>
+                    </View>
+                  );
+                })
+              ) : (
+                <Text style={[styles.copy, paletteStyles.mutedText]}>
+                  No reminders are scheduled for this day.
+                </Text>
+              )}
+            </View>
+          </>
+        ) : null}
+
+        {activeSection === "schedule" ? (
+          <>
+            {plannerGroups.length === 0 ? (
+              <View
+                style={[
+                  styles.card,
+                  paletteStyles.raisedCardSurface,
+                  { borderLeftColor: palette.border },
+                ]}
+              >
+                <Text style={styles.cardTitle}>No reminders yet</Text>
+                <Text style={[styles.copy, paletteStyles.mutedText]}>
+                  Upcoming reminders will appear here when real workspace tasks
+                  are synced, imported, or created.
+                </Text>
+              </View>
+            ) : (
+              plannerGroups.map((group) => (
+                <View key={group.label} style={styles.group}>
+                  <Text style={styles.groupTitle}>{group.label}</Text>
+                  {group.reminders.map((reminder) => {
+                    const space = group.spacesById.get(reminder.spaceId);
+
+                    return (
+                      <View
+                        key={reminder.id}
+                        style={[
+                          styles.card,
+                          paletteStyles.raisedCardSurface,
+                          {
+                            borderLeftColor: space?.themeColor ?? palette.tint,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.cardTitle}>{reminder.title}</Text>
+                        <View style={styles.metaRow}>
+                          <Text
+                            style={[
+                              styles.meta,
+                              { color: space?.themeColor ?? palette.tint },
+                            ]}
+                          >
+                            {space?.name ?? "Unknown space"}
+                          </Text>
+                          <Chip compact>{reminder.status.toUpperCase()}</Chip>
+                        </View>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {reminder.description}
+                        </Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          Due{" "}
+                          {formatDue(reminder.snoozedUntil ?? reminder.dueAt)}
+                        </Text>
+                        {reminder.ruleLabel || reminder.triggerCondition ? (
+                          <Text style={[styles.copy, paletteStyles.mutedText]}>
+                            {reminder.ruleLabel ?? reminder.triggerCondition}
+                          </Text>
+                        ) : null}
+                        {reminder.skipReason ? (
+                          <Text style={[styles.copy, paletteStyles.mutedText]}>
+                            Last skip: {reminder.skipReason}
+                          </Text>
+                        ) : null}
+
+                        <View style={styles.buttonRow}>
+                          <Button
+                            mode="contained"
+                            onPress={() => completeReminder(reminder.id)}
+                            style={styles.button}
+                          >
+                            Complete
+                          </Button>
+                          <Button
+                            mode="outlined"
+                            onPress={() => snoozeReminder(reminder.id)}
+                            style={styles.button}
+                          >
+                            Snooze
+                          </Button>
+                          <Button
+                            mode="outlined"
+                            onPress={() => skipReminder(reminder.id)}
+                            style={styles.button}
+                          >
+                            Skip
+                          </Button>
+                        </View>
+
+                        {(reminder.history ?? []).slice(0, 2).map((item) => (
+                          <Text
+                            key={item.id}
+                            style={[
+                              styles.historyItem,
+                              paletteStyles.mutedText,
+                            ]}
+                          >
+                            • {item.action} — {item.note}
+                          </Text>
+                        ))}
+                      </View>
+                    );
+                  })}
+                </View>
+              ))
+            )}
+          </>
+        ) : null}
+      </Animated.View>
     </Animated.ScrollView>
   );
 }
