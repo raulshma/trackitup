@@ -13,13 +13,14 @@ type ThemeProps = {
   lightColor?: string;
   darkColor?: string;
   oledColor?: string;
+  monotoneColor?: string;
 };
 
 export type TextProps = ThemeProps & DefaultText["props"];
 export type ViewProps = ThemeProps & DefaultView["props"];
 
 export function useThemeColor(
-  props: { light?: string; dark?: string; oled?: string },
+  props: { light?: string; dark?: string; oled?: string; monotone?: string },
   fallbackColor: string,
 ) {
   const theme = useColorScheme();
@@ -28,7 +29,9 @@ export function useThemeColor(
       ? props.light
       : theme === "oled"
         ? (props.oled ?? props.dark)
-        : props.dark;
+        : theme === "monotone"
+          ? (props.monotone ?? props.dark)
+          : props.dark;
 
   if (colorFromProps) {
     return colorFromProps;
@@ -38,10 +41,22 @@ export function useThemeColor(
 }
 
 export function Text(props: TextProps) {
-  const { style, lightColor, darkColor, oledColor, ...otherProps } = props;
+  const {
+    style,
+    lightColor,
+    darkColor,
+    oledColor,
+    monotoneColor,
+    ...otherProps
+  } = props;
   const theme = useTheme<MD3Theme>();
   const color = useThemeColor(
-    { light: lightColor, dark: darkColor, oled: oledColor },
+    {
+      light: lightColor,
+      dark: darkColor,
+      oled: oledColor,
+      monotone: monotoneColor,
+    },
     theme.colors.onSurface,
   );
 
@@ -49,10 +64,22 @@ export function Text(props: TextProps) {
 }
 
 export function View(props: ViewProps) {
-  const { style, lightColor, darkColor, oledColor, ...otherProps } = props;
+  const {
+    style,
+    lightColor,
+    darkColor,
+    oledColor,
+    monotoneColor,
+    ...otherProps
+  } = props;
   const theme = useTheme<MD3Theme>();
   const backgroundColor = useThemeColor(
-    { light: lightColor, dark: darkColor, oled: oledColor },
+    {
+      light: lightColor,
+      dark: darkColor,
+      oled: oledColor,
+      monotone: monotoneColor,
+    },
     theme.colors.background,
   );
 

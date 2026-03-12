@@ -6,12 +6,14 @@ import {
     Platform,
     ScrollView,
     StyleSheet,
+    View,
 } from "react-native";
 import {
     ActivityIndicator,
     Button,
     Chip,
     Dialog,
+    IconButton,
     Portal,
     SegmentedButtons,
     TextInput,
@@ -63,7 +65,9 @@ import {
     type WorkspacePrivacyMode,
 } from "@/services/offline/workspacePrivacyMode";
 import {
+    DEFAULT_THEME_ACCENT_COLOR,
     getThemeAccentLabel,
+    normalizeThemeAccentColor,
     THEME_PREFERENCE_OPTIONS,
     type ThemePreference,
 } from "@/services/theme/themePreferences";
@@ -72,6 +76,7 @@ const themeOptionLabels: Record<ThemePreference, string> = {
   light: "Light",
   dark: "Dark",
   oled: "OLED",
+  monotone: "Monotone",
 };
 
 type AccountSection = "profile" | "appearance" | "assistant" | "privacy";
@@ -159,6 +164,8 @@ export default function AccountScreen() {
   const aiPromptHistoryValue = aiPreferences.promptHistoryEnabled
     ? "save"
     : "dont-save";
+  const isDefaultAccent =
+    normalizeThemeAccentColor(themeAccentColor) === DEFAULT_THEME_ACCENT_COLOR;
 
   useEffect(() => {
     let isMounted = true;
@@ -465,8 +472,8 @@ export default function AccountScreen() {
           >
             <Text style={[styles.copy, paletteStyles.mutedText]}>
               The app defaults to dark mode, and you can switch between light,
-              dark, and OLED at any time while dialing in an accent that feels
-              more like your workspace.
+              dark, OLED, and monotone at any time while dialing in an accent
+              that feels more like your workspace.
             </Text>
             <SegmentedButtons
               value={themePreference}
@@ -489,7 +496,25 @@ export default function AccountScreen() {
             </ChipRow>
             <Text style={[styles.meta, paletteStyles.mutedText]}>
               OLED uses pure-black backgrounds for the darkest nighttime look.
+              Monotone keeps the palette grayscale with your accent for focus.
             </Text>
+            <View style={styles.accentResetRow}>
+              <Text style={[styles.accentResetLabel, paletteStyles.mutedText]}>
+                Reset accent to default
+              </Text>
+              <IconButton
+                icon="backup-restore"
+                size={20}
+                onPress={() => setThemeAccentColor(DEFAULT_THEME_ACCENT_COLOR)}
+                disabled={isDefaultAccent}
+                accessibilityLabel="Reset accent color"
+                iconColor={palette.tint}
+                style={[
+                  styles.accentResetButton,
+                  { backgroundColor: palette.surface2 },
+                ]}
+              />
+            </View>
             <AccentColorPicker
               palette={palette}
               value={themeAccentColor}
@@ -1105,4 +1130,17 @@ const styles = StyleSheet.create({
     marginBottom: uiSpace.xs,
   },
   themeChip: { borderRadius: uiRadius.pill },
+  accentResetRow: {
+    marginTop: uiSpace.sm,
+    marginBottom: uiSpace.md,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  accentResetLabel: {
+    ...uiTypography.bodySmall,
+  },
+  accentResetButton: {
+    borderRadius: uiRadius.pill,
+  },
 });

@@ -27,7 +27,13 @@ import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getChartSeriesColor } from "@/constants/Colors";
-import { uiMotion, uiRadius, uiSpace } from "@/constants/UiTokens";
+import {
+    getShadowStyle,
+    uiMotion,
+    uiRadius,
+    uiShadow,
+    uiSpace,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiDashboardPulseCopy } from "@/services/ai/aiConsentCopy";
@@ -292,17 +298,21 @@ export default function TabOneScreen() {
     workspace.spaces.length,
     workspace.templates.length,
   ]);
+  const raisedCardShadow = useMemo(
+    () => getShadowStyle(theme.colors.shadow, uiShadow.raisedCard),
+    [theme.colors.shadow],
+  );
 
   const baseCardSurfaceStyle = {
     backgroundColor: theme.colors.elevation.level1,
     borderColor: theme.colors.outlineVariant,
-    shadowColor: theme.colors.shadow,
+    ...raisedCardShadow,
   };
 
   const nestedCardSurfaceStyle = {
     backgroundColor: theme.colors.elevation.level2,
     borderColor: theme.colors.outlineVariant,
-    shadowColor: theme.colors.shadow,
+    ...raisedCardShadow,
   };
 
   const widgetButtonColor = theme.colors.elevation.level2;

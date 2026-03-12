@@ -12,8 +12,10 @@ import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { Text } from "@/components/Themed";
 import { withAlpha, type AppPalette } from "@/constants/Colors";
 import {
+    getShadowStyle,
     uiBorder,
     uiRadius,
+    uiShadow,
     uiSpace,
     uiTypography,
 } from "@/constants/UiTokens";
@@ -141,6 +143,10 @@ export function AccentColorPicker({
   const hsv = useMemo(() => hexToHsv(value), [value]);
   const activePresetId = getThemeAccentPresetId(value);
   const hueColor = useMemo(() => hsvToHex(hsv.hue, 1, 1), [hsv.hue]);
+  const surfaceShadow = useMemo(
+    () => getShadowStyle(palette.shadow, uiShadow.raisedCard),
+    [palette.shadow],
+  );
 
   useEffect(() => {
     setHexInput(value);
@@ -254,8 +260,8 @@ export function AccentColorPicker({
           {
             backgroundColor: palette.surface1,
             borderColor: palette.borderSoft,
-            shadowColor: palette.shadow,
           },
+          surfaceShadow,
         ]}
         elevation={1}
       >
@@ -278,10 +284,9 @@ export function AccentColorPicker({
           style={styles.panelFrame}
         >
           <Svg
-            pointerEvents="none"
             width="100%"
             height="100%"
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}
           >
             <Defs>
               <LinearGradient
@@ -325,7 +330,6 @@ export function AccentColorPicker({
             />
           </Svg>
           <View
-            pointerEvents="none"
             style={[
               styles.panelCursor,
               {
@@ -341,6 +345,7 @@ export function AccentColorPicker({
                 ),
                 backgroundColor: value,
                 borderColor: palette.inverseSurface,
+                pointerEvents: "none",
               },
             ]}
           />
@@ -352,10 +357,9 @@ export function AccentColorPicker({
           style={styles.hueFrame}
         >
           <Svg
-            pointerEvents="none"
             width="100%"
             height="100%"
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}
           >
             <Defs>
               <LinearGradient id="accent-hue" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -379,7 +383,6 @@ export function AccentColorPicker({
             />
           </Svg>
           <View
-            pointerEvents="none"
             style={[
               styles.hueCursor,
               {
@@ -390,6 +393,7 @@ export function AccentColorPicker({
                 ),
                 borderColor: palette.inverseSurface,
                 backgroundColor: withAlpha(palette.inverseOnSurface, 0.75),
+                pointerEvents: "none",
               },
             ]}
           />

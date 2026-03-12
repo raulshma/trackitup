@@ -1,3 +1,4 @@
+import { BlurView } from "expo-blur";
 import { Href, usePathname, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import React from "react";
@@ -14,7 +15,9 @@ import { Surface, useTheme, type MD3Theme } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
+import { withAlpha } from "@/constants/Colors";
 import {
+    getShadowStyle,
     uiBorder,
     uiElevation,
     uiMotion,
@@ -36,6 +39,8 @@ type SidebarRoute = {
   icon: SidebarIconName;
   matches: (pathname: string) => boolean;
 };
+
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 
 const sidebarGroups: Array<{
   title: string;
@@ -218,6 +223,10 @@ export function AppSidebar() {
   const gestureStartValueRef = React.useRef(0);
   const [isVisible, setIsVisible] = React.useState(isOpen);
   const drawerWidth = Math.min(320, Math.max(280, width * 0.84));
+  const drawerShadow = React.useMemo(
+    () => getShadowStyle(theme.colors.shadow, uiShadow.raisedCard),
+    [theme.colors.shadow],
+  );
 
   React.useEffect(() => {
     const subscription = progress.addListener(({ value }) => {
@@ -341,23 +350,31 @@ export function AppSidebar() {
   );
 
   return (
-    <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {!isVisible ? (
         <View
-          pointerEvents="box-none"
           style={styles.edgeSwipeArea}
+          pointerEvents="box-none"
           {...drawerPanResponder.panHandlers}
         />
       ) : null}
       {isVisible ? (
         <>
-          <Animated.View
-            style={[
-              styles.backdrop,
-              backdropAnimatedStyle,
-              { backgroundColor: theme.colors.scrim },
-            ]}
-          >
+          <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
+            <AnimatedBlurView
+              intensity={40}
+              tint={theme.dark ? "dark" : "light"}
+              style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}
+            />
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                {
+                  backgroundColor: withAlpha(theme.colors.scrim, 0.35),
+                  pointerEvents: "none",
+                },
+              ]}
+            />
             <Pressable
               accessibilityLabel="Close sidebar"
               onPress={closeSidebar}
@@ -378,8 +395,8 @@ export function AppSidebar() {
                 {
                   backgroundColor: theme.colors.elevation.level1,
                   borderColor: theme.colors.outlineVariant,
-                  shadowColor: theme.colors.shadow,
                 },
+                drawerShadow,
               ]}
               elevation={uiElevation.chrome}
             >
@@ -568,7 +585,6 @@ const styles = StyleSheet.create({
     borderWidth: uiBorder.hairline,
     borderRadius: uiRadius.hero,
     overflow: "hidden",
-    ...uiShadow.raisedCard,
   },
   headerRow: {
     flexDirection: "row",

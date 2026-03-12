@@ -6,25 +6,26 @@ import { StyleSheet, View } from "react-native";
 import { type MD3Theme, useTheme } from "react-native-paper";
 
 import {
-    MaterialCompactTopAppBar,
-    type MaterialCompactTopAppBarAction,
+  MaterialCompactTopAppBar,
+  type MaterialCompactTopAppBarAction,
 } from "@/components/ui/MaterialCompactTopAppBar";
 import { RecordEventFab } from "@/components/ui/RecordEventFab";
 import {
-    TabHeaderScrollProvider,
-    useTabHeaderScrollValue,
+  TabHeaderScrollProvider,
+  useTabHeaderScrollValue,
 } from "@/components/ui/TabHeaderScrollContext";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
 import {
-    uiBorder,
-    uiElevation,
-    uiRadius,
-    uiShadow,
-    uiSize,
-    uiSpace,
-    uiTypography,
+  getShadowStyle,
+  uiBorder,
+  uiElevation,
+  uiRadius,
+  uiShadow,
+  uiSize,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useAppSidebar } from "@/providers/AppSidebarProvider";
 
@@ -71,6 +72,10 @@ export default function TabLayout() {
   const { toggleSidebar } = useAppSidebar();
   const activeTabColor = theme.colors.onPrimaryContainer;
   const inactiveTabColor = theme.colors.onSurfaceVariant;
+  const tabBarShadow = React.useMemo(
+    () => getShadowStyle(palette.shadow, uiShadow.tabBar),
+    [palette.shadow],
+  );
   const homeHeaderActions = React.useMemo<MaterialCompactTopAppBarAction[]>(
     () => [
       {
@@ -151,8 +156,7 @@ export default function TabLayout() {
             paddingTop: uiSpace.sm,
             paddingBottom: uiSpace.sm,
             paddingHorizontal: uiSpace.sm,
-            shadowColor: palette.shadow,
-            ...uiShadow.tabBar,
+            ...tabBarShadow,
             elevation: uiElevation.chrome,
           },
           tabBarItemStyle: {

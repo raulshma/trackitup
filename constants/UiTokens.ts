@@ -1,4 +1,11 @@
-import { StyleSheet, type TextStyle, type ViewStyle } from "react-native";
+import {
+  Platform,
+  StyleSheet,
+  type TextStyle,
+  type ViewStyle,
+} from "react-native";
+
+import { withAlpha } from "@/constants/Colors";
 
 export const uiSpace = {
   xxs: 2,
@@ -129,6 +136,12 @@ export const uiTypography = {
   },
 } satisfies Record<string, TextStyle>;
 
+type ShadowPreset = {
+  shadowOpacity: number;
+  shadowRadius: number;
+  shadowOffset: { width: number; height: number };
+};
+
 export const uiShadow = {
   headerAction: {
     shadowOpacity: 0.1,
@@ -145,4 +158,29 @@ export const uiShadow = {
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
   },
-} satisfies Record<string, ViewStyle>;
+} satisfies Record<string, ShadowPreset>;
+
+export function getShadowStyle(
+  shadowColor: string,
+  preset: ShadowPreset,
+): ViewStyle {
+  const { shadowOpacity = 0, shadowRadius = 0, shadowOffset } = preset;
+  const offsetX = shadowOffset?.width ?? 0;
+  const offsetY = shadowOffset?.height ?? 0;
+
+  if (Platform.OS === "web") {
+    return {
+      boxShadow: `${offsetX}px ${offsetY}px ${shadowRadius}px ${withAlpha(
+        shadowColor,
+        shadowOpacity,
+      )}`,
+    } as ViewStyle;
+  }
+
+  return {
+    shadowColor,
+    shadowOpacity,
+    shadowRadius,
+    shadowOffset: { width: offsetX, height: offsetY },
+  };
+}

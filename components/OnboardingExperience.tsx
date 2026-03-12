@@ -1,11 +1,11 @@
 import { SymbolView } from "expo-symbols";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    Animated,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    View,
+  Animated,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
 } from "react-native";
 import { Button, Chip, SegmentedButtons, Surface } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -15,18 +15,19 @@ import { AccentColorPicker } from "@/components/ui/AccentColorPicker";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
 import {
-    uiBorder,
-    uiElevation,
-    uiRadius,
-    uiShadow,
-    uiSpace,
-    uiTypography,
+  getShadowStyle,
+  uiBorder,
+  uiElevation,
+  uiRadius,
+  uiShadow,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useAppAuth } from "@/providers/AuthProvider";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import {
-    getThemeBackgroundColor,
-    type ThemePreference,
+  getThemeBackgroundColor,
+  type ThemePreference,
 } from "@/services/theme/themePreferences";
 
 type OnboardingExperienceProps = {
@@ -48,18 +49,21 @@ const THEME_LABELS: Record<ThemePreference, string> = {
   light: "Light",
   dark: "Dark",
   oled: "OLED",
+  monotone: "Monotone",
 };
 
 const THEME_NOTES: Record<ThemePreference, string> = {
   light: "Bright and airy",
   dark: "Balanced and focused",
   oled: "Pure black contrast",
+  monotone: "Calm grayscale focus",
 };
 
 const THEME_SWATCHES: Record<ThemePreference, string> = {
   light: getThemeBackgroundColor("light"),
   dark: getThemeBackgroundColor("dark"),
   oled: getThemeBackgroundColor("oled"),
+  monotone: getThemeBackgroundColor("monotone"),
 };
 
 const FADE_STOPS = [0.94, 0.72, 0.46, 0.22, 0.06];
@@ -107,7 +111,7 @@ function EdgeFadeMask({
   const stops = reverse ? [...FADE_STOPS].reverse() : FADE_STOPS;
 
   return (
-    <View pointerEvents="none" style={styles.edgeFadeFill}>
+    <View style={[styles.edgeFadeFill, { pointerEvents: "none" }]}>
       {stops.map((opacity, index) => (
         <View
           key={`${opacity}-${index}`}
@@ -223,10 +227,14 @@ export function OnboardingExperience({
     colorScheme === "light" ? 0.08 : 0.04,
   );
   const activeSlide = slides[activeIndex];
+  const raisedCardShadow = useMemo(
+    () => getShadowStyle(palette.shadow, uiShadow.raisedCard),
+    [palette.shadow],
+  );
 
   return (
     <View style={[styles.screen, { backgroundColor: palette.background }]}>
-      <View pointerEvents="none" style={styles.backdropLayer}>
+      <View style={[styles.backdropLayer, { pointerEvents: "none" }]}>
         <View
           style={[
             styles.backdropOrb,
@@ -284,8 +292,8 @@ export function OnboardingExperience({
                   {
                     backgroundColor: palette.card,
                     borderColor: palette.border,
-                    shadowColor: palette.shadow,
                   },
+                  raisedCardShadow,
                 ]}
                 elevation={uiElevation.hero}
               >
@@ -323,7 +331,10 @@ export function OnboardingExperience({
                 </Text>
 
                 {activeSlide.key === "overview" ? (
-                  <OverviewShowcase palette={palette} />
+                  <OverviewShowcase
+                    palette={palette}
+                    raisedCardShadow={raisedCardShadow}
+                  />
                 ) : activeSlide.key === "capture" ? (
                   <CaptureShowcase palette={palette} />
                 ) : (
@@ -339,14 +350,20 @@ export function OnboardingExperience({
             </ScrollView>
 
             <View
-              pointerEvents="none"
-              style={[styles.edgeFade, styles.edgeFadeTop]}
+              style={[
+                styles.edgeFade,
+                styles.edgeFadeTop,
+                { pointerEvents: "none" },
+              ]}
             >
               <EdgeFadeMask color={palette.background} />
             </View>
             <View
-              pointerEvents="none"
-              style={[styles.edgeFade, styles.edgeFadeBottom]}
+              style={[
+                styles.edgeFade,
+                styles.edgeFadeBottom,
+                { pointerEvents: "none" },
+              ]}
             >
               <EdgeFadeMask color={palette.background} reverse />
             </View>
@@ -360,21 +377,25 @@ export function OnboardingExperience({
           {
             backgroundColor: footerGlassColor,
             borderColor: footerBorderColor,
-            shadowColor: palette.shadow,
             paddingBottom: footerBottomPadding,
           },
+          raisedCardShadow,
         ]}
         elevation={uiElevation.card}
       >
         <View
-          pointerEvents="none"
-          style={[styles.footerSheen, { backgroundColor: footerSheenColor }]}
+          style={[
+            styles.footerSheen,
+            { backgroundColor: footerSheenColor, pointerEvents: "none" },
+          ]}
         />
         <View
-          pointerEvents="none"
           style={[
             styles.footerHighlight,
-            { backgroundColor: withAlpha(palette.onTint, 0.12) },
+            {
+              backgroundColor: withAlpha(palette.onTint, 0.12),
+              pointerEvents: "none",
+            },
           ]}
         />
         <View style={styles.footerTopRow}>
@@ -481,8 +502,10 @@ export function OnboardingExperience({
 
 function OverviewShowcase({
   palette,
+  raisedCardShadow,
 }: {
   palette: ReturnType<typeof getAppPalette>;
+  raisedCardShadow: ReturnType<typeof getShadowStyle>;
 }) {
   return (
     <View style={styles.showcaseStack}>
@@ -535,8 +558,8 @@ function OverviewShowcase({
             {
               backgroundColor: palette.card,
               borderColor: palette.border,
-              shadowColor: palette.shadow,
             },
+            raisedCardShadow,
           ]}
         >
           <Text style={styles.floatingTitle}>Today&apos;s pulse</Text>
@@ -856,7 +879,6 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.hero,
     padding: uiSpace.hero,
     gap: uiSpace.md,
-    ...uiShadow.raisedCard,
   },
   badgeRow: {
     flexDirection: "row",
@@ -938,7 +960,6 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.xl,
     padding: uiSpace.surface,
     gap: uiSpace.xs,
-    ...uiShadow.raisedCard,
   },
   floatingTitle: uiTypography.titleMd,
   floatingMeta: uiTypography.bodySmall,
@@ -999,10 +1020,12 @@ const styles = StyleSheet.create({
   },
   themePreviewGrid: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: uiSpace.md,
   },
   themePreviewCard: {
-    flex: 1,
+    flexBasis: "48%",
+    flexGrow: 1,
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.lg,
     padding: uiSpace.md,

@@ -76,6 +76,8 @@ const themeBootstrapScript = `
       storedPreference === "light" ||
       storedPreference === "dark" ||
       storedPreference === "oled"
+      ||
+      storedPreference === "monotone"
         ? storedPreference
         : "${DEFAULT_THEME_PREFERENCE}";
     document.documentElement.dataset.themePreference = preference;
@@ -102,4 +104,9 @@ html[data-theme-preference="dark"] body {
 html[data-theme-preference="oled"],
 html[data-theme-preference="oled"] body {
   background-color: ${getThemeBackgroundColor("oled")};
+}
+html[data-theme-preference="monotone"],
+html[data-theme-preference="monotone"] body {
+  background-color: ${getThemeBackgroundColor("monotone")};
+}
 }`;

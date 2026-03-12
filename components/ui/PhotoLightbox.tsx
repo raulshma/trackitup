@@ -16,6 +16,7 @@ import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
 import { withAlpha } from "@/constants/Colors";
 import {
+    getShadowStyle,
     uiBorder,
     uiRadius,
     uiShadow,
@@ -74,6 +75,10 @@ export function PhotoLightbox({
     const startIndex = Math.max(0, Math.min(activeIndex - 2, items.length - 5));
     return Array.from({ length: 5 }, (_, offset) => startIndex + offset);
   }, [activeIndex, items]);
+  const panelShadow = useMemo(
+    () => getShadowStyle(palette.shadow, uiShadow.raisedCard),
+    [palette.shadow],
+  );
 
   function handleMomentumEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const nextIndex = Math.round(
@@ -102,8 +107,8 @@ export function PhotoLightbox({
               {
                 backgroundColor: withAlpha(palette.inverseSurface, 0.72),
                 borderColor: withAlpha(palette.inverseOnSurface, 0.12),
-                shadowColor: palette.shadow,
               },
+              panelShadow,
             ]}
           >
             <View style={styles.headerRow}>
@@ -189,8 +194,8 @@ export function PhotoLightbox({
               {
                 backgroundColor: withAlpha(palette.inverseSurface, 0.72),
                 borderColor: withAlpha(palette.inverseOnSurface, 0.12),
-                shadowColor: palette.shadow,
               },
+              panelShadow,
             ]}
           >
             <View style={styles.footerRow}>
@@ -279,7 +284,6 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.hero,
     paddingHorizontal: uiSpace.surface,
     paddingVertical: uiSpace.md,
-    ...uiShadow.raisedCard,
   },
   headerRow: {
     flexDirection: "row",
@@ -319,7 +323,6 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.hero,
     paddingHorizontal: uiSpace.surface,
     paddingVertical: uiSpace.md,
-    ...uiShadow.raisedCard,
   },
   footerRow: {
     flexDirection: "row",

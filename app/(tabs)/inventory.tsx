@@ -20,6 +20,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
+    getShadowStyle,
     uiBorder,
     uiElevation,
     uiRadius,
@@ -75,6 +76,10 @@ export default function InventoryScreen() {
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
+  );
+  const raisedCardShadow = useMemo(
+    () => getShadowStyle(palette.shadow, uiShadow.raisedCard),
+    [palette.shadow],
   );
   const router = useRouter();
   const sectionTransition = useState(() => new Animated.Value(1))[0];
@@ -607,6 +612,7 @@ export default function InventoryScreen() {
                         style={[
                           styles.sourceCard,
                           paletteStyles.raisedCardSurface,
+                          raisedCardShadow,
                         ]}
                         elevation={uiElevation.raisedCard}
                       >
@@ -671,6 +677,7 @@ export default function InventoryScreen() {
                   style={[
                     styles.card,
                     paletteStyles.raisedCardSurface,
+                    raisedCardShadow,
                     { borderLeftColor: palette.tint },
                   ]}
                 >
@@ -816,7 +823,6 @@ const styles = StyleSheet.create({
     padding: uiSpace.surface,
     marginBottom: uiSpace.lg,
     gap: uiSpace.xs,
-    ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   cardTitle: { ...uiTypography.titleSection, marginBottom: 6 },

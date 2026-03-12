@@ -41,6 +41,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { withAlpha } from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
+    getShadowStyle,
     uiBorder,
     uiMotion,
     uiRadius,
@@ -166,6 +167,10 @@ export default function VisualHistoryScreen() {
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
+  );
+  const recapCardShadow = useMemo(
+    () => getShadowStyle(theme.colors.shadow, uiShadow.raisedCard),
+    [theme.colors.shadow],
   );
   const router = useRouter();
   const params = useLocalSearchParams<VisualHistoryParams>();
@@ -1257,8 +1262,8 @@ export default function VisualHistoryScreen() {
                         {
                           backgroundColor: theme.colors.elevation.level1,
                           borderColor: theme.colors.outlineVariant,
-                          shadowColor: theme.colors.shadow,
                         },
+                        recapCardShadow,
                       ]}
                       elevation={2}
                     >
@@ -1777,7 +1782,6 @@ const styles = StyleSheet.create({
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.hero,
     padding: uiSpace.surface,
-    ...uiShadow.raisedCard,
   },
   recapHeaderRow: {
     flexDirection: "row",

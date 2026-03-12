@@ -11,6 +11,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getReadableTextColor } from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
+    getShadowStyle,
     uiBorder,
     uiElevation,
     uiRadius,
@@ -45,6 +46,10 @@ export default function TabTwoScreen() {
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
+  );
+  const raisedCardShadow = useMemo(
+    () => getShadowStyle(palette.shadow, uiShadow.raisedCard),
+    [palette.shadow],
   );
   const router = useRouter();
   const { logEntries, timelineEntries, workspace } = useWorkspace();
@@ -299,7 +304,13 @@ export default function TabTwoScreen() {
         </Text>
       </Surface>
 
-      <View style={[styles.filterPanel, paletteStyles.raisedCardSurface]}>
+      <View
+        style={[
+          styles.filterPanel,
+          paletteStyles.raisedCardSurface,
+          raisedCardShadow,
+        ]}
+      >
         <View style={styles.filterGroup}>
           <Text style={styles.filterGroupTitle}>Time</Text>
           <View style={styles.filterRow}>
@@ -499,7 +510,13 @@ export default function TabTwoScreen() {
       </View>
 
       {filteredEntries.length === 0 ? (
-        <View style={[styles.emptyCard, paletteStyles.raisedCardSurface]}>
+        <View
+          style={[
+            styles.emptyCard,
+            paletteStyles.raisedCardSurface,
+            raisedCardShadow,
+          ]}
+        >
           <Text style={styles.noteTitle}>
             {timelineEntries.length === 0
               ? "No log entries yet"
@@ -522,6 +539,7 @@ export default function TabTwoScreen() {
           style={[
             styles.timelineCard,
             paletteStyles.raisedCardSurface,
+            raisedCardShadow,
             { borderLeftColor: entry.accent },
           ]}
         >
@@ -558,7 +576,13 @@ export default function TabTwoScreen() {
         </Pressable>
       ))}
 
-      <View style={[styles.noteCard, paletteStyles.raisedCardSurface]}>
+      <View
+        style={[
+          styles.noteCard,
+          paletteStyles.raisedCardSurface,
+          raisedCardShadow,
+        ]}
+      >
         <Text style={styles.noteTitle}>Timeline tips</Text>
         <Text style={[styles.noteCopy, paletteStyles.mutedText]}>
           {timelineEntries.length === 0
@@ -612,7 +636,6 @@ const styles = StyleSheet.create({
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   filterGroup: {
@@ -642,7 +665,6 @@ const styles = StyleSheet.create({
     borderLeftWidth: 5,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   timelineHeader: {
@@ -683,14 +705,12 @@ const styles = StyleSheet.create({
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   emptyCard: {
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   noteTitle: {

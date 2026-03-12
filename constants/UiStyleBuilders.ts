@@ -18,7 +18,6 @@ export function createCommonPaletteStyles(palette: AppPalette) {
     raisedCardSurface: {
       backgroundColor: palette.surface2,
       borderColor: palette.borderSoft,
-      shadowColor: palette.shadow,
     },
     cardChipSurface: {
       backgroundColor: palette.surface2,

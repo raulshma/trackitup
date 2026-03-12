@@ -115,7 +115,7 @@ export function ScreenHero({
         ]}
         elevation={uiElevation.hero}
       >
-        <View pointerEvents="none" style={styles.ambientLayer}>
+        <View style={[styles.ambientLayer, { pointerEvents: "none" }]}>
           <Animated.View
             style={[
               styles.ambientOrb,

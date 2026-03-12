@@ -1,6 +1,11 @@
 export const THEME_PREFERENCE_STORAGE_KEY = "trackitup.theme.preference.v1";
 export const THEME_ACCENT_STORAGE_KEY = "trackitup.theme.accent.v1";
-export const THEME_PREFERENCE_OPTIONS = ["light", "dark", "oled"] as const;
+export const THEME_PREFERENCE_OPTIONS = [
+  "light",
+  "dark",
+  "oled",
+  "monotone",
+] as const;
 export const THEME_ACCENT_PRESETS = [
   {
     id: "classic-blue",
@@ -97,6 +102,8 @@ export function getThemeBackgroundColor(preference: ThemePreference): string {
       return "#f8fafc";
     case "oled":
       return "#000000";
+    case "monotone":
+      return "#101112";
     default:
       return "#111318";
   }

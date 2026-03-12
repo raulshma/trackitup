@@ -24,6 +24,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
+    getShadowStyle,
     uiBorder,
     uiElevation,
     uiMotion,
@@ -131,6 +132,10 @@ export default function PlannerScreen() {
   const paletteStyles = useMemo(
     () => createCommonPaletteStyles(palette),
     [palette],
+  );
+  const raisedCardShadow = useMemo(
+    () => getShadowStyle(palette.shadow, uiShadow.raisedCard),
+    [palette.shadow],
   );
   const router = useRouter();
   const sectionTransition = useState(() => new Animated.Value(1))[0];
@@ -1003,6 +1008,7 @@ export default function PlannerScreen() {
                       style={[
                         styles.riskSourceCard,
                         paletteStyles.raisedCardSurface,
+                        raisedCardShadow,
                         { borderColor: palette.border },
                       ]}
                       elevation={uiElevation.raisedCard}
@@ -1137,7 +1143,11 @@ export default function PlannerScreen() {
             </Surface>
 
             <View
-              style={[styles.dayAgendaCard, paletteStyles.raisedCardSurface]}
+              style={[
+                styles.dayAgendaCard,
+                paletteStyles.raisedCardSurface,
+                raisedCardShadow,
+              ]}
             >
               <Text style={styles.sectionTitle}>Selected day agenda</Text>
               <Text style={[styles.selectedDateMeta, paletteStyles.mutedText]}>
@@ -1180,6 +1190,7 @@ export default function PlannerScreen() {
                 style={[
                   styles.card,
                   paletteStyles.raisedCardSurface,
+                  raisedCardShadow,
                   { borderLeftColor: palette.border },
                 ]}
               >
@@ -1232,6 +1243,7 @@ export default function PlannerScreen() {
                             style={[
                               styles.card,
                               paletteStyles.raisedCardSurface,
+                              raisedCardShadow,
                               {
                                 borderLeftColor:
                                   space?.themeColor ?? palette.tint,
@@ -1412,7 +1424,6 @@ const styles = StyleSheet.create({
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   sectionTitle: { ...uiTypography.titleMd, fontWeight: "800", marginBottom: 6 },
@@ -1440,7 +1451,6 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
     marginBottom: uiSpace.lg,
-    ...uiShadow.raisedCard,
     elevation: uiElevation.raisedCard,
   },
   cardTitle: { ...uiTypography.titleSection, marginBottom: 6 },

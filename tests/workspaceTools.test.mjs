@@ -1239,6 +1239,7 @@ test("theme preferences default to dark and support oled selection", () => {
   assert.equal(normalizeThemePreference("light"), "light");
   assert.equal(normalizeThemePreference("dark"), "dark");
   assert.equal(normalizeThemePreference("oled"), "oled");
+  assert.equal(normalizeThemePreference("monotone"), "monotone");
   assert.equal(normalizeThemePreference("system"), "dark");
   assert.equal(normalizeThemeAccentColor("#abc"), "#aabbcc");
   assert.equal(normalizeThemeAccentColor("7C3AED"), "#7c3aed");
@@ -1248,9 +1249,11 @@ test("theme preferences default to dark and support oled selection", () => {
   assert.equal(isDarkThemePreference("light"), false);
   assert.equal(isDarkThemePreference("dark"), true);
   assert.equal(isDarkThemePreference("oled"), true);
+  assert.equal(isDarkThemePreference("monotone"), true);
   assert.equal(getThemeBackgroundColor("light"), "#f8fafc");
   assert.equal(getThemeBackgroundColor("dark"), "#111318");
   assert.equal(getThemeBackgroundColor("oled"), "#000000");
+  assert.equal(getThemeBackgroundColor("monotone"), "#101112");
 });
 
 test("ai preferences default to privacy-first prompt history and normalize BYOK input", () => {

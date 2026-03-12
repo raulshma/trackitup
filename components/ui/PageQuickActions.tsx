@@ -113,7 +113,9 @@ export function PageQuickActions({
                   onPress={() => void action.onPress()}
                   style={styles.touchable}
                 >
-                  <View pointerEvents="none" style={styles.ambientLayer}>
+                  <View
+                    style={[styles.ambientLayer, { pointerEvents: "none" }]}
+                  >
                     <View
                       style={[
                         styles.accentGlow,

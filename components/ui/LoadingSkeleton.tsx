@@ -71,12 +71,12 @@ export function SkeletonBlock({
       ]}
     >
       <Animated.View
-        pointerEvents="none"
         style={[
           styles.shimmer,
           {
             backgroundColor: theme.colors.elevation.level4,
             borderRadius,
+            pointerEvents: "none",
           },
           shimmerStyle,
         ]}

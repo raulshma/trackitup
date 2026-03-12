@@ -3,7 +3,12 @@ import { useMemo } from "react";
 import { usePathname, useRouter } from "expo-router";
 import { FAB, Portal, useTheme, type MD3Theme } from "react-native-paper";
 
-import { uiElevation, uiShadow, uiSpace } from "@/constants/UiTokens";
+import {
+    getShadowStyle,
+    uiElevation,
+    uiShadow,
+    uiSpace,
+} from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 
 const visibleFabPathnames = new Set(["/", "/two", "/planner", "/inventory"]);
@@ -65,8 +70,7 @@ export function RecordEventFab() {
           right: uiSpace.screen,
           bottom: uiSpace.screenBottomTabs - uiSpace.xl,
           backgroundColor: theme.colors.primaryContainer,
-          shadowColor: theme.colors.shadow,
-          ...uiShadow.raisedCard,
+          ...getShadowStyle(theme.colors.shadow, uiShadow.raisedCard),
           elevation: uiElevation.chrome,
         }}
         color={theme.colors.onPrimaryContainer}
