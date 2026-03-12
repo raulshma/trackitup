@@ -131,8 +131,9 @@ export default function TabLayout() {
           tabBarInactiveBackgroundColor: "transparent",
           tabBarLabelPosition: "below-icon",
           tabBarStyle: {
-            backgroundColor: theme.colors.surface,
-            borderTopWidth: 0,
+            backgroundColor: theme.colors.elevation.level1,
+            borderTopWidth: uiBorder.hairline,
+            borderTopColor: theme.colors.outlineVariant,
             height: uiSize.tabBarHeight,
             paddingTop: uiSpace.sm,
             paddingBottom: uiSpace.sm,

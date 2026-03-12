@@ -114,24 +114,9 @@ export function PageQuickActions({
                 style={styles.touchable}
               >
                 <View style={styles.cardContent}>
-                  <View style={styles.cardHeaderRow}>
-                    <View
-                      style={[
-                        styles.accentBadge,
-                        {
-                          backgroundColor: `${accentColor}14`,
-                          borderColor: `${accentColor}26`,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.accentDot,
-                          { backgroundColor: accentColor },
-                        ]}
-                      />
-                    </View>
-                  </View>
+                  <View
+                    style={[styles.accentBar, { backgroundColor: accentColor }]}
+                  />
                   <View style={styles.copyColumn}>
                     <Text
                       style={[styles.label, { color: theme.colors.onSurface }]}
@@ -203,39 +188,27 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   card: {
-    minHeight: 132,
+    minHeight: 118,
   },
   touchable: {
     flex: 1,
   },
   cardContent: {
     flex: 1,
-    minHeight: 132,
+    minHeight: 118,
     padding: uiSpace.surface,
   },
-  cardHeaderRow: {
-    flexDirection: "row",
-    alignItems: "center",
+  accentBar: {
+    width: 36,
+    height: 4,
+    borderRadius: uiRadius.pill,
     marginBottom: uiSpace.lg,
-  },
-  accentBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: uiRadius.pill,
-    borderWidth: uiBorder.hairline,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  accentDot: {
-    width: 12,
-    height: 12,
-    borderRadius: uiRadius.pill,
   },
   copyColumn: {
     gap: uiSpace.xs,
   },
   cardFooter: {
-    marginTop: uiSpace.lg,
+    marginTop: uiSpace.md,
     alignItems: "flex-end",
   },
   actionButton: {

@@ -67,7 +67,7 @@ export function MaterialCompactTopAppBar({
     : theme.colors.onSurfaceVariant;
   const actionContainerColor = showBrand
     ? theme.colors.secondaryContainer
-    : theme.colors.elevation.level2;
+    : theme.colors.elevation.level1;
   const animatedContainerStyle = React.useMemo(() => {
     if (!clampedScrollY) {
       return {
@@ -106,7 +106,7 @@ export function MaterialCompactTopAppBar({
         styles.container,
         animatedContainerStyle,
         {
-          backgroundColor: theme.colors.surface,
+          backgroundColor: theme.colors.elevation.level1,
           paddingTop: insets.top,
         },
       ]}
@@ -118,7 +118,7 @@ export function MaterialCompactTopAppBar({
         style={[
           styles.header,
           {
-            backgroundColor: theme.colors.surface,
+            backgroundColor: theme.colors.elevation.level1,
             borderBottomColor: theme.colors.outlineVariant,
           },
         ]}
@@ -150,7 +150,7 @@ export function MaterialCompactTopAppBar({
                   style={[
                     styles.brandBadge,
                     {
-                      backgroundColor: theme.colors.primaryContainer,
+                      backgroundColor: theme.colors.elevation.level2,
                       borderColor: theme.colors.outlineVariant,
                     },
                   ]}
