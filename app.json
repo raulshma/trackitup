@@ -50,6 +50,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "./plugins/withTrackItUpAndroidAbiSplits.js",
       [
         "expo-local-authentication",
         {
@@ -69,7 +70,7 @@
         }
       ],
       [
-        "react-native-bootsplash",
+        "./plugins/withTrackItUpBootSplash.js",
         {
           "assetsPath": "assets/bootsplash",
           "logo": "./assets/bootsplash/logo.png",
@@ -93,12 +94,6 @@
       "eas": {
         "projectId": "d27723a5-2a24-4ece-a8e9-8666d065c7b1"
       }
-    },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/d27723a5-2a24-4ece-a8e9-8666d065c7b1"
     }
   }
 }

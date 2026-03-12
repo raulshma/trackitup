@@ -16,13 +16,60 @@
       },
       "distribution": "internal"
     },
+    "preview-armeabi-v7a": {
+      "extends": "preview",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "armeabi-v7a"
+      }
+    },
+    "preview-arm64-v8a": {
+      "extends": "preview",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
+      }
+    },
+    "preview-x86": {
+      "extends": "preview",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "x86"
+      }
+    },
+    "preview-x86_64": {
+      "extends": "preview",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "x86_64"
+      }
+    },
     "production": {
       "autoIncrement": true,
-      "channel": "production",
       "environment": "production",
       "android": {
         "buildType": "apk",
         "credentialsSource": "remote"
+      }
+    },
+    "production-armeabi-v7a": {
+      "extends": "production",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "armeabi-v7a"
+      }
+    },
+    "production-arm64-v8a": {
+      "extends": "production",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
+      }
+    },
+    "production-x86": {
+      "extends": "production",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "x86"
+      }
+    },
+    "production-x86_64": {
+      "extends": "production",
+      "env": {
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "x86_64"
       }
     }
   },

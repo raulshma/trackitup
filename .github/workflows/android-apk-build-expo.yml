@@ -4,13 +4,39 @@ on:
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
 jobs:
+  metadata:
+    name: Resolve release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.package_version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: package_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
   build:
-    name: Build Android APK
+    name: Build Android APK (${{ matrix.abi }})
+    needs: metadata
     runs-on: ubuntu-latest
     timeout-minutes: 45
     environment: production
-    outputs:
-      version: ${{ steps.package_version.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - abi: armeabi-v7a
+            profile: production-armeabi-v7a
+          - abi: arm64-v8a
+            profile: production-arm64-v8a
+          - abi: x86
+            profile: production-x86
+          - abi: x86_64
+            profile: production-x86_64
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,7 +52,7 @@ jobs:
           path: |
             ~/.bun/install/cache
             node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
@@ -47,17 +73,11 @@ jobs:
             exit 1
           fi
 
-      - name: Get version from package.json
-        id: package_version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Build Android app on EAS Cloud
+      - name: Build Android app on EAS Cloud for ${{ matrix.abi }}
         run: |
           eas build \
             --platform android \
-            --profile production \
+            --profile ${{ matrix.profile }} \
             --non-interactive \
             --wait \
             --json > build-output.json
@@ -66,42 +86,57 @@ jobs:
         run: |
           BUILD_URL=$(jq -r '.[0].artifacts.buildUrl' build-output.json)
           echo "Downloading APK from: $BUILD_URL"
-          curl -L -o app-release.apk "$BUILD_URL"
+          curl -L -o "TrackItUp-v${{ needs.metadata.outputs.version }}-android-${{ matrix.abi }}.apk" "$BUILD_URL"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release
-          path: app-release.apk
+          name: trackitup-apk-${{ matrix.abi }}
+          path: TrackItUp-v${{ needs.metadata.outputs.version }}-android-${{ matrix.abi }}.apk
           retention-days: 30
 
   release:
     name: Create GitHub Release
-    needs: build
+    needs:
+      - metadata
+      - build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download built APK artifact
+      - name: Download built APK artifacts
         uses: actions/download-artifact@v4
         with:
-          name: app-release
+          pattern: trackitup-apk-*
           path: ./release
+          merge-multiple: true
 
-      - name: Create GitHub Release with APK
+      - name: Summarize APK assets
+        id: release_notes
+        run: |
+          {
+            echo 'body<<EOF'
+            echo '🚀 **New Android build released**'
+            echo
+            echo '- **Version:** v${{ needs.metadata.outputs.version }}'
+            echo '- **Commit:** ${{ github.sha }}'
+            echo '- **Build:** EAS Cloud Build'
+            echo '- **APK assets:**'
+            for file in ./release/*.apk; do
+              echo "  - $(basename "$file")"
+            done
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release with APKs
         uses: softprops/action-gh-release@v2
         with:
-          name: "TrackItUp v${{ needs.build.outputs.version }}"
-          tag_name: "v${{ needs.build.outputs.version }}"
-          body: |
-            🚀 **New Android build released**
-
-            - **Version:** v${{ needs.build.outputs.version }}
-            - **Commit:** ${{ github.sha }}
-            - **Build:** EAS Cloud Build
-          files: ./release/app-release.apk
+          name: "TrackItUp v${{ needs.metadata.outputs.version }}"
+          tag_name: "v${{ needs.metadata.outputs.version }}"
+          body: ${{ steps.release_notes.outputs.body }}
+          files: ./release/*.apk
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
