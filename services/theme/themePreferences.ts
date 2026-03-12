@@ -4,7 +4,8 @@ export const THEME_PREFERENCE_OPTIONS = [
   "light",
   "dark",
   "oled",
-  "monotone",
+  "monotone-light",
+  "monotone-dark",
 ] as const;
 export const THEME_ACCENT_PRESETS = [
   {
@@ -93,7 +94,7 @@ export function normalizeThemePreference(value: unknown): ThemePreference {
 }
 
 export function isDarkThemePreference(preference: ThemePreference): boolean {
-  return preference !== "light";
+  return preference !== "light" && preference !== "monotone-light";
 }
 
 export function getThemeBackgroundColor(preference: ThemePreference): string {
@@ -102,8 +103,10 @@ export function getThemeBackgroundColor(preference: ThemePreference): string {
       return "#f8fafc";
     case "oled":
       return "#000000";
-    case "monotone":
-      return "#101112";
+    case "monotone-light":
+      return "#ffffff";
+    case "monotone-dark":
+      return "#0b0b0b";
     default:
       return "#111318";
   }

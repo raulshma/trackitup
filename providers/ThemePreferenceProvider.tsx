@@ -71,9 +71,19 @@ export function ThemePreferenceProvider({
   useEffect(() => {
     if (typeof document === "undefined") return;
 
+    const runtimeAccentColor =
+      themePreference === "monotone-light" ||
+      themePreference === "monotone-dark"
+        ? themePreference === "monotone-light"
+          ? "#000000"
+          : "#ffffff"
+        : themeAccentColor;
+
     document.documentElement.dataset.themePreference = themePreference;
     document.documentElement.style.colorScheme =
-      themePreference === "light" ? "light" : "dark";
+      themePreference === "light" || themePreference === "monotone-light"
+        ? "light"
+        : "dark";
 
     const themeColorMeta = document.querySelector('meta[name="theme-color"]');
     if (themeColorMeta) {
@@ -84,7 +94,7 @@ export function ThemePreferenceProvider({
     }
     document.documentElement.style.setProperty(
       "--trackitup-accent",
-      themeAccentColor,
+      runtimeAccentColor,
     );
   }, [themeAccentColor, themePreference]);
 
@@ -103,7 +113,13 @@ export function ThemePreferenceProvider({
     void persistThemeAccentColor(normalizedColor);
   }, []);
 
-  setRuntimeThemeAccentColor(themeAccentColor);
+  setRuntimeThemeAccentColor(
+    themePreference === "monotone-light"
+      ? "#000000"
+      : themePreference === "monotone-dark"
+        ? "#ffffff"
+        : themeAccentColor,
+  );
 
   const value = useMemo(
     () => ({

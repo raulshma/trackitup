@@ -3,7 +3,12 @@ import {
     normalizeThemeAccentColor,
 } from "@/services/theme/themePreferences";
 
-export type AppColorScheme = "light" | "dark" | "oled" | "monotone";
+export type AppColorScheme =
+  | "light"
+  | "dark"
+  | "oled"
+  | "monotone-light"
+  | "monotone-dark";
 export type AppPalette = {
   text: string;
   background: string;
@@ -174,45 +179,85 @@ const basePalettes: Record<AppColorScheme, AppPalette> = {
     inversePrimary: "#7cc0ff",
     shadow: "rgba(0, 0, 0, 0.92)",
   },
-  monotone: {
-    text: "#f2f4f7",
-    background: "#101112",
-    tint: DEFAULT_THEME_ACCENT_COLOR,
-    onTint: "#0c0d10",
-    primaryContainer: "#2a2c31",
-    onPrimaryContainer: "#f2f4f7",
-    secondary: "#cfd4dc",
-    onSecondary: "#1a1b1d",
-    secondaryContainer: "#343740",
-    onSecondaryContainer: "#eef1f5",
-    tertiary: "#aeb4be",
-    onTertiary: "#1a1b1d",
-    tertiaryContainer: "#2f3239",
-    onTertiaryContainer: "#e6e9ef",
-    tabIconDefault: "#9aa2af",
-    tabIconSelected: DEFAULT_THEME_ACCENT_COLOR,
-    card: "#1a1b1d",
-    cardAlt: "#1f2124",
-    muted: "#b6bac3",
-    border: "#2a2c31",
-    borderSoft: "#343740",
-    hero: "#1b1d21",
-    heroBorder: "#2b2e35",
-    accentSoft: "#17181b",
-    success: "#9bb8a7",
-    warning: "#c2aa86",
-    danger: "#c69aa1",
-    dangerContainer: "#3b3032",
-    onDangerContainer: "#f4d9dd",
-    surface1: "#151617",
-    surface2: "#191b1d",
-    surface3: "#1d1f22",
-    surface4: "#22252a",
-    surface5: "#272b31",
-    inverseSurface: "#f2f4f7",
-    inverseOnSurface: "#1a1b1d",
-    inversePrimary: "#c0c6d2",
-    shadow: "rgba(0, 0, 0, 0.8)",
+  "monotone-light": {
+    text: "#000000",
+    background: "#ffffff",
+    tint: "#000000",
+    onTint: "#ffffff",
+    primaryContainer: "#e6e6e6",
+    onPrimaryContainer: "#000000",
+    secondary: "#1a1a1a",
+    onSecondary: "#ffffff",
+    secondaryContainer: "#ededed",
+    onSecondaryContainer: "#000000",
+    tertiary: "#2a2a2a",
+    onTertiary: "#ffffff",
+    tertiaryContainer: "#e1e1e1",
+    onTertiaryContainer: "#000000",
+    tabIconDefault: "#4d4d4d",
+    tabIconSelected: "#000000",
+    card: "#ffffff",
+    cardAlt: "#f5f5f5",
+    muted: "#3d3d3d",
+    border: "#d9d9d9",
+    borderSoft: "#e6e6e6",
+    hero: "#f2f2f2",
+    heroBorder: "#d6d6d6",
+    accentSoft: "#f7f7f7",
+    success: "#1f1f1f",
+    warning: "#2b2b2b",
+    danger: "#333333",
+    dangerContainer: "#e9e9e9",
+    onDangerContainer: "#000000",
+    surface1: "#fafafa",
+    surface2: "#f2f2f2",
+    surface3: "#ededed",
+    surface4: "#e6e6e6",
+    surface5: "#dfdfdf",
+    inverseSurface: "#000000",
+    inverseOnSurface: "#ffffff",
+    inversePrimary: "#000000",
+    shadow: "rgba(0, 0, 0, 0.15)",
+  },
+  "monotone-dark": {
+    text: "#ffffff",
+    background: "#0b0b0b",
+    tint: "#ffffff",
+    onTint: "#000000",
+    primaryContainer: "#1a1a1a",
+    onPrimaryContainer: "#ffffff",
+    secondary: "#e6e6e6",
+    onSecondary: "#000000",
+    secondaryContainer: "#242424",
+    onSecondaryContainer: "#ffffff",
+    tertiary: "#d6d6d6",
+    onTertiary: "#000000",
+    tertiaryContainer: "#202020",
+    onTertiaryContainer: "#ffffff",
+    tabIconDefault: "#b3b3b3",
+    tabIconSelected: "#ffffff",
+    card: "#141414",
+    cardAlt: "#191919",
+    muted: "#c7c7c7",
+    border: "#262626",
+    borderSoft: "#2f2f2f",
+    hero: "#121212",
+    heroBorder: "#2a2a2a",
+    accentSoft: "#101010",
+    success: "#f0f0f0",
+    warning: "#dcdcdc",
+    danger: "#cfcfcf",
+    dangerContainer: "#2b2b2b",
+    onDangerContainer: "#ffffff",
+    surface1: "#0f0f0f",
+    surface2: "#141414",
+    surface3: "#181818",
+    surface4: "#1d1d1d",
+    surface5: "#222222",
+    inverseSurface: "#ffffff",
+    inverseOnSurface: "#000000",
+    inversePrimary: "#ffffff",
+    shadow: "rgba(0, 0, 0, 0.9)",
   },
 };
 
@@ -397,6 +442,20 @@ function buildPalette(
   accentColor: string,
 ): AppPalette {
   const basePalette = basePalettes[colorScheme];
+  if (colorScheme === "monotone-light" || colorScheme === "monotone-dark") {
+    return {
+      ...basePalette,
+      tint: basePalette.tint,
+      onTint: basePalette.onTint,
+      primaryContainer: basePalette.primaryContainer,
+      onPrimaryContainer: basePalette.onPrimaryContainer,
+      tabIconSelected: basePalette.tabIconSelected,
+      hero: basePalette.hero,
+      heroBorder: basePalette.heroBorder,
+      accentSoft: basePalette.accentSoft,
+      inversePrimary: basePalette.inversePrimary,
+    };
+  }
   const tint = resolveAccentForScheme(accentColor, colorScheme);
   const primaryContainer =
     colorScheme === "light"
@@ -452,7 +511,8 @@ function buildResolvedPalettes(
     light: buildPalette("light", accentColor),
     dark: buildPalette("dark", accentColor),
     oled: buildPalette("oled", accentColor),
-    monotone: buildPalette("monotone", accentColor),
+    "monotone-light": buildPalette("monotone-light", accentColor),
+    "monotone-dark": buildPalette("monotone-dark", accentColor),
   };
 }
 
@@ -480,8 +540,11 @@ const Colors = {
   get oled() {
     return resolvedPalettes.oled;
   },
-  get monotone() {
-    return resolvedPalettes.monotone;
+  get "monotone-light"() {
+    return resolvedPalettes["monotone-light"];
+  },
+  get "monotone-dark"() {
+    return resolvedPalettes["monotone-dark"];
   },
 } satisfies Record<AppColorScheme, AppPalette>;
 

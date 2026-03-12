@@ -49,21 +49,24 @@ const THEME_LABELS: Record<ThemePreference, string> = {
   light: "Light",
   dark: "Dark",
   oled: "OLED",
-  monotone: "Monotone",
+  "monotone-light": "Monotone Light",
+  "monotone-dark": "Monotone Dark",
 };
 
 const THEME_NOTES: Record<ThemePreference, string> = {
   light: "Bright and airy",
   dark: "Balanced and focused",
   oled: "Pure black contrast",
-  monotone: "Calm grayscale focus",
+  "monotone-light": "Clean grayscale clarity",
+  "monotone-dark": "High-contrast grayscale",
 };
 
 const THEME_SWATCHES: Record<ThemePreference, string> = {
   light: getThemeBackgroundColor("light"),
   dark: getThemeBackgroundColor("dark"),
   oled: getThemeBackgroundColor("oled"),
-  monotone: getThemeBackgroundColor("monotone"),
+  "monotone-light": getThemeBackgroundColor("monotone-light"),
+  "monotone-dark": getThemeBackgroundColor("monotone-dark"),
 };
 
 const FADE_STOPS = [0.94, 0.72, 0.46, 0.22, 0.06];

@@ -76,7 +76,8 @@ const themeOptionLabels: Record<ThemePreference, string> = {
   light: "Light",
   dark: "Dark",
   oled: "OLED",
-  monotone: "Monotone",
+  "monotone-light": "Monotone Light",
+  "monotone-dark": "Monotone Dark",
 };
 
 type AccountSection = "profile" | "appearance" | "assistant" | "privacy";
@@ -472,8 +473,8 @@ export default function AccountScreen() {
           >
             <Text style={[styles.copy, paletteStyles.mutedText]}>
               The app defaults to dark mode, and you can switch between light,
-              dark, OLED, and monotone at any time while dialing in an accent
-              that feels more like your workspace.
+              dark, OLED, and monotone light or dark at any time while dialing
+              in an accent that feels more like your workspace.
             </Text>
             <SegmentedButtons
               value={themePreference}
@@ -496,7 +497,7 @@ export default function AccountScreen() {
             </ChipRow>
             <Text style={[styles.meta, paletteStyles.mutedText]}>
               OLED uses pure-black backgrounds for the darkest nighttime look.
-              Monotone keeps the palette grayscale with your accent for focus.
+              Monotone light and dark keep the palette grayscale for focus.
             </Text>
             <View style={styles.accentResetRow}>
               <Text style={[styles.accentResetLabel, paletteStyles.mutedText]}>

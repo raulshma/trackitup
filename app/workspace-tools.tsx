@@ -58,7 +58,8 @@ const themeOptionLabels: Record<ThemePreference, string> = {
   light: "Light",
   dark: "Dark",
   oled: "OLED",
-  monotone: "Monotone",
+  "monotone-light": "Monotone Light",
+  "monotone-dark": "Monotone Dark",
 };
 
 type WorkspaceToolsSection = "backups" | "data" | "device" | "settings";
@@ -653,7 +654,7 @@ export default function WorkspaceToolsScreen() {
             >
               <Text style={[styles.listText, paletteStyles.mutedText]}>
                 TrackItUp now defaults to dark mode. Switch between light, dark,
-                OLED, and monotone whenever you want.
+                OLED, and monotone light or dark whenever you want.
               </Text>
               <SegmentedButtons
                 value={themePreference}
@@ -678,8 +679,8 @@ export default function WorkspaceToolsScreen() {
               </ChipRow>
               <Text style={[styles.helperText, paletteStyles.mutedText]}>
                 OLED uses pure-black backgrounds for a darker nighttime look and
-                can reduce power usage on compatible displays. Monotone keeps
-                the interface grayscale with an accent highlight.
+                can reduce power usage on compatible displays. Monotone light
+                and dark keep the interface grayscale for focus.
               </Text>
             </SectionSurface>
 

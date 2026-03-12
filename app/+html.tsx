@@ -75,13 +75,14 @@ const themeBootstrapScript = `
     var preference =
       storedPreference === "light" ||
       storedPreference === "dark" ||
-      storedPreference === "oled"
-      ||
-      storedPreference === "monotone"
+      storedPreference === "oled" ||
+      storedPreference === "monotone-light" ||
+      storedPreference === "monotone-dark"
         ? storedPreference
         : "${DEFAULT_THEME_PREFERENCE}";
     document.documentElement.dataset.themePreference = preference;
-    document.documentElement.style.colorScheme = preference === "light" ? "light" : "dark";
+    document.documentElement.style.colorScheme =
+      preference === "light" || preference === "monotone-light" ? "light" : "dark";
   } catch (error) {
     document.documentElement.dataset.themePreference = "${DEFAULT_THEME_PREFERENCE}";
     document.documentElement.style.colorScheme = "dark";
@@ -105,8 +106,12 @@ html[data-theme-preference="oled"],
 html[data-theme-preference="oled"] body {
   background-color: ${getThemeBackgroundColor("oled")};
 }
-html[data-theme-preference="monotone"],
-html[data-theme-preference="monotone"] body {
-  background-color: ${getThemeBackgroundColor("monotone")};
+html[data-theme-preference="monotone-light"],
+html[data-theme-preference="monotone-light"] body {
+  background-color: ${getThemeBackgroundColor("monotone-light")};
+}
+html[data-theme-preference="monotone-dark"],
+html[data-theme-preference="monotone-dark"] body {
+  background-color: ${getThemeBackgroundColor("monotone-dark")};
 }
 }`;

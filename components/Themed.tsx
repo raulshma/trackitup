@@ -29,9 +29,11 @@ export function useThemeColor(
       ? props.light
       : theme === "oled"
         ? (props.oled ?? props.dark)
-        : theme === "monotone"
-          ? (props.monotone ?? props.dark)
-          : props.dark;
+        : theme === "monotone-light"
+          ? (props.monotone ?? props.light ?? props.dark)
+          : theme === "monotone-dark"
+            ? (props.monotone ?? props.dark)
+            : props.dark;
 
   if (colorFromProps) {
     return colorFromProps;
