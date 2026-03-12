@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
     marginBottom: uiSpace.lg,
   },
   toolButton: {
-    flexGrow: 1,
+    alignSelf: "flex-start",
   },
   themeSelector: {
     marginTop: uiSpace.xl,

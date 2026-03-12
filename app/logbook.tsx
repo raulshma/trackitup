@@ -1644,7 +1644,7 @@ const styles = StyleSheet.create({
   statusMessage: { ...uiTypography.bodySmall, marginTop: uiSpace.md },
   actionButtonRow: { marginTop: uiSpace.xl },
   paperActionButton: {
-    flex: 1,
+    alignSelf: "flex-start",
   },
   paperActionButtonContent: { paddingVertical: uiSpace.xs },
   cardHeader: {
@@ -1741,8 +1741,10 @@ const styles = StyleSheet.create({
   },
   footerActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: uiSpace.md,
   },
-  footerButton: { flex: 1 },
+  footerButton: { alignSelf: "flex-start" },
   footerButtonContent: { minHeight: 40 },
 });

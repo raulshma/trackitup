@@ -710,6 +710,8 @@ const styles = StyleSheet.create({
   },
   aiActionRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: uiSpace.md,
     marginTop: uiSpace.sm,
   },
@@ -720,8 +722,10 @@ const styles = StyleSheet.create({
   },
   footerActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: uiSpace.md,
   },
-  footerButton: { flex: 1 },
+  footerButton: { alignSelf: "flex-start" },
   footerButtonContent: { minHeight: 40 },
 });

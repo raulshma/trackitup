@@ -373,10 +373,12 @@ const styles = StyleSheet.create({
   },
   footerActions: {
     flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: uiSpace.md,
   },
   footerButton: {
-    flex: 1,
+    alignSelf: "flex-start",
   },
   footerButtonContent: {
     minHeight: 40,

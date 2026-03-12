@@ -2,13 +2,13 @@ import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Platform, ScrollView, StyleSheet } from "react-native";
 import {
-  ActivityIndicator,
-  Button,
-  Chip,
-  Dialog,
-  Portal,
-  SegmentedButtons,
-  TextInput,
+    ActivityIndicator,
+    Button,
+    Chip,
+    Dialog,
+    Portal,
+    SegmentedButtons,
+    TextInput,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -28,32 +28,32 @@ import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { aiAccountSettingsCopy } from "@/services/ai/aiConsentCopy";
 import {
-  AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
-  createEmptyAiTelemetrySummary,
-  formatAiTelemetryLastEventLabel,
-  loadAiTelemetrySummary,
-  recordAiTelemetryEvent,
+    AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
+    createEmptyAiTelemetrySummary,
+    formatAiTelemetryLastEventLabel,
+    loadAiTelemetrySummary,
+    recordAiTelemetryEvent,
 } from "@/services/ai/aiTelemetry";
 import { getWorkspaceBiometricDescription } from "@/services/offline/workspaceBiometric";
 import {
-  getWorkspaceBiometricReauthTimeoutDescription,
-  getWorkspaceBiometricReauthTimeoutLabel,
-  WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
-  type WorkspaceBiometricReauthTimeout,
+    getWorkspaceBiometricReauthTimeoutDescription,
+    getWorkspaceBiometricReauthTimeoutLabel,
+    WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
+    type WorkspaceBiometricReauthTimeout,
 } from "@/services/offline/workspaceBiometricSessionPolicy";
 import {
-  getWorkspaceLocalProtectionDescription,
-  getWorkspaceLocalProtectionLabel,
+    getWorkspaceLocalProtectionDescription,
+    getWorkspaceLocalProtectionLabel,
 } from "@/services/offline/workspaceLocalProtection";
 import {
-  getWorkspacePrivacyModeDescription,
-  getWorkspacePrivacyModeLabel,
-  WORKSPACE_PRIVACY_MODE_OPTIONS,
-  type WorkspacePrivacyMode,
+    getWorkspacePrivacyModeDescription,
+    getWorkspacePrivacyModeLabel,
+    WORKSPACE_PRIVACY_MODE_OPTIONS,
+    type WorkspacePrivacyMode,
 } from "@/services/offline/workspacePrivacyMode";
 import {
-  THEME_PREFERENCE_OPTIONS,
-  type ThemePreference,
+    THEME_PREFERENCE_OPTIONS,
+    type ThemePreference,
 } from "@/services/theme/themePreferences";
 
 const themeOptionLabels: Record<ThemePreference, string> = {
@@ -914,9 +914,9 @@ const styles = StyleSheet.create({
   copy: { ...uiTypography.body, marginBottom: 6 },
   meta: { ...uiTypography.label, marginTop: uiSpace.xxs, lineHeight: 18 },
   loader: { marginVertical: uiSpace.lg },
-  button: { marginTop: uiSpace.md },
+  button: { marginTop: uiSpace.md, alignSelf: "flex-end" },
   buttonRow: { marginTop: uiSpace.md },
-  inlineButton: { flex: 1 },
+  inlineButton: { alignSelf: "flex-start" },
   aiKeyInput: { marginTop: uiSpace.md },
   themeSelector: { marginTop: uiSpace.md },
   themeChipRow: {

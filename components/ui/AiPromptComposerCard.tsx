@@ -294,5 +294,5 @@ const styles = StyleSheet.create({
   previewText: uiTypography.body,
   meta: { ...uiTypography.bodySmall, marginTop: uiSpace.md },
   actions: { marginTop: uiSpace.xl },
-  button: { flex: 1 },
+  button: { alignSelf: "flex-start" },
 });

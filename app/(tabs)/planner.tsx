@@ -1210,10 +1210,11 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: "row",
     flexWrap: "wrap",
+    justifyContent: "flex-end",
     gap: uiSpace.sm,
     marginTop: uiSpace.lg,
     marginBottom: uiSpace.md,
   },
-  button: { flex: 1 },
+  button: { alignSelf: "flex-start" },
   historyItem: { ...uiTypography.support, marginTop: uiSpace.xxs },
 });

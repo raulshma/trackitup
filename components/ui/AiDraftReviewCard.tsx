@@ -227,5 +227,5 @@ const styles = StyleSheet.create({
   itemValue: uiTypography.body,
   valueList: { gap: uiSpace.xs },
   actions: { marginTop: uiSpace.xl },
-  button: { flex: 1 },
+  button: { alignSelf: "flex-start" },
 });
