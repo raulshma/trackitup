@@ -38,7 +38,7 @@ import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
-import Colors from "@/constants/Colors";
+import Colors, { withAlpha } from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
     uiBorder,
@@ -1203,7 +1203,10 @@ export default function VisualHistoryScreen() {
                       >
                         <Image
                           source={{ uri: gallery.latestUri }}
-                          style={styles.galleryThumb}
+                          style={[
+                            styles.galleryThumb,
+                            { backgroundColor: palette.surface3 },
+                          ]}
                         />
                         <View style={styles.galleryCopy}>
                           <Text style={styles.galleryTitle}>
@@ -1327,26 +1330,76 @@ export default function VisualHistoryScreen() {
                         >
                           <Image
                             source={{ uri: recap.coverUri }}
-                            style={styles.recapCoverImage}
+                            style={[
+                              styles.recapCoverImage,
+                              { backgroundColor: palette.surface3 },
+                            ]}
                           />
-                          <View style={styles.recapCoverOverlay}>
+                          <View
+                            style={[
+                              styles.recapCoverOverlay,
+                              {
+                                backgroundColor: withAlpha(
+                                  palette.inverseSurface,
+                                  0.2,
+                                ),
+                              },
+                            ]}
+                          >
                             <View style={styles.recapCoverTopRow}>
-                              <Chip compact style={styles.recapOverlayChip}>
+                              <Chip
+                                compact
+                                style={[
+                                  styles.recapOverlayChip,
+                                  {
+                                    backgroundColor: withAlpha(
+                                      palette.inverseSurface,
+                                      0.66,
+                                    ),
+                                  },
+                                ]}
+                              >
                                 Cover photo
                               </Chip>
                               {recap.proofCount > 0 ? (
-                                <Chip compact style={styles.recapOverlayChip}>
+                                <Chip
+                                  compact
+                                  style={[
+                                    styles.recapOverlayChip,
+                                    {
+                                      backgroundColor: withAlpha(
+                                        palette.inverseSurface,
+                                        0.66,
+                                      ),
+                                    },
+                                  ]}
+                                >
                                   {recap.proofCount} proof shot(s)
                                 </Chip>
                               ) : null}
                             </View>
                             <View style={styles.recapCoverBottomRow}>
                               <View style={styles.recapCoverCopy}>
-                                <Text style={styles.recapCoverTitle}>
+                                <Text
+                                  style={[
+                                    styles.recapCoverTitle,
+                                    { color: palette.inverseOnSurface },
+                                  ]}
+                                >
                                   {recap.items[0]?.logTitle ??
                                     "Monthly highlight"}
                                 </Text>
-                                <Text style={styles.recapCoverHint}>
+                                <Text
+                                  style={[
+                                    styles.recapCoverHint,
+                                    {
+                                      color: withAlpha(
+                                        palette.inverseOnSurface,
+                                        0.88,
+                                      ),
+                                    },
+                                  ]}
+                                >
                                   Tap to open reel • {recap.items.length}{" "}
                                   captured moment(s)
                                 </Text>
@@ -1406,7 +1459,10 @@ export default function VisualHistoryScreen() {
                               >
                                 <Image
                                   source={{ uri: item.uri }}
-                                  style={styles.highlightImage}
+                                  style={[
+                                    styles.highlightImage,
+                                    { backgroundColor: palette.surface3 },
+                                  ]}
                                 />
                               </Pressable>
                               <View style={styles.highlightCopy}>
@@ -1556,7 +1612,10 @@ export default function VisualHistoryScreen() {
                       >
                         <Image
                           source={{ uri: photo.uri }}
-                          style={styles.photoImage}
+                          style={[
+                            styles.photoImage,
+                            { backgroundColor: palette.surface3 },
+                          ]}
                         />
                       </Pressable>
                       <View style={styles.photoCopy}>
@@ -1710,7 +1769,6 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: uiRadius.lg,
-    backgroundColor: "#00000014",
   },
   galleryCopy: { flex: 1, gap: uiSpace.xxs },
   galleryTitle: { ...uiTypography.titleMd, marginBottom: 2 },
@@ -1739,13 +1797,11 @@ const styles = StyleSheet.create({
   recapCoverImage: {
     width: "100%",
     height: 188,
-    backgroundColor: "#00000014",
   },
   recapCoverOverlay: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "space-between",
     padding: uiSpace.md,
-    backgroundColor: "rgba(15, 23, 42, 0.2)",
   },
   recapCoverTopRow: {
     flexDirection: "row",
@@ -1754,7 +1810,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   recapOverlayChip: {
-    backgroundColor: "rgba(15, 23, 42, 0.66)",
     borderRadius: uiRadius.pill,
   },
   recapCoverBottomRow: {
@@ -1766,11 +1821,9 @@ const styles = StyleSheet.create({
   },
   recapCoverTitle: {
     ...uiTypography.titleLg,
-    color: "#ffffff",
   },
   recapCoverHint: {
     ...uiTypography.bodySmall,
-    color: "rgba(255,255,255,0.88)",
   },
   recapActionRow: {
     marginTop: uiSpace.lg,
@@ -1804,7 +1857,6 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: uiRadius.lg,
-    backgroundColor: "#00000014",
   },
   photoCard: {
     borderWidth: uiBorder.standard,
@@ -1815,7 +1867,6 @@ const styles = StyleSheet.create({
   photoImage: {
     width: "100%",
     height: 220,
-    backgroundColor: "#00000014",
   },
   photoCopy: { padding: uiSpace.surface, gap: uiSpace.xs },
   photoChipRow: { marginBottom: uiSpace.md },

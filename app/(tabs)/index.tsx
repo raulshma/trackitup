@@ -26,7 +26,7 @@ import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
-import Colors from "@/constants/Colors";
+import Colors, { getChartSeriesColor } from "@/constants/Colors";
 import { uiMotion, uiRadius, uiSpace } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
@@ -682,7 +682,7 @@ export default function TabOneScreen() {
             id: metric.id,
             label: metric.name,
             unitLabel: metric.unitLabel,
-            color: ["#0f766e", "#8b5cf6", "#ea580c"][index] ?? palette.tint,
+            color: getChartSeriesColor(palette, index),
           },
         ];
       });

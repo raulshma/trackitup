@@ -1,7 +1,17 @@
 import { useEffect, useState } from "react";
 import { Animated, Image, Platform, StyleSheet } from "react-native";
 import BootSplash from "react-native-bootsplash";
+
+import {
+    DEFAULT_THEME_PREFERENCE,
+    getThemeBackgroundColor,
+} from "@/services/theme/themePreferences";
+
 import { AnimatedVectorLogo } from "./AnimatedVectorLogo";
+
+const SPLASH_BACKGROUND_COLOR = getThemeBackgroundColor(
+  DEFAULT_THEME_PREFERENCE,
+);
 
 type Props = {
   children: React.ReactNode;
@@ -114,7 +124,7 @@ export function AnimatedSplashScreen({
 const styles = StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#0F172A",
+    backgroundColor: SPLASH_BACKGROUND_COLOR,
     alignItems: "center",
     justifyContent: "center",
   },

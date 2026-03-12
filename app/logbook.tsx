@@ -21,7 +21,7 @@ import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionMessage } from "@/components/ui/SectionMessage";
 import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
-import Colors from "@/constants/Colors";
+import Colors, { getReadableTextColor } from "@/constants/Colors";
 import {
     getLogKindFormTemplate,
     getQuickActionFormTemplate,
@@ -816,7 +816,10 @@ export default function LogbookScreen() {
                     styles.heroBadge,
                     { backgroundColor: selectedSpace.themeColor },
                   ]}
-                  textStyle={styles.badgeText}
+                  textStyle={[
+                    styles.badgeText,
+                    { color: getReadableTextColor(selectedSpace.themeColor) },
+                  ]}
                 >
                   {selectedSpace.name}
                 </Chip>
@@ -850,7 +853,18 @@ export default function LogbookScreen() {
                     },
                   ]}
                 >
-                  <Text style={styles.guidanceStepText}>{index + 1}</Text>
+                  <Text
+                    style={[
+                      styles.guidanceStepText,
+                      {
+                        color: getReadableTextColor(
+                          linkedSpace?.themeColor ?? palette.tint,
+                        ),
+                      },
+                    ]}
+                  >
+                    {index + 1}
+                  </Text>
                 </View>
                 <Text style={[styles.listCopy, paletteStyles.mutedText]}>
                   {step}
@@ -960,7 +974,10 @@ export default function LogbookScreen() {
                     styles.badge,
                     { backgroundColor: entrySpace.themeColor },
                   ]}
-                  textStyle={styles.badgeText}
+                  textStyle={[
+                    styles.badgeText,
+                    { color: getReadableTextColor(entrySpace.themeColor) },
+                  ]}
                 >
                   {logTypeLabels[entry.kind]}
                 </Chip>
@@ -1183,7 +1200,10 @@ export default function LogbookScreen() {
                         <Image
                           key={attachment.id}
                           source={{ uri: attachment.uri }}
-                          style={styles.photoPreview}
+                          style={[
+                            styles.photoPreview,
+                            { backgroundColor: palette.surface3 },
+                          ]}
                         />
                       ))}
                     </View>
@@ -1853,7 +1873,7 @@ const styles = StyleSheet.create({
     marginBottom: uiSpace.lg,
   },
   badge: { borderRadius: uiRadius.pill },
-  badgeText: { color: "#f8fafc", ...uiTypography.chip },
+  badgeText: uiTypography.chip,
   cardTitle: { ...uiTypography.titleXl, marginBottom: 6 },
   cardCopy: { ...uiTypography.body, marginBottom: uiSpace.md },
   metaText: uiTypography.chip,
@@ -1885,7 +1905,6 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   guidanceStepText: {
-    color: "#f8fafc",
     ...uiTypography.chip,
   },
   templateSection: { marginTop: uiSpace.xs, marginBottom: uiSpace.lg },
@@ -1933,7 +1952,6 @@ const styles = StyleSheet.create({
     width: 92,
     height: 92,
     borderRadius: uiRadius.lg,
-    backgroundColor: "#00000014",
   },
   footer: {
     minHeight: logbookFooterMinHeight,

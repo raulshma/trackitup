@@ -10,7 +10,7 @@ import { Chip, Surface, TextInput } from "react-native-paper";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { Text } from "@/components/Themed";
-import type { AppPalette } from "@/constants/Colors";
+import { withAlpha, type AppPalette } from "@/constants/Colors";
 import {
     uiBorder,
     uiRadius,
@@ -389,6 +389,7 @@ export function AccentColorPicker({
                   Math.max(hueLayout.width - 20, 0),
                 ),
                 borderColor: palette.inverseSurface,
+                backgroundColor: withAlpha(palette.inverseOnSurface, 0.75),
               },
             ]}
           />
@@ -403,7 +404,7 @@ export function AccentColorPicker({
           autoCapitalize="characters"
           autoCorrect={false}
           autoComplete="off"
-          placeholder="#7c3aed"
+          placeholder="#RRGGBB"
           mode="outlined"
         />
       </Surface>
@@ -482,6 +483,5 @@ const styles = StyleSheet.create({
     marginLeft: -10,
     borderRadius: uiRadius.pill,
     borderWidth: 2,
-    backgroundColor: "rgba(255,255,255,0.75)",
   },
 });

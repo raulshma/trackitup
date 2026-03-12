@@ -351,7 +351,13 @@ export function AppSidebar() {
       ) : null}
       {isVisible ? (
         <>
-          <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
+          <Animated.View
+            style={[
+              styles.backdrop,
+              backdropAnimatedStyle,
+              { backgroundColor: theme.colors.scrim },
+            ]}
+          >
             <Pressable
               accessibilityLabel="Close sidebar"
               onPress={closeSidebar}
@@ -542,7 +548,6 @@ export function AppSidebar() {
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(8, 12, 20, 0.34)",
   },
   drawerWrap: {
     ...StyleSheet.absoluteFillObject,

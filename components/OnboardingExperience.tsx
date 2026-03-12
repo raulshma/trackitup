@@ -24,7 +24,10 @@ import {
 } from "@/constants/UiTokens";
 import { useAppAuth } from "@/providers/AuthProvider";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
-import type { ThemePreference } from "@/services/theme/themePreferences";
+import {
+    getThemeBackgroundColor,
+    type ThemePreference,
+} from "@/services/theme/themePreferences";
 
 type OnboardingExperienceProps = {
   onComplete: () => void;
@@ -54,9 +57,9 @@ const THEME_NOTES: Record<ThemePreference, string> = {
 };
 
 const THEME_SWATCHES: Record<ThemePreference, string> = {
-  light: "#f7f9fc",
-  dark: "#111318",
-  oled: "#000000",
+  light: getThemeBackgroundColor("light"),
+  dark: getThemeBackgroundColor("dark"),
+  oled: getThemeBackgroundColor("oled"),
 };
 
 const FADE_STOPS = [0.94, 0.72, 0.46, 0.22, 0.06];
@@ -729,7 +732,10 @@ function PersonalizeShowcase({
                 <View
                   style={[
                     styles.previewSwatch,
-                    { backgroundColor: THEME_SWATCHES[option] },
+                    {
+                      backgroundColor: THEME_SWATCHES[option],
+                      borderColor: palette.borderSoft,
+                    },
                   ]}
                 />
                 <Text style={styles.previewTitle}>{THEME_LABELS[option]}</Text>
@@ -1006,7 +1012,6 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: uiRadius.md,
     borderWidth: uiBorder.standard,
-    borderColor: "rgba(255,255,255,0.12)",
   },
   previewTitle: uiTypography.titleSm,
   previewNote: uiTypography.support,

@@ -14,6 +14,7 @@ import { Button, Chip } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
+import { withAlpha } from "@/constants/Colors";
 import {
     uiBorder,
     uiRadius,
@@ -88,14 +89,19 @@ export function PhotoLightbox({
       transparent
       onRequestClose={onRequestClose}
     >
-      <View style={styles.backdrop}>
+      <View
+        style={[
+          styles.backdrop,
+          { backgroundColor: withAlpha(palette.inverseSurface, 0.94) },
+        ]}
+      >
         <View style={styles.chrome}>
           <View
             style={[
               styles.headerPanel,
               {
-                backgroundColor: "rgba(15, 23, 42, 0.72)",
-                borderColor: "rgba(255,255,255,0.12)",
+                backgroundColor: withAlpha(palette.inverseSurface, 0.72),
+                borderColor: withAlpha(palette.inverseOnSurface, 0.12),
                 shadowColor: palette.shadow,
               },
             ]}
@@ -149,7 +155,18 @@ export function PhotoLightbox({
                   showsHorizontalScrollIndicator={false}
                   showsVerticalScrollIndicator={false}
                 >
-                  <View style={styles.imageFrame}>
+                  <View
+                    style={[
+                      styles.imageFrame,
+                      {
+                        borderColor: withAlpha(palette.inverseOnSurface, 0.12),
+                        backgroundColor: withAlpha(
+                          palette.inverseOnSurface,
+                          0.05,
+                        ),
+                      },
+                    ]}
+                  >
                     <Image
                       source={{ uri: item.uri }}
                       style={styles.image}
@@ -170,8 +187,8 @@ export function PhotoLightbox({
             style={[
               styles.footerPanel,
               {
-                backgroundColor: "rgba(15, 23, 42, 0.72)",
-                borderColor: "rgba(255,255,255,0.12)",
+                backgroundColor: withAlpha(palette.inverseSurface, 0.72),
+                borderColor: withAlpha(palette.inverseOnSurface, 0.12),
                 shadowColor: palette.shadow,
               },
             ]}
@@ -179,7 +196,12 @@ export function PhotoLightbox({
             <View style={styles.footerRow}>
               <Chip
                 compact
-                style={styles.indexChip}
+                style={[
+                  styles.indexChip,
+                  {
+                    backgroundColor: withAlpha(palette.inverseOnSurface, 0.12),
+                  },
+                ]}
                 textStyle={{ color: palette.inverseOnSurface }}
               >
                 {items.length === 0
@@ -189,7 +211,15 @@ export function PhotoLightbox({
               {activeItem?.badge ? (
                 <Chip
                   compact
-                  style={styles.indexChip}
+                  style={[
+                    styles.indexChip,
+                    {
+                      backgroundColor: withAlpha(
+                        palette.inverseOnSurface,
+                        0.12,
+                      ),
+                    },
+                  ]}
                   textStyle={{ color: palette.inverseOnSurface }}
                 >
                   {activeItem.badge}
@@ -197,7 +227,12 @@ export function PhotoLightbox({
               ) : null}
               <Chip
                 compact
-                style={styles.indexChip}
+                style={[
+                  styles.indexChip,
+                  {
+                    backgroundColor: withAlpha(palette.inverseOnSurface, 0.12),
+                  },
+                ]}
                 textStyle={{ color: palette.inverseOnSurface }}
               >
                 Swipe + pinch to zoom
@@ -214,7 +249,7 @@ export function PhotoLightbox({
                       backgroundColor:
                         index === activeIndex
                           ? palette.inverseOnSurface
-                          : "rgba(255,255,255,0.7)",
+                          : withAlpha(palette.inverseOnSurface, 0.7),
                       transform: [{ scale: index === activeIndex ? 1.15 : 1 }],
                     },
                   ]}
@@ -231,7 +266,6 @@ export function PhotoLightbox({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: "rgba(2, 6, 23, 0.94)",
   },
   chrome: {
     flex: 1,
@@ -273,8 +307,6 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.hero,
     overflow: "hidden",
     borderWidth: uiBorder.standard,
-    borderColor: "rgba(255,255,255,0.12)",
-    backgroundColor: "rgba(255,255,255,0.05)",
   },
   image: {
     width: "100%",
@@ -306,7 +338,6 @@ const styles = StyleSheet.create({
     borderRadius: uiRadius.pill,
   },
   indexChip: {
-    backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: uiRadius.pill,
   },
 });

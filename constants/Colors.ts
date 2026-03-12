@@ -45,6 +45,14 @@ export type AppPalette = {
   shadow: string;
 };
 
+const chartSeriesPaletteKeys: Array<keyof AppPalette> = [
+  "tint",
+  "secondary",
+  "tertiary",
+  "success",
+  "warning",
+];
+
 const basePalettes: Record<AppColorScheme, AppPalette> = {
   light: {
     text: "#0f172a",
@@ -187,6 +195,24 @@ function hexToRgb(color: string): Rgb {
   };
 }
 
+export function withAlpha(color: string, alpha: number): string {
+  if (color.startsWith("#")) {
+    const { red, green, blue } = hexToRgb(color);
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
+  const rgbMatch = color.match(/rgba?\(([^)]+)\)/i);
+  if (rgbMatch) {
+    const [red, green, blue] = rgbMatch[1]
+      .split(",")
+      .map((part) => part.trim())
+      .slice(0, 3);
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
+  return color;
+}
+
 function rgbToHex({ red, green, blue }: Rgb): string {
   return `#${[red, green, blue]
     .map((channel) =>
@@ -286,12 +312,19 @@ function getPerceivedLuminance(color: string): number {
   return (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
 }
 
-function getReadableTextColor(
+export function getReadableTextColor(
   color: string,
   light = "#ffffff",
   dark = "#08111f",
 ) {
   return getPerceivedLuminance(color) > 0.58 ? dark : light;
+}
+
+export function getChartSeriesColor(
+  palette: AppPalette,
+  index: number,
+): string {
+  return palette[chartSeriesPaletteKeys[index] ?? "tint"];
 }
 
 function resolveAccentForScheme(

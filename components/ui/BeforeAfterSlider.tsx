@@ -1,14 +1,15 @@
 import { useMemo, useState } from "react";
 import {
-  Image,
-  PanResponder,
-  StyleSheet,
-  View,
-  type LayoutChangeEvent,
+    Image,
+    PanResponder,
+    StyleSheet,
+    View,
+    type LayoutChangeEvent,
 } from "react-native";
 
 import { Text } from "@/components/Themed";
 import type { AppPalette } from "@/constants/AppTheme";
+import { withAlpha } from "@/constants/Colors";
 import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
 
 type BeforeAfterSliderProps = {
@@ -42,7 +43,8 @@ export function BeforeAfterSlider({
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (event) => updateRatio(event.nativeEvent.locationX),
+        onPanResponderGrant: (event) =>
+          updateRatio(event.nativeEvent.locationX),
         onPanResponderMove: (event) => updateRatio(event.nativeEvent.locationX),
       }),
     [containerWidth],
@@ -61,27 +63,61 @@ export function BeforeAfterSlider({
         style={[styles.frame, { height, backgroundColor: palette.surface2 }]}
         onLayout={handleLayout}
       >
-        <Image source={{ uri: afterUri }} style={styles.fullImage} resizeMode="cover" />
-        <View style={[styles.overlayClip, { width: overlayWidth }]}> 
-          <Image source={{ uri: beforeUri }} style={styles.fullImage} resizeMode="cover" />
+        <Image
+          source={{ uri: afterUri }}
+          style={styles.fullImage}
+          resizeMode="cover"
+        />
+        <View style={[styles.overlayClip, { width: overlayWidth }]}>
+          <Image
+            source={{ uri: beforeUri }}
+            style={styles.fullImage}
+            resizeMode="cover"
+          />
         </View>
-        <View style={[styles.handleTrack, { left: overlayWidth }]}> 
-          <View style={[styles.handleKnob, { borderColor: palette.inverseSurface }]} />
+        <View
+          style={[
+            styles.handleTrack,
+            {
+              left: overlayWidth,
+              backgroundColor: withAlpha(palette.inverseOnSurface, 0.85),
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.handleKnob,
+              {
+                borderColor: palette.inverseSurface,
+                backgroundColor: withAlpha(palette.inverseOnSurface, 0.92),
+              },
+            ]}
+          />
         </View>
         <View style={styles.badgeRow}>
-          <View style={[styles.badge, { backgroundColor: palette.inverseSurface }]}>
-            <Text style={[styles.badgeText, { color: palette.inverseOnSurface }]}>
+          <View
+            style={[styles.badge, { backgroundColor: palette.inverseSurface }]}
+          >
+            <Text
+              style={[styles.badgeText, { color: palette.inverseOnSurface }]}
+            >
               {beforeLabel}
             </Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: palette.inverseSurface }]}>
-            <Text style={[styles.badgeText, { color: palette.inverseOnSurface }]}>
+          <View
+            style={[styles.badge, { backgroundColor: palette.inverseSurface }]}
+          >
+            <Text
+              style={[styles.badgeText, { color: palette.inverseOnSurface }]}
+            >
               {afterLabel}
             </Text>
           </View>
         </View>
       </View>
-      <Text style={[styles.caption, { color: palette.muted }]}>Drag the divider to compare progress.</Text>
+      <Text style={[styles.caption, { color: palette.muted }]}>
+        Drag the divider to compare progress.
+      </Text>
     </View>
   );
 }
@@ -107,7 +143,6 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 2,
     marginLeft: -1,
-    backgroundColor: "rgba(255,255,255,0.85)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -115,7 +150,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: uiRadius.pill,
-    backgroundColor: "rgba(255,255,255,0.92)",
     borderWidth: 2,
   },
   badgeRow: {

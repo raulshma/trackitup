@@ -8,7 +8,7 @@ import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompa
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
-import Colors from "@/constants/Colors";
+import Colors, { getReadableTextColor } from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
     uiBorder,
@@ -527,7 +527,14 @@ export default function TabTwoScreen() {
         >
           <View style={styles.timelineHeader}>
             <View style={[styles.typeBadge, { backgroundColor: entry.accent }]}>
-              <Text style={styles.typeLabel}>{entry.type}</Text>
+              <Text
+                style={[
+                  styles.typeLabel,
+                  { color: getReadableTextColor(entry.accent) },
+                ]}
+              >
+                {entry.type}
+              </Text>
             </View>
             <Text style={[styles.timestamp, paletteStyles.mutedText]}>
               {entry.timestamp}
@@ -650,7 +657,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   typeLabel: {
-    color: "#f8fafc",
     ...uiTypography.chip,
   },
   timestamp: {

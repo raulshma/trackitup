@@ -452,7 +452,7 @@ export const DynamicFormField = memo(function DynamicFormField({
         styles.fieldCard,
         {
           backgroundColor: palette.background,
-          borderColor: error ? "#dc2626" : palette.border,
+          borderColor: error ? palette.danger : palette.border,
           marginLeft: depth * 10,
         },
       ]}
