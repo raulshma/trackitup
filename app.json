@@ -8,7 +8,7 @@
     "scheme": "trackitup",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/bootsplash/logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0F172A"
     },
@@ -69,19 +69,14 @@
           "locationWhenInUsePermission": "Allow TrackItUp to attach locations to logs, finds, and tracked assets."
         }
       ],
+      "./plugins/withTrackItUpAndroidSplashTheme.js",
       [
         "./plugins/withTrackItUpBootSplash.js",
         {
-          "assetsDir": "assets/bootsplash",
+          "assetsOutput": "assets/bootsplash",
           "logo": "./assets/bootsplash/logo.png",
-          "android": {
-            "background": "#0F172A",
-            "darkBackground": "#0F172A"
-          },
-          "ios": {
-            "background": "#0F172A",
-            "darkBackground": "#0F172A"
-          }
+          "logoWidth": 96,
+          "background": "#0F172A"
         }
       ]
     ],

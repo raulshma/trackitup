@@ -4,6 +4,7 @@ import {
     FlatList,
     Image,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     View,
@@ -92,6 +93,8 @@ export function PhotoLightbox({
       visible={visible}
       animationType="fade"
       transparent
+      hardwareAccelerated={Platform.OS === "android"}
+      statusBarTranslucent={Platform.OS === "android"}
       onRequestClose={onRequestClose}
     >
       <View
@@ -146,6 +149,10 @@ export function PhotoLightbox({
             showsHorizontalScrollIndicator={false}
             keyExtractor={(item) => item.id}
             onMomentumScrollEnd={handleMomentumEnd}
+            initialNumToRender={1}
+            maxToRenderPerBatch={2}
+            windowSize={3}
+            removeClippedSubviews={Platform.OS === "android"}
             renderItem={({ item }) => (
               <View style={styles.slide}>
                 <ScrollView

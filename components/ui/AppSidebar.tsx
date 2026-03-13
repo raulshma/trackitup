@@ -3,13 +3,14 @@ import { Href, usePathname, useRouter } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import React from "react";
 import {
-    Animated,
-    PanResponder,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    useWindowDimensions,
-    View,
+  Animated,
+  PanResponder,
+  Platform,
+  Pressable,
+  SectionList,
+  StyleSheet,
+  useWindowDimensions,
+  View,
 } from "react-native";
 import { Surface, useTheme, type MD3Theme } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,15 +18,15 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Text } from "@/components/Themed";
 import { withAlpha } from "@/constants/Colors";
 import {
-    getShadowStyle,
-    uiBorder,
-    uiElevation,
-    uiMotion,
-    uiRadius,
-    uiShadow,
-    uiSize,
-    uiSpace,
-    uiTypography,
+  getShadowStyle,
+  uiBorder,
+  uiElevation,
+  uiMotion,
+  uiRadius,
+  uiShadow,
+  uiSize,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useAppSidebar } from "@/providers/AppSidebarProvider";
 
@@ -41,6 +42,83 @@ type SidebarRoute = {
 };
 
 const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
+
+const SidebarRouteRow = React.memo(function SidebarRouteRow({
+  item,
+  isActive,
+  onPress,
+  primaryContainer,
+  onPrimaryContainer,
+  onSurface,
+  onSurfaceVariant,
+  outlineVariant,
+  elevationLevel1,
+  elevationLevel2,
+  primary,
+}: {
+  item: SidebarRoute;
+  isActive: boolean;
+  onPress: (item: SidebarRoute) => void;
+  primaryContainer: string;
+  onPrimaryContainer: string;
+  onSurface: string;
+  onSurfaceVariant: string;
+  outlineVariant: string;
+  elevationLevel1: string;
+  elevationLevel2: string;
+  primary: string;
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={`Open ${item.label}`}
+      onPress={() => onPress(item)}
+      style={({ pressed }) => [
+        styles.routeRow,
+        {
+          backgroundColor: isActive ? primaryContainer : elevationLevel1,
+          borderColor: isActive ? primary : outlineVariant,
+          opacity: pressed ? 0.92 : 1,
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.routeIconWrap,
+          {
+            backgroundColor: isActive ? elevationLevel1 : elevationLevel2,
+            borderColor: outlineVariant,
+          },
+        ]}
+      >
+        <SymbolView
+          name={item.icon}
+          size={20}
+          tintColor={isActive ? onPrimaryContainer : onSurfaceVariant}
+        />
+      </View>
+      <View style={styles.routeCopy}>
+        <Text
+          style={[
+            styles.routeLabel,
+            { color: isActive ? onPrimaryContainer : onSurface },
+          ]}
+        >
+          {item.label}
+        </Text>
+        <Text
+          style={[
+            styles.routeHint,
+            {
+              color: isActive ? onPrimaryContainer : onSurfaceVariant,
+            },
+          ]}
+        >
+          {item.hint}
+        </Text>
+      </View>
+    </Pressable>
+  );
+});
 
 const sidebarGroups: Array<{
   title: string;
@@ -222,10 +300,28 @@ export function AppSidebar() {
   const progressValueRef = React.useRef(0);
   const gestureStartValueRef = React.useRef(0);
   const [isVisible, setIsVisible] = React.useState(isOpen);
+  const [isDrawerContentReady, setIsDrawerContentReady] =
+    React.useState(isOpen);
   const drawerWidth = Math.min(320, Math.max(280, width * 0.84));
   const drawerShadow = React.useMemo(
     () => getShadowStyle(theme.colors.shadow, uiShadow.raisedCard),
     [theme.colors.shadow],
+  );
+  const shouldRenderBlurBackdrop = Platform.OS === "ios";
+  const sectionListSections = React.useMemo(
+    () =>
+      sidebarGroups.map((group) => ({
+        title: group.title,
+        data: group.items,
+      })),
+    [],
+  );
+  const handleRoutePress = React.useCallback(
+    (item: SidebarRoute) => {
+      closeSidebar();
+      router.push(item.href as never);
+    },
+    [closeSidebar, router],
   );
 
   React.useEffect(() => {
@@ -241,12 +337,19 @@ export function AppSidebar() {
   React.useEffect(() => {
     if (isOpen) {
       setIsVisible(true);
+      setIsDrawerContentReady(false);
+      const frameId = requestAnimationFrame(() => {
+        setIsDrawerContentReady(true);
+      });
       Animated.timing(progress, {
         toValue: 1,
         duration: uiMotion.standard,
         useNativeDriver: true,
       }).start();
-      return;
+
+      return () => {
+        cancelAnimationFrame(frameId);
+      };
     }
 
     Animated.timing(progress, {
@@ -256,6 +359,7 @@ export function AppSidebar() {
     }).start(({ finished }) => {
       if (finished) {
         setIsVisible(false);
+        setIsDrawerContentReady(false);
       }
     });
   }, [isOpen, progress]);
@@ -361,16 +465,21 @@ export function AppSidebar() {
       {isVisible ? (
         <>
           <Animated.View style={[styles.backdrop, backdropAnimatedStyle]}>
-            <AnimatedBlurView
-              intensity={40}
-              tint={theme.dark ? "dark" : "light"}
-              style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}
-            />
+            {shouldRenderBlurBackdrop ? (
+              <AnimatedBlurView
+                intensity={26}
+                tint={theme.dark ? "dark" : "light"}
+                style={[StyleSheet.absoluteFill, { pointerEvents: "none" }]}
+              />
+            ) : null}
             <View
               style={[
                 StyleSheet.absoluteFill,
                 {
-                  backgroundColor: withAlpha(theme.colors.scrim, 0.35),
+                  backgroundColor: withAlpha(
+                    theme.colors.scrim,
+                    shouldRenderBlurBackdrop ? 0.35 : 0.46,
+                  ),
                   pointerEvents: "none",
                 },
               ]}
@@ -460,100 +569,59 @@ export function AppSidebar() {
                 </Pressable>
               </View>
 
-              <ScrollView
-                contentContainerStyle={[
-                  styles.scrollContent,
-                  { paddingBottom: insets.bottom + uiSpace.surface },
-                ]}
-                showsVerticalScrollIndicator={false}
-              >
-                {sidebarGroups.map((group) => (
-                  <View key={group.title} style={styles.group}>
+              {isDrawerContentReady ? (
+                <SectionList
+                  sections={sectionListSections}
+                  keyExtractor={(item) => item.id}
+                  renderSectionHeader={({ section }) => (
                     <Text
                       style={[
                         styles.groupTitle,
                         { color: theme.colors.onSurfaceVariant },
                       ]}
                     >
-                      {group.title}
+                      {section.title}
                     </Text>
-                    {group.items.map((item) => {
-                      const isActive = item.matches(pathname);
-
-                      return (
-                        <Pressable
-                          key={item.id}
-                          accessibilityLabel={`Open ${item.label}`}
-                          onPress={() => {
-                            closeSidebar();
-                            router.push(item.href as never);
-                          }}
-                          style={({ pressed }) => [
-                            styles.routeRow,
-                            {
-                              backgroundColor: isActive
-                                ? theme.colors.primaryContainer
-                                : theme.colors.elevation.level1,
-                              borderColor: isActive
-                                ? theme.colors.primary
-                                : theme.colors.outlineVariant,
-                              opacity: pressed ? 0.92 : 1,
-                            },
-                          ]}
-                        >
-                          <View
-                            style={[
-                              styles.routeIconWrap,
-                              {
-                                backgroundColor: isActive
-                                  ? theme.colors.elevation.level1
-                                  : theme.colors.elevation.level2,
-                                borderColor: theme.colors.outlineVariant,
-                              },
-                            ]}
-                          >
-                            <SymbolView
-                              name={item.icon}
-                              size={20}
-                              tintColor={
-                                isActive
-                                  ? theme.colors.onPrimaryContainer
-                                  : theme.colors.onSurfaceVariant
-                              }
-                            />
-                          </View>
-                          <View style={styles.routeCopy}>
-                            <Text
-                              style={[
-                                styles.routeLabel,
-                                {
-                                  color: isActive
-                                    ? theme.colors.onPrimaryContainer
-                                    : theme.colors.onSurface,
-                                },
-                              ]}
-                            >
-                              {item.label}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.routeHint,
-                                {
-                                  color: isActive
-                                    ? theme.colors.onPrimaryContainer
-                                    : theme.colors.onSurfaceVariant,
-                                },
-                              ]}
-                            >
-                              {item.hint}
-                            </Text>
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                ))}
-              </ScrollView>
+                  )}
+                  renderItem={({ item }) => (
+                    <SidebarRouteRow
+                      item={item}
+                      isActive={item.matches(pathname)}
+                      onPress={handleRoutePress}
+                      primaryContainer={theme.colors.primaryContainer}
+                      onPrimaryContainer={theme.colors.onPrimaryContainer}
+                      onSurface={theme.colors.onSurface}
+                      onSurfaceVariant={theme.colors.onSurfaceVariant}
+                      outlineVariant={theme.colors.outlineVariant}
+                      elevationLevel1={theme.colors.elevation.level1}
+                      elevationLevel2={theme.colors.elevation.level2}
+                      primary={theme.colors.primary}
+                    />
+                  )}
+                  contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: insets.bottom + uiSpace.surface },
+                  ]}
+                  stickySectionHeadersEnabled={false}
+                  initialNumToRender={10}
+                  maxToRenderPerBatch={8}
+                  windowSize={7}
+                  updateCellsBatchingPeriod={34}
+                  showsVerticalScrollIndicator={false}
+                  removeClippedSubviews={Platform.OS === "android"}
+                />
+              ) : (
+                <View style={styles.drawerLoadingState}>
+                  <Text
+                    style={[
+                      styles.headerSubtitle,
+                      { color: theme.colors.onSurfaceVariant },
+                    ]}
+                  >
+                    Loading navigation…
+                  </Text>
+                </View>
+              )}
             </Surface>
           </Animated.View>
         </>
@@ -632,18 +700,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: uiBorder.hairline,
   },
+  drawerLoadingState: {
+    flex: 1,
+    paddingHorizontal: uiSpace.surface,
+    paddingTop: uiSpace.lg,
+  },
   scrollContent: {
     paddingHorizontal: uiSpace.surface,
     paddingTop: uiSpace.lg,
-    gap: uiSpace.xl,
-  },
-  group: {
-    gap: uiSpace.sm,
+    paddingBottom: uiSpace.xl,
   },
   groupTitle: {
     ...uiTypography.label,
     textTransform: "uppercase",
-    marginBottom: uiSpace.xs,
+    marginBottom: uiSpace.sm,
+    marginTop: uiSpace.xl,
   },
   routeRow: {
     flexDirection: "row",

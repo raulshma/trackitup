@@ -1,14 +1,20 @@
 import { Stack, useRouter } from "expo-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FlatList, Platform, StyleSheet, View } from "react-native";
 import {
-    ActivityIndicator,
-    Button,
-    Chip,
-    RadioButton,
-    SegmentedButtons,
-    TextInput,
-    TouchableRipple,
+  FlatList,
+  InteractionManager,
+  Platform,
+  StyleSheet,
+  View,
+} from "react-native";
+import {
+  ActivityIndicator,
+  Button,
+  Chip,
+  RadioButton,
+  SegmentedButtons,
+  TextInput,
+  TouchableRipple,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -20,21 +26,21 @@ import { uiRadius, uiSpace, uiTypography } from "@/constants/UiTokens";
 import { useAiPreferences } from "@/providers/AiPreferencesProvider";
 import { aiAccountSettingsCopy } from "@/services/ai/aiConsentCopy";
 import {
-    loadOpenRouterModelSortPreference,
-    persistOpenRouterModelSortPreference,
+  loadOpenRouterModelSortPreference,
+  persistOpenRouterModelSortPreference,
 } from "@/services/ai/aiPreferencePersistence";
 import {
-    DEFAULT_OPENROUTER_MODEL_SORT,
-    filterOpenRouterSelectableModels,
-    formatOpenRouterModelPricingLabel,
-    getDefaultOpenRouterModelTier,
-    getOpenRouterSearchHighlightParts,
-    loadOpenRouterSelectableModels,
-    normalizeOpenRouterModelSort,
-    sortOpenRouterSelectableModels,
-    type OpenRouterModelSort,
-    type OpenRouterModelTier,
-    type OpenRouterSelectableModel,
+  DEFAULT_OPENROUTER_MODEL_SORT,
+  filterOpenRouterSelectableModels,
+  formatOpenRouterModelPricingLabel,
+  getDefaultOpenRouterModelTier,
+  getOpenRouterSearchHighlightParts,
+  loadOpenRouterSelectableModels,
+  normalizeOpenRouterModelSort,
+  sortOpenRouterSelectableModels,
+  type OpenRouterModelSort,
+  type OpenRouterModelTier,
+  type OpenRouterSelectableModel,
 } from "@/services/ai/openRouterModels";
 
 const OpenRouterHighlightedText = memo(function OpenRouterHighlightedText({
@@ -168,6 +174,7 @@ export default function OpenRouterModelPickerScreen() {
   const [openRouterModelError, setOpenRouterModelError] = useState<
     string | null
   >(null);
+  const [isTransitionSettled, setIsTransitionSettled] = useState(false);
   const hasLoadedOpenRouterModelSortPreferenceRef = useRef(false);
 
   const selectedOpenRouterModel = useMemo(
@@ -222,6 +229,18 @@ export default function OpenRouterModelPickerScreen() {
   }, [openRouterModelQuery]);
 
   useEffect(() => {
+    const interactionTask = InteractionManager.runAfterInteractions(() => {
+      setIsTransitionSettled(true);
+    });
+
+    return () => {
+      interactionTask.cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isTransitionSettled) return;
+
     let isMounted = true;
 
     void loadOpenRouterModelSortPreference()
@@ -238,7 +257,7 @@ export default function OpenRouterModelPickerScreen() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isTransitionSettled]);
 
   useEffect(() => {
     if (!hasLoadedOpenRouterModelSortPreferenceRef.current) return;
@@ -279,8 +298,9 @@ export default function OpenRouterModelPickerScreen() {
   );
 
   useEffect(() => {
+    if (!isTransitionSettled) return;
     void loadOpenRouterModels();
-  }, [loadOpenRouterModels]);
+  }, [isTransitionSettled, loadOpenRouterModels]);
 
   const handleSelectOpenRouterModel = useCallback(
     (model: OpenRouterSelectableModel) => {
@@ -435,7 +455,7 @@ export default function OpenRouterModelPickerScreen() {
             { value: "price", label: "Price" },
           ]}
         />
-        {isLoadingOpenRouterModels ? (
+        {!isTransitionSettled || isLoadingOpenRouterModels ? (
           <ActivityIndicator style={styles.loader} />
         ) : openRouterModelError ? (
           <View style={styles.emptyState}>
@@ -456,9 +476,11 @@ export default function OpenRouterModelPickerScreen() {
               style={styles.modelList}
               contentContainerStyle={styles.modelListContent}
               keyboardShouldPersistTaps="handled"
-              initialNumToRender={16}
-              maxToRenderPerBatch={12}
-              windowSize={10}
+              keyboardDismissMode="on-drag"
+              initialNumToRender={8}
+              maxToRenderPerBatch={8}
+              windowSize={6}
+              updateCellsBatchingPeriod={34}
               removeClippedSubviews={Platform.OS !== "web"}
               ListEmptyComponent={
                 <Text style={[styles.meta, paletteStyles.mutedText]}>

@@ -53,21 +53,27 @@ export function useTabHeaderScrollValue(routeName: string) {
 }
 
 export function useTabHeaderScroll(routeName: string): {
-  onScroll: NonNullable<ScrollViewProps["onScroll"]>;
+  onScroll?: ScrollViewProps["onScroll"];
   scrollEventThrottle: number;
+  removeClippedSubviews?: boolean;
 } {
   const scrollY = useTabHeaderScrollValue(routeName);
+  const isWeb = Platform.OS === "web";
+  const isAndroid = Platform.OS === "android";
 
   const onScroll = React.useMemo(
     () =>
-      Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-        useNativeDriver: Platform.OS !== "web",
-      }),
-    [scrollY],
+      isWeb
+        ? undefined
+        : Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+            useNativeDriver: true,
+          }),
+    [isWeb, scrollY],
   );
 
   return {
     onScroll,
-    scrollEventThrottle: 16,
+    scrollEventThrottle: isWeb ? 64 : 16,
+    removeClippedSubviews: isAndroid ? true : undefined,
   };
 }

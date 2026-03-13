@@ -2,14 +2,21 @@ import { getHeaderTitle } from "@react-navigation/elements";
 import { ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import * as Notifications from "expo-notifications";
-import { Stack, router } from "expo-router";
+import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
-import { Platform, StyleSheet } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  useColorScheme as useNativeColorScheme,
+  View,
+} from "react-native";
+import BootSplash from "react-native-bootsplash";
 import { PaperProvider } from "react-native-paper";
 import "react-native-reanimated";
 
-import { AnimatedSplashScreen } from "@/components/AnimatedSplashScreen";
 import { OnboardingExperience } from "@/components/OnboardingExperience";
 import { AppSidebar } from "@/components/ui/AppSidebar";
 import { MaterialCompactTopAppBar } from "@/components/ui/MaterialCompactTopAppBar";
@@ -18,13 +25,13 @@ import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
 import { uiSpace, uiTypography } from "@/constants/UiTokens";
 import { AiPreferencesProvider } from "@/providers/AiPreferencesProvider";
 import {
-    AppSidebarProvider,
-    useAppSidebar,
+  AppSidebarProvider,
+  useAppSidebar,
 } from "@/providers/AppSidebarProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import {
-    OnboardingProvider,
-    useOnboarding,
+  OnboardingProvider,
+  useOnboarding,
 } from "@/providers/OnboardingProvider";
 import { ThemePreferenceProvider } from "@/providers/ThemePreferenceProvider";
 import { WorkspacePrivacyModeProvider } from "@/providers/WorkspacePrivacyModeProvider";
@@ -32,8 +39,8 @@ import { WorkspaceProvider } from "@/providers/WorkspaceProvider";
 import { getReminderNotificationResponseIntent } from "@/services/reminders/reminderNotificationIntents";
 
 export {
-    // Catch any errors thrown by the Layout component.
-    ErrorBoundary
+  // Catch any errors thrown by the Layout component.
+  ErrorBoundary
 } from "expo-router";
 
 export const unstable_settings = {
@@ -41,10 +48,10 @@ export const unstable_settings = {
   initialRouteName: "(tabs)",
 };
 
-// The splash screen from BootSplash will remain until BootSplash.hide() is called
-// inside AnimatedSplashScreen when the app is fully ready.
-
 export default function RootLayout() {
+  const systemColorScheme = useNativeColorScheme();
+  const startupColorScheme = systemColorScheme === "light" ? "light" : "dark";
+  const { paperTheme } = getAppThemes(startupColorScheme);
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
@@ -55,7 +62,15 @@ export default function RootLayout() {
   }, [error]);
 
   if (!loaded) {
-    return null;
+    return (
+      <StartupLoadingScreen
+        accentColor={paperTheme.colors.primary}
+        backgroundColor={paperTheme.colors.background}
+        message="Warming up your workspace experience."
+        textColor={paperTheme.colors.onBackground}
+        title="Loading TrackItUp"
+      />
+    );
   }
 
   return (
@@ -110,6 +125,7 @@ function useNotificationObserver() {
 }
 
 function RootLayoutNav() {
+  const hasHiddenSplashRef = useRef(false);
   const colorScheme = useColorScheme();
   const { navigationTheme, paperTheme, palette } = getAppThemes(colorScheme);
   const statusBarStyle = isDarkColorScheme(colorScheme) ? "light" : "dark";
@@ -121,30 +137,82 @@ function RootLayoutNav() {
 
   useNotificationObserver();
 
+  useEffect(() => {
+    if (
+      Platform.OS === "web" ||
+      !isOnboardingLoaded ||
+      hasHiddenSplashRef.current
+    ) {
+      return;
+    }
+
+    hasHiddenSplashRef.current = true;
+
+    void new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    })
+      .then(() => BootSplash.hide({ fade: false }))
+      .catch(() => {
+        // no-op: avoid startup lock if hide rejects
+      });
+  }, [isOnboardingLoaded]);
+
   return (
-    <AnimatedSplashScreen isReady={isOnboardingLoaded}>
-      <AuthProvider>
-        <WorkspacePrivacyModeProvider>
-          <PaperProvider theme={paperTheme}>
-            <StatusBar style={statusBarStyle} />
-            <ThemeProvider value={navigationTheme}>
-              {!isOnboardingLoaded ? null : !hasCompletedOnboarding ? (
-                <OnboardingExperience
-                  onComplete={() => setHasCompletedOnboardingPreference(true)}
-                />
-              ) : (
-                <WorkspaceProvider>
-                  <AppSidebarProvider>
-                    <WorkspaceNavigator palette={palette.background} />
-                    <AppSidebar />
-                  </AppSidebarProvider>
-                </WorkspaceProvider>
-              )}
-            </ThemeProvider>
-          </PaperProvider>
-        </WorkspacePrivacyModeProvider>
-      </AuthProvider>
-    </AnimatedSplashScreen>
+    <AuthProvider>
+      <WorkspacePrivacyModeProvider>
+        <PaperProvider theme={paperTheme}>
+          <StatusBar style={statusBarStyle} />
+          <ThemeProvider value={navigationTheme}>
+            {!isOnboardingLoaded ? (
+              <StartupLoadingScreen
+                accentColor={paperTheme.colors.primary}
+                backgroundColor={paperTheme.colors.background}
+                message="Loading preferences and restoring your latest workspace."
+                textColor={paperTheme.colors.onBackground}
+                title="Preparing your workspace"
+              />
+            ) : !hasCompletedOnboarding ? (
+              <OnboardingExperience
+                onComplete={() => setHasCompletedOnboardingPreference(true)}
+              />
+            ) : (
+              <WorkspaceProvider>
+                <AppSidebarProvider>
+                  <WorkspaceNavigator palette={palette.background} />
+                  <AppSidebar />
+                </AppSidebarProvider>
+              </WorkspaceProvider>
+            )}
+          </ThemeProvider>
+        </PaperProvider>
+      </WorkspacePrivacyModeProvider>
+    </AuthProvider>
+  );
+}
+
+function StartupLoadingScreen({
+  backgroundColor,
+  textColor,
+  accentColor,
+  title,
+  message,
+}: {
+  backgroundColor: string;
+  textColor: string;
+  accentColor: string;
+  title: string;
+  message: string;
+}) {
+  return (
+    <View style={[styles.loadingScreen, { backgroundColor }]}>
+      <ActivityIndicator
+        size="large"
+        color={accentColor}
+        style={styles.loadingSpinner}
+      />
+      <Text style={[styles.loadingTitle, { color: textColor }]}>{title}</Text>
+      <Text style={[styles.loadingCopy, { color: textColor }]}>{message}</Text>
+    </View>
   );
 }
 
@@ -209,7 +277,10 @@ function WorkspaceNavigator({ palette }: { palette: string }) {
       <Stack.Screen
         name="openrouter-model-picker"
         options={{
-          animation: "slide_from_bottom",
+          animation:
+            Platform.OS === "android"
+              ? "fade_from_bottom"
+              : "slide_from_bottom",
           title: "OpenRouter models",
           presentation: "modal",
         }}
@@ -229,9 +300,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: uiSpace.screen,
   },
+  loadingSpinner: {
+    marginBottom: uiSpace.surface,
+  },
   loadingTitle: {
     ...uiTypography.titleXl,
-    marginTop: uiSpace.surface,
     marginBottom: uiSpace.sm,
   },
   loadingCopy: {

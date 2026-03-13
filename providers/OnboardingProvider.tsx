@@ -1,16 +1,16 @@
 import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    createContext,
+    useCallback,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 
 import {
-  loadOnboardingCompleted,
-  persistOnboardingCompleted,
+    loadOnboardingCompleted,
+    persistOnboardingCompleted,
 } from "@/services/onboarding/onboardingPreferencePersistence";
 import { DEFAULT_ONBOARDING_COMPLETED } from "@/services/onboarding/onboardingPreferences";
 
@@ -37,11 +37,19 @@ export function OnboardingProvider({
     let isMounted = true;
 
     void (async () => {
-      const completed = await loadOnboardingCompleted();
-      if (!isMounted || hasUserSelectedPreferenceRef.current) return;
+      try {
+        const completed = await loadOnboardingCompleted();
+        if (!isMounted || hasUserSelectedPreferenceRef.current) return;
 
-      setHasCompletedOnboarding(completed);
-      setIsLoaded(true);
+        setHasCompletedOnboarding(completed);
+      } catch {
+        if (!isMounted || hasUserSelectedPreferenceRef.current) return;
+
+        setHasCompletedOnboarding(DEFAULT_ONBOARDING_COMPLETED);
+      } finally {
+        if (!isMounted || hasUserSelectedPreferenceRef.current) return;
+        setIsLoaded(true);
+      }
     })();
 
     return () => {
@@ -78,9 +86,7 @@ export function OnboardingProvider({
 export function useOnboarding() {
   const value = useContext(OnboardingContext);
   if (!value) {
-    throw new Error(
-      "useOnboarding must be used within an OnboardingProvider.",
-    );
+    throw new Error("useOnboarding must be used within an OnboardingProvider.");
   }
 
   return value;
