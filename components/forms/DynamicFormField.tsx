@@ -1,31 +1,44 @@
+import DateTimePicker, {
+  DateTimePickerAndroid,
+} from "@react-native-community/datetimepicker";
 import { CameraView, type CameraMode, type CameraViewRef } from "expo-camera";
-import { memo, type ComponentRef } from "react";
-import { Image } from "react-native";
+import { memo, useMemo, type ComponentRef } from "react";
+import { Image, Platform } from "react-native";
 import {
-    Button,
-    Checkbox,
-    Chip,
-    HelperText,
-    SegmentedButtons,
-    Switch,
-    TextInput,
+  Button,
+  Checkbox,
+  Chip,
+  HelperText,
+  SegmentedButtons,
+  Switch,
+  TextInput,
 } from "react-native-paper";
 
 import { Text, View } from "@/components/Themed";
 import {
-    getFieldOptions,
-    getFormulaValue,
+  getFieldOptions,
+  getFormulaValue,
 } from "@/services/forms/workspaceForm";
 
 import { dynamicFormStyles as styles } from "./dynamicFormStyles";
 import type { DynamicFormFieldProps } from "./dynamicFormTypes";
 import {
-    asStringList,
-    describeLocationValue,
-    getTagValue,
-    isDictationField,
-    isMediaAttachmentArray,
+  asStringList,
+  describeLocationValue,
+  getTagValue,
+  isDictationField,
+  isMediaAttachmentArray,
 } from "./dynamicFormUtils";
+
+function formatDateTimeLabel(value: Date) {
+  return value.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export const DynamicFormField = memo(function DynamicFormField({
   action,
@@ -46,6 +59,18 @@ export const DynamicFormField = memo(function DynamicFormField({
   });
   const value = values[field.id];
   const error = errors[field.id];
+  const parsedDateTimeValue = useMemo(() => {
+    if (
+      field.type !== "date-time" ||
+      typeof value !== "string" ||
+      !value.trim()
+    ) {
+      return new Date();
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, [field.type, value]);
 
   let control: React.ReactNode;
 
@@ -54,7 +79,6 @@ export const DynamicFormField = memo(function DynamicFormField({
     case "rich-text":
     case "textarea":
     case "unit":
-    case "date-time":
       control = (
         <>
           <TextInput
@@ -85,6 +109,91 @@ export const DynamicFormField = memo(function DynamicFormField({
         </>
       );
       break;
+    case "date-time": {
+      const applyDateTime = (nextDate: Date) => {
+        onChange(field.id, nextDate.toISOString());
+      };
+
+      const openAndroidDateTimePicker = () => {
+        if (readOnly || Platform.OS !== "android") return;
+
+        DateTimePickerAndroid.open({
+          value: parsedDateTimeValue,
+          mode: "date",
+          is24Hour: true,
+          onChange: (dateEvent, selectedDate) => {
+            if (dateEvent.type !== "set" || !selectedDate) return;
+
+            DateTimePickerAndroid.open({
+              value: selectedDate,
+              mode: "time",
+              is24Hour: true,
+              onChange: (timeEvent, selectedTime) => {
+                if (timeEvent.type !== "set" || !selectedTime) return;
+
+                const merged = new Date(selectedDate);
+                merged.setHours(
+                  selectedTime.getHours(),
+                  selectedTime.getMinutes(),
+                  0,
+                  0,
+                );
+                applyDateTime(merged);
+              },
+            });
+          },
+        });
+      };
+
+      control = (
+        <>
+          <TextInput
+            mode="outlined"
+            label={field.label}
+            value={
+              typeof value === "string" && value.trim()
+                ? formatDateTimeLabel(parsedDateTimeValue)
+                : ""
+            }
+            disabled
+            placeholder={field.placeholder ?? "Choose date & time"}
+          />
+          {Platform.OS === "ios" ? (
+            <DateTimePicker
+              value={parsedDateTimeValue}
+              mode="datetime"
+              display="default"
+              onChange={(_, selectedDate) => {
+                if (!selectedDate || readOnly) return;
+                applyDateTime(selectedDate);
+              }}
+              disabled={readOnly}
+            />
+          ) : (
+            <View style={styles.inlineToolRow}>
+              <Button
+                mode="contained-tonal"
+                onPress={openAndroidDateTimePicker}
+                disabled={readOnly}
+                style={styles.inlineToolButton}
+              >
+                Choose date &amp; time
+              </Button>
+              <Button
+                mode="text"
+                onPress={() => onChange(field.id, "")}
+                disabled={
+                  readOnly || !(typeof value === "string" && value.trim())
+                }
+              >
+                Clear
+              </Button>
+            </View>
+          )}
+        </>
+      );
+      break;
+    }
     case "number":
       control = (
         <TextInput
