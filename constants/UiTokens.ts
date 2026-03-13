@@ -1,8 +1,8 @@
 import {
-  Platform,
-  StyleSheet,
-  type TextStyle,
-  type ViewStyle,
+    Platform,
+    StyleSheet,
+    type TextStyle,
+    type ViewStyle,
 } from "react-native";
 
 import { withAlpha } from "@/constants/Colors";
@@ -169,10 +169,15 @@ export function getShadowStyle(
   const offsetY = shadowOffset?.height ?? 0;
 
   if (Platform.OS === "web") {
+    const softenedRadius = Math.min(shadowRadius, 6);
+    const softenedOpacity = Math.min(shadowOpacity, 0.08);
+    const softenedOffsetY =
+      offsetY === 0 ? 0 : Math.sign(offsetY) * Math.min(Math.abs(offsetY), 2);
+
     return {
-      boxShadow: `${offsetX}px ${offsetY}px ${shadowRadius}px ${withAlpha(
+      boxShadow: `${offsetX}px ${softenedOffsetY}px ${softenedRadius}px ${withAlpha(
         shadowColor,
-        shadowOpacity,
+        softenedOpacity,
       )}`,
     } as ViewStyle;
   }

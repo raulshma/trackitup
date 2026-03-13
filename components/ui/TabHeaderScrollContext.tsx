@@ -73,7 +73,7 @@ export function useTabHeaderScroll(routeName: string): {
 
   return {
     onScroll,
-    scrollEventThrottle: isWeb ? 64 : 16,
+    scrollEventThrottle: isWeb ? 64 : isAndroid ? 32 : 16,
     removeClippedSubviews: isAndroid ? true : undefined,
   };
 }

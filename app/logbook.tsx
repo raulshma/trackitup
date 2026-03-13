@@ -1,12 +1,12 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Image, ScrollView, StyleSheet, View } from "react-native";
+import { Image, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-    Button,
-    Chip,
-    Surface,
-    useTheme,
-    type MD3Theme,
+  Button,
+  Chip,
+  Surface,
+  useTheme,
+  type MD3Theme,
 } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,41 +23,41 @@ import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getReadableTextColor } from "@/constants/Colors";
 import {
-    getLogKindFormTemplate,
-    getQuickActionFormTemplate,
+  getLogKindFormTemplate,
+  getQuickActionFormTemplate,
 } from "@/constants/TrackItUpFormTemplates";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    uiBorder,
-    uiMotion,
-    uiRadius,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiMotion,
+  uiRadius,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiLogbookDraftCopy } from "@/services/ai/aiConsentCopy";
 import {
-    buildAiLogbookDraftReviewItems,
-    buildAiLogbookGenerationPrompt,
-    parseAiLogbookDraft,
-    type AiLogbookDraft,
+  buildAiLogbookDraftReviewItems,
+  buildAiLogbookGenerationPrompt,
+  parseAiLogbookDraft,
+  type AiLogbookDraft,
 } from "@/services/ai/aiLogbookDraft";
 import { buildLogbookDraftPrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-    buildInitialFormValues,
-    normalizeFormValues,
-    validateFormValues,
-    type FormValidationErrors,
-    type FormValue,
-    type FormValueMap,
+  buildInitialFormValues,
+  normalizeFormValues,
+  validateFormValues,
+  type FormValidationErrors,
+  type FormValue,
+  type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
 import type {
-    FormFieldDefinition,
-    QuickActionKind,
-    Reminder,
+  FormFieldDefinition,
+  QuickActionKind,
+  Reminder,
 } from "@/types/trackitup";
 
 type GeneratedAiLogbookDraft = {
@@ -692,6 +692,8 @@ export default function LogbookScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          scrollEventThrottle={Platform.OS === "web" ? 64 : 32}
+          removeClippedSubviews={Platform.OS === "android"}
         >
           <Stack.Screen options={{ title: screenTitle }} />
           <ScreenHero
@@ -731,6 +733,8 @@ export default function LogbookScreen() {
             : null,
         ]}
         keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={Platform.OS === "web" ? 64 : 32}
+        removeClippedSubviews={Platform.OS === "android"}
       >
         <Stack.Screen options={{ title: screenTitle }} />
 
