@@ -1,5 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import {
+    Platform,
     Pressable,
     type PressableProps,
     type StyleProp,
@@ -38,10 +39,14 @@ export function MotionView({
   disabled = false,
 }: MotionViewProps) {
   const reduceMotion = useReducedMotion();
-  const progress = useSharedValue(disabled || reduceMotion ? 1 : 0);
+  const shouldSkipEnterAnimation =
+    disabled ||
+    reduceMotion ||
+    (Platform.OS !== "ios" && delay >= uiMotion.stagger * 3);
+  const progress = useSharedValue(shouldSkipEnterAnimation ? 1 : 0);
 
   useEffect(() => {
-    if (disabled || reduceMotion) {
+    if (shouldSkipEnterAnimation) {
       progress.value = 1;
       return;
     }
@@ -54,7 +59,7 @@ export function MotionView({
         easing: Easing.out(Easing.cubic),
       }),
     );
-  }, [delay, disabled, progress, reduceMotion]);
+  }, [delay, progress, shouldSkipEnterAnimation]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     opacity: progress.value,

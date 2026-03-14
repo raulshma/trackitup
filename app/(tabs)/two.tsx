@@ -11,13 +11,13 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getReadableTextColor } from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    getShadowStyle,
-    uiBorder,
-    uiElevation,
-    uiRadius,
-    uiShadow,
-    uiSpace,
-    uiTypography,
+  getShadowStyle,
+  uiBorder,
+  uiElevation,
+  uiRadius,
+  uiShadow,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 
@@ -243,303 +243,16 @@ export default function TabTwoScreen() {
     },
   ];
 
-  return (
-    <Animated.ScrollView
-      {...headerScroll}
-      scrollIndicatorInsets={{ top: headerHeight }}
-      style={[styles.screen, paletteStyles.screenBackground]}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: uiSpace.screen + headerHeight },
-      ]}
-    >
-      <Surface
-        style={[styles.header, paletteStyles.heroSurface]}
-        elevation={uiElevation.hero}
-      >
-        <View style={styles.headerBadgeRow}>
-          <Chip
-            compact
-            style={[styles.headerBadge, paletteStyles.cardChipSurface]}
-            textStyle={[styles.headerBadgeLabel, paletteStyles.tintText]}
-          >
-            Smart feed
-          </Chip>
-          <Chip
-            compact
-            style={[styles.headerBadge, paletteStyles.accentChipSurface]}
-            textStyle={styles.headerBadgeLabel}
-          >
-            {resultSummary}
-          </Chip>
-        </View>
-        <Text style={styles.title}>Unified Timeline</Text>
-        <Text style={[styles.subtitle, paletteStyles.mutedText]}>
-          Search, scan, and narrow every log, reminder, metric reading, and
-          asset event from one clean chronological feed.
-        </Text>
-      </Surface>
-
-      <PageQuickActions
-        palette={palette}
-        title="Move through the timeline faster"
-        description="These shortcuts stay focused on the current feed so you can record, isolate issues, and reset the view without hunting through filters."
-        actions={pageQuickActions}
-      />
-
-      <Surface
-        style={[styles.searchCard, paletteStyles.cardSurface]}
-        elevation={uiElevation.card}
-      >
-        <Text style={styles.filterGroupTitle}>Search the logbook</Text>
-        <Searchbar
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-          placeholder="Search titles, details, or spaces"
-          style={styles.searchInput}
-        />
-        <Text style={[styles.resultsMeta, paletteStyles.mutedText]}>
-          {resultSummary} • {activeFilterCount} active filter
-          {activeFilterCount === 1 ? "" : "s"}
-        </Text>
-      </Surface>
-
-      <View
-        style={[
-          styles.filterPanel,
-          paletteStyles.raisedCardSurface,
-          raisedCardShadow,
-        ]}
-      >
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterGroupTitle}>Time</Text>
-          <View style={styles.filterRow}>
-            {timeFilters.map((filter) => {
-              const isActive = activeTimeFilter === filter.id;
-
-              return (
-                <Pressable
-                  key={filter.id}
-                  onPress={() => setActiveTimeFilter(filter.id)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: isActive ? palette.tint : palette.card,
-                      borderColor: isActive ? palette.tint : palette.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: isActive ? palette.card : palette.text },
-                    ]}
-                  >
-                    {filter.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterGroupTitle}>Kind</Text>
-          <View style={styles.filterRow}>
-            {kindFilters.map((filter) => {
-              const isActive = activeKindFilter === filter.id;
-
-              return (
-                <Pressable
-                  key={filter.id}
-                  onPress={() => setActiveKindFilter(filter.id)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: isActive ? palette.tint : palette.card,
-                      borderColor: isActive ? palette.tint : palette.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: isActive ? palette.card : palette.text },
-                    ]}
-                  >
-                    {filter.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterGroupTitle}>Space</Text>
-          <View style={styles.filterRow}>
-            {spaceFilters.map((filter) => {
-              const isActive = activeSpaceId === filter.id;
-
-              return (
-                <Pressable
-                  key={filter.id}
-                  onPress={() => setActiveSpaceId(filter.id)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: isActive ? palette.tint : palette.card,
-                      borderColor: isActive ? palette.tint : palette.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: isActive ? palette.card : palette.text },
-                    ]}
-                  >
-                    {filter.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterGroupTitle}>Asset</Text>
-          <View style={styles.filterRow}>
-            {assetFilters.map((filter) => {
-              const isActive = activeAssetId === filter.id;
-
-              return (
-                <Pressable
-                  key={filter.id}
-                  onPress={() => setActiveAssetId(filter.id)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: isActive ? palette.tint : palette.card,
-                      borderColor: isActive ? palette.tint : palette.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: isActive ? palette.card : palette.text },
-                    ]}
-                  >
-                    {filter.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterGroupTitle}>Tag</Text>
-          <View style={styles.filterRow}>
-            {tagFilters.map((filter) => {
-              const isActive = activeTag === filter.id;
-
-              return (
-                <Pressable
-                  key={filter.id}
-                  onPress={() => setActiveTag(filter.id)}
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: isActive ? palette.tint : palette.card,
-                      borderColor: isActive ? palette.tint : palette.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: isActive ? palette.card : palette.text },
-                    ]}
-                  >
-                    {filter.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={styles.filterGroup}>
-          <Text style={styles.filterGroupTitle}>Metric thresholds</Text>
-          <View style={styles.filterRow}>
-            {[
-              { id: "all", label: "All entries" },
-              { id: "alerts", label: "Safe-zone alerts" },
-            ].map((filter) => {
-              const isActive = thresholdMode === filter.id;
-
-              return (
-                <Pressable
-                  key={filter.id}
-                  onPress={() =>
-                    setThresholdMode(filter.id as "all" | "alerts")
-                  }
-                  style={[
-                    styles.filterChip,
-                    {
-                      backgroundColor: isActive ? palette.tint : palette.card,
-                      borderColor: isActive ? palette.tint : palette.border,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterLabel,
-                      { color: isActive ? palette.card : palette.text },
-                    ]}
-                  >
-                    {filter.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-      </View>
-
-      {filteredEntries.length === 0 ? (
-        <View
-          style={[
-            styles.emptyCard,
-            paletteStyles.raisedCardSurface,
-            raisedCardShadow,
-          ]}
-        >
-          <Text style={styles.noteTitle}>
-            {timelineEntries.length === 0
-              ? "No log entries yet"
-              : "No entries match these filters"}
-          </Text>
-          <Text style={[styles.noteCopy, paletteStyles.mutedText]}>
-            {timelineEntries.length === 0
-              ? "Real log history will appear here after your workspace data is synced, imported, or recorded on this device."
-              : "Try clearing the search, switching spaces, or broadening the kind filter."}
-          </Text>
-        </View>
-      ) : null}
-
-      {filteredEntries.map((entry) => (
+  const renderTimelineItem = useMemo(
+    () =>
+      ({ item: entry }: { item: (typeof filteredEntries)[number] }) => (
         <Pressable
-          key={entry.id}
           onPress={() =>
             router.push({ pathname: "/logbook", params: { entryId: entry.id } })
           }
           style={[
             styles.timelineCard,
-            paletteStyles.raisedCardSurface,
-            raisedCardShadow,
+            paletteStyles.cardSurface,
             { borderLeftColor: entry.accent },
           ]}
         >
@@ -574,23 +287,343 @@ export default function TabTwoScreen() {
             Open logbook →
           </Text>
         </Pressable>
-      ))}
+      ),
+    [logsById, paletteStyles.cardSurface, paletteStyles.mutedText, router],
+  );
 
-      <View
-        style={[
-          styles.noteCard,
-          paletteStyles.raisedCardSurface,
-          raisedCardShadow,
-        ]}
-      >
-        <Text style={styles.noteTitle}>Timeline tips</Text>
-        <Text style={[styles.noteCopy, paletteStyles.mutedText]}>
-          {timelineEntries.length === 0
-            ? "Real activity will appear here once logs, reminders, or metric readings are captured in your workspace."
-            : "Use the search and filters above to narrow your real workspace history by time, type, space, asset, tag, or safe-zone alerts."}
-        </Text>
-      </View>
-    </Animated.ScrollView>
+  return (
+    <Animated.FlatList
+      {...headerScroll}
+      data={filteredEntries}
+      keyExtractor={(entry) => entry.id}
+      renderItem={renderTimelineItem}
+      scrollIndicatorInsets={{ top: headerHeight }}
+      style={[styles.screen, paletteStyles.screenBackground]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: uiSpace.screen + headerHeight },
+      ]}
+      removeClippedSubviews
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={9}
+      updateCellsBatchingPeriod={50}
+      ListHeaderComponent={
+        <>
+          <View style={styles.sectionSpacing}>
+            <Surface
+              style={[styles.header, paletteStyles.heroSurface]}
+              elevation={uiElevation.hero}
+            >
+              <View style={styles.headerBadgeRow}>
+                <Chip
+                  compact
+                  style={[styles.headerBadge, paletteStyles.cardChipSurface]}
+                  textStyle={[styles.headerBadgeLabel, paletteStyles.tintText]}
+                >
+                  Smart feed
+                </Chip>
+                <Chip
+                  compact
+                  style={[styles.headerBadge, paletteStyles.accentChipSurface]}
+                  textStyle={styles.headerBadgeLabel}
+                >
+                  {resultSummary}
+                </Chip>
+              </View>
+              <Text style={styles.title}>Unified Timeline</Text>
+              <Text style={[styles.subtitle, paletteStyles.mutedText]}>
+                Search, scan, and narrow every log, reminder, metric reading,
+                and asset event from one clean chronological feed.
+              </Text>
+            </Surface>
+          </View>
+
+          <View style={styles.sectionSpacing}>
+            <PageQuickActions
+              palette={palette}
+              title="Move through the timeline faster"
+              description="These shortcuts stay focused on the current feed so you can record, isolate issues, and reset the view without hunting through filters."
+              actions={pageQuickActions}
+            />
+          </View>
+
+          <View style={styles.sectionSpacing}>
+            <Surface
+              style={[styles.searchCard, paletteStyles.cardSurface]}
+              elevation={uiElevation.card}
+            >
+              <Text style={styles.filterGroupTitle}>Search the logbook</Text>
+              <Searchbar
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder="Search titles, details, or spaces"
+                style={styles.searchInput}
+              />
+              <Text style={[styles.resultsMeta, paletteStyles.mutedText]}>
+                {resultSummary} • {activeFilterCount} active filter
+                {activeFilterCount === 1 ? "" : "s"}
+              </Text>
+            </Surface>
+          </View>
+
+          <View style={styles.sectionSpacing}>
+            <View
+              style={[
+                styles.filterPanel,
+                paletteStyles.raisedCardSurface,
+                raisedCardShadow,
+              ]}
+            >
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupTitle}>Time</Text>
+                <View style={styles.filterRow}>
+                  {timeFilters.map((filter) => {
+                    const isActive = activeTimeFilter === filter.id;
+
+                    return (
+                      <Pressable
+                        key={filter.id}
+                        onPress={() => setActiveTimeFilter(filter.id)}
+                        style={[
+                          styles.filterChip,
+                          {
+                            backgroundColor: isActive
+                              ? palette.tint
+                              : palette.card,
+                            borderColor: isActive
+                              ? palette.tint
+                              : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterLabel,
+                            { color: isActive ? palette.card : palette.text },
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupTitle}>Kind</Text>
+                <View style={styles.filterRow}>
+                  {kindFilters.map((filter) => {
+                    const isActive = activeKindFilter === filter.id;
+
+                    return (
+                      <Pressable
+                        key={filter.id}
+                        onPress={() => setActiveKindFilter(filter.id)}
+                        style={[
+                          styles.filterChip,
+                          {
+                            backgroundColor: isActive
+                              ? palette.tint
+                              : palette.card,
+                            borderColor: isActive
+                              ? palette.tint
+                              : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterLabel,
+                            { color: isActive ? palette.card : palette.text },
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupTitle}>Space</Text>
+                <View style={styles.filterRow}>
+                  {spaceFilters.map((filter) => {
+                    const isActive = activeSpaceId === filter.id;
+
+                    return (
+                      <Pressable
+                        key={filter.id}
+                        onPress={() => setActiveSpaceId(filter.id)}
+                        style={[
+                          styles.filterChip,
+                          {
+                            backgroundColor: isActive
+                              ? palette.tint
+                              : palette.card,
+                            borderColor: isActive
+                              ? palette.tint
+                              : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterLabel,
+                            { color: isActive ? palette.card : palette.text },
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupTitle}>Asset</Text>
+                <View style={styles.filterRow}>
+                  {assetFilters.map((filter) => {
+                    const isActive = activeAssetId === filter.id;
+
+                    return (
+                      <Pressable
+                        key={filter.id}
+                        onPress={() => setActiveAssetId(filter.id)}
+                        style={[
+                          styles.filterChip,
+                          {
+                            backgroundColor: isActive
+                              ? palette.tint
+                              : palette.card,
+                            borderColor: isActive
+                              ? palette.tint
+                              : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterLabel,
+                            { color: isActive ? palette.card : palette.text },
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupTitle}>Tag</Text>
+                <View style={styles.filterRow}>
+                  {tagFilters.map((filter) => {
+                    const isActive = activeTag === filter.id;
+
+                    return (
+                      <Pressable
+                        key={filter.id}
+                        onPress={() => setActiveTag(filter.id)}
+                        style={[
+                          styles.filterChip,
+                          {
+                            backgroundColor: isActive
+                              ? palette.tint
+                              : palette.card,
+                            borderColor: isActive
+                              ? palette.tint
+                              : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterLabel,
+                            { color: isActive ? palette.card : palette.text },
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.filterGroup}>
+                <Text style={styles.filterGroupTitle}>Metric thresholds</Text>
+                <View style={styles.filterRow}>
+                  {[
+                    { id: "all", label: "All entries" },
+                    { id: "alerts", label: "Safe-zone alerts" },
+                  ].map((filter) => {
+                    const isActive = thresholdMode === filter.id;
+
+                    return (
+                      <Pressable
+                        key={filter.id}
+                        onPress={() =>
+                          setThresholdMode(filter.id as "all" | "alerts")
+                        }
+                        style={[
+                          styles.filterChip,
+                          {
+                            backgroundColor: isActive
+                              ? palette.tint
+                              : palette.card,
+                            borderColor: isActive
+                              ? palette.tint
+                              : palette.border,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.filterLabel,
+                            { color: isActive ? palette.card : palette.text },
+                          ]}
+                        >
+                          {filter.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          </View>
+        </>
+      }
+      ListEmptyComponent={
+        <View style={[styles.emptyCard, paletteStyles.cardSurface]}>
+          <Text style={styles.noteTitle}>
+            {timelineEntries.length === 0
+              ? "No log entries yet"
+              : "No entries match these filters"}
+          </Text>
+          <Text style={[styles.noteCopy, paletteStyles.mutedText]}>
+            {timelineEntries.length === 0
+              ? "Real log history will appear here after your workspace data is synced, imported, or recorded on this device."
+              : "Try clearing the search, switching spaces, or broadening the kind filter."}
+          </Text>
+        </View>
+      }
+      ListFooterComponent={
+        <View style={[styles.noteCard, paletteStyles.cardSurface]}>
+          <Text style={styles.noteTitle}>Timeline tips</Text>
+          <Text style={[styles.noteCopy, paletteStyles.mutedText]}>
+            {timelineEntries.length === 0
+              ? "Real activity will appear here once logs, reminders, or metric readings are captured in your workspace."
+              : "Use the search and filters above to narrow your real workspace history by time, type, space, asset, tag, or safe-zone alerts."}
+          </Text>
+        </View>
+      }
+    />
   );
 }
 
@@ -601,7 +634,9 @@ const styles = StyleSheet.create({
   content: {
     padding: uiSpace.screen,
     paddingBottom: uiSpace.screenBottomTabs,
-    gap: uiSpace.xxl,
+  },
+  sectionSpacing: {
+    marginBottom: uiSpace.xxl,
   },
   header: {
     borderWidth: uiBorder.standard,
@@ -665,7 +700,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 5,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    elevation: uiElevation.raisedCard,
+    marginBottom: uiSpace.lg,
   },
   timelineHeader: {
     flexDirection: "row",
@@ -705,13 +740,12 @@ const styles = StyleSheet.create({
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    elevation: uiElevation.raisedCard,
   },
   emptyCard: {
     borderWidth: uiBorder.standard,
     borderRadius: uiRadius.panel,
     padding: uiSpace.surface,
-    elevation: uiElevation.raisedCard,
+    marginBottom: uiSpace.md,
   },
   noteTitle: {
     ...uiTypography.titleMd,
