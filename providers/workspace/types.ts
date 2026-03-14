@@ -18,10 +18,12 @@ import type {
     WorkspaceRestorePointReason,
     WorkspaceRestorePointSummary,
 } from "@/services/offline/workspaceRestorePoints";
+import type { RecurringPromptMatchSuggestion } from "@/services/recurring/recurringPlans";
 import type { ReminderNotificationPermissionStatus } from "@/services/reminders/reminderNotifications";
 import type { CreateSpaceDraft } from "@/services/spaces/workspaceSpaces";
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type {
+    RecurringPlan,
     TemplateCatalogItem,
     TemplateImportMethod,
     WorkspaceRecommendation,
@@ -34,6 +36,9 @@ export type SaveLogResult = {
   entryId?: string;
   createdCount: number;
   scheduledReminderCount: number;
+  recurringPromptMatchCount: number;
+  recurringAutoLinkedCount: number;
+  recurringPromptMatches?: RecurringPromptMatchSuggestion[];
 };
 
 export type TemplateImportActionResult = {
@@ -86,6 +91,23 @@ export type WorkspaceContextValue = {
   completeReminder: (reminderId: string) => void;
   snoozeReminder: (reminderId: string) => void;
   skipReminder: (reminderId: string, reason?: string) => void;
+  saveRecurringPlan: (
+    draft: Omit<RecurringPlan, "createdAt" | "updatedAt">,
+  ) => {
+    status: "saved" | "invalid";
+    message: string;
+    planId?: string;
+    errors?: Record<string, string>;
+  };
+  completeRecurringOccurrence: (
+    occurrenceId: string,
+    options?: { logId?: string },
+  ) => void;
+  snoozeRecurringOccurrence: (occurrenceId: string) => void;
+  skipRecurringOccurrence: (occurrenceId: string, reason?: string) => void;
+  bulkCompleteRecurringOccurrences: (occurrenceIds: string[]) => void;
+  bulkSnoozeRecurringOccurrences: (occurrenceIds: string[]) => void;
+  resolveRecurringPromptMatch: (occurrenceId: string, logId: string) => void;
   importLogsFromCsv: (csv: string) => {
     importedCount: number;
     warnings: string[];

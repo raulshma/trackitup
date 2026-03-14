@@ -66,6 +66,8 @@ export function createEmptyWorkspaceSnapshot(
     metricDefinitions: [],
     routines: [],
     reminders: [],
+    recurringPlans: [],
+    recurringOccurrences: [],
     logs: [],
     quickActions: cloneValue(defaultQuickActions),
     expenses: [],

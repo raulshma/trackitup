@@ -25,6 +25,8 @@ function shouldStripLegacySeedData(fallback: WorkspaceSnapshot) {
     fallback.metricDefinitions.length === 0 &&
     fallback.routines.length === 0 &&
     fallback.reminders.length === 0 &&
+    fallback.recurringPlans.length === 0 &&
+    fallback.recurringOccurrences.length === 0 &&
     fallback.logs.length === 0
   );
 }
@@ -88,6 +90,20 @@ function stripLegacySeedData(
   );
   const validReminderIds = new Set(reminders.map((reminder) => reminder.id));
 
+  const recurringPlans = snapshot.recurringPlans.filter((plan) =>
+    validSpaceIds.has(plan.spaceId),
+  );
+  const validRecurringPlanIds = new Set(recurringPlans.map((plan) => plan.id));
+
+  const recurringOccurrences = snapshot.recurringOccurrences.filter(
+    (occurrence) =>
+      validRecurringPlanIds.has(occurrence.planId) &&
+      validSpaceIds.has(occurrence.spaceId),
+  );
+  const validRecurringOccurrenceIds = new Set(
+    recurringOccurrences.map((occurrence) => occurrence.id),
+  );
+
   const initialLogs = snapshot.logs
     .filter(
       (log) => !seededLogIds.has(log.id) && validSpaceIds.has(log.spaceId),
@@ -110,6 +126,15 @@ function stripLegacySeedData(
         reminderId:
           log.reminderId && validReminderIds.has(log.reminderId)
             ? log.reminderId
+            : undefined,
+        recurringPlanId:
+          log.recurringPlanId && validRecurringPlanIds.has(log.recurringPlanId)
+            ? log.recurringPlanId
+            : undefined,
+        recurringOccurrenceId:
+          log.recurringOccurrenceId &&
+          validRecurringOccurrenceIds.has(log.recurringOccurrenceId)
+            ? log.recurringOccurrenceId
             : undefined,
         metricReadings: nextMetricReadings?.length
           ? nextMetricReadings
@@ -195,6 +220,8 @@ function stripLegacySeedData(
     metricDefinitions.length > 0 ||
     routines.length > 0 ||
     reminders.length > 0 ||
+    recurringPlans.length > 0 ||
+    recurringOccurrences.length > 0 ||
     logs.length > 0 ||
     expenses.length > 0 ||
     templates.length > 0;
@@ -209,6 +236,8 @@ function stripLegacySeedData(
     metricDefinitions,
     routines,
     reminders,
+    recurringPlans,
+    recurringOccurrences,
     logs,
     quickActions,
     expenses,
@@ -280,6 +309,12 @@ export function normalizeWorkspaceSnapshot(
           history: Array.isArray(reminder.history) ? reminder.history : [],
         }))
       : safeFallback.reminders,
+    recurringPlans: Array.isArray(candidate.recurringPlans)
+      ? candidate.recurringPlans
+      : safeFallback.recurringPlans,
+    recurringOccurrences: Array.isArray(candidate.recurringOccurrences)
+      ? candidate.recurringOccurrences
+      : safeFallback.recurringOccurrences,
     logs: Array.isArray(candidate.logs)
       ? candidate.logs.map((log) => ({
           ...log,

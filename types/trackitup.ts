@@ -187,6 +187,74 @@ export type ReminderTriggerRule = {
   delayHours?: number;
 };
 
+export type RecurringPlanStatus = "active" | "paused" | "archived";
+
+export type RecurringSmartMatchMode = "off" | "prompt" | "auto";
+
+export type RecurringPlanScheduleRule =
+  | {
+      type: "daily";
+      times: string[];
+    }
+  | {
+      type: "every-n-days";
+      interval: number;
+      times: string[];
+    }
+  | {
+      type: "weekly";
+      daysOfWeek: Array<0 | 1 | 2 | 3 | 4 | 5 | 6>;
+      times: string[];
+    }
+  | {
+      type: "monthly";
+      dayOfMonth?: number;
+      nthWeekday?: {
+        weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+        weekOfMonth: 1 | 2 | 3 | 4 | 5 | -1;
+      };
+      times: string[];
+    };
+
+export type RecurringPlan = {
+  id: string;
+  spaceId: string;
+  title: string;
+  description?: string;
+  category?: string;
+  tags?: string[];
+  scheduleRule: RecurringPlanScheduleRule;
+  startDate: string;
+  timezone: string;
+  gracePeriodMinutes?: number;
+  proofRequired?: boolean;
+  smartMatchMode?: RecurringSmartMatchMode;
+  status: RecurringPlanStatus;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type RecurringOccurrenceStatus =
+  | "scheduled"
+  | "completed"
+  | "skipped"
+  | "missed";
+
+export type RecurringOccurrence = {
+  id: string;
+  planId: string;
+  spaceId: string;
+  dueAt: string;
+  status: RecurringOccurrenceStatus;
+  completedAt?: string;
+  snoozedUntil?: string;
+  logId?: string;
+  skipReason?: string;
+  meta?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type Reminder = {
   id: string;
   spaceId: string;
@@ -237,6 +305,8 @@ export type LogEntry = {
   assetIds?: string[];
   routineId?: string;
   reminderId?: string;
+  recurringPlanId?: string;
+  recurringOccurrenceId?: string;
   metricReadings?: MetricReading[];
   tags?: string[];
   cost?: number;
@@ -337,6 +407,8 @@ export type SyncOperationKind =
   | "space-created"
   | "log-created"
   | "reminder-updated"
+  | "recurring-plan-saved"
+  | "recurring-occurrence-updated"
   | "dashboard-reordered"
   | "dashboard-customized"
   | "logs-imported"
@@ -358,6 +430,8 @@ export type WorkspaceSnapshot = {
   metricDefinitions: MetricDefinition[];
   routines: Routine[];
   reminders: Reminder[];
+  recurringPlans: RecurringPlan[];
+  recurringOccurrences: RecurringOccurrence[];
   logs: LogEntry[];
   quickActions: QuickAction[];
   expenses: ExpenseEntry[];

@@ -27,7 +27,11 @@ import {
     uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
-import type { LogEntry, LogKind } from "@/types/trackitup";
+import type {
+    LogEntry,
+    LogKind,
+    RecurringOccurrenceStatus,
+} from "@/types/trackitup";
 
 const weekdayHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -101,6 +105,17 @@ function getKindAccent(
   }
 }
 
+function getRecurringStatusAccent(
+  status: RecurringOccurrenceStatus,
+  palette: (typeof Colors)["light"],
+  theme: MD3Theme,
+) {
+  if (status === "completed") return theme.colors.primary;
+  if (status === "missed") return theme.colors.error;
+  if (status === "skipped") return theme.colors.tertiary;
+  return palette.secondary;
+}
+
 function findPreviousMonthKey(monthKey: string, allMonths: string[]) {
   const index = allMonths.indexOf(monthKey);
   if (index < 0 || index === allMonths.length - 1) return monthKey;
@@ -144,16 +159,59 @@ export default function LogCalendarScreen() {
     return map;
   }, [logEntries]);
 
+  const recurringByDay = useMemo(() => {
+    const map = new Map<
+      string,
+      Array<{
+        occurrenceId: string;
+        planId: string;
+        title: string;
+        status: RecurringOccurrenceStatus;
+        dueAt: string;
+      }>
+    >();
+    const plansById = new Map(
+      workspace.recurringPlans.map((plan) => [plan.id, plan] as const),
+    );
+
+    workspace.recurringOccurrences.forEach((occurrence) => {
+      const plan = plansById.get(occurrence.planId);
+      if (!plan) return;
+
+      const key = toDayKey(new Date(occurrence.dueAt));
+      map.set(key, [
+        ...(map.get(key) ?? []),
+        {
+          occurrenceId: occurrence.id,
+          planId: plan.id,
+          title: plan.title,
+          status: occurrence.status,
+          dueAt: occurrence.snoozedUntil ?? occurrence.dueAt,
+        },
+      ]);
+    });
+
+    map.forEach((items, key) => {
+      map.set(
+        key,
+        [...items].sort((left, right) => left.dueAt.localeCompare(right.dueAt)),
+      );
+    });
+
+    return map;
+  }, [workspace.recurringOccurrences, workspace.recurringPlans]);
+
   const monthKeys = useMemo(() => {
     const keys = new Set<string>();
     logsByDay.forEach((_, dayKey) => keys.add(dayKey.slice(0, 7)));
+    recurringByDay.forEach((_, dayKey) => keys.add(dayKey.slice(0, 7)));
 
     if (keys.size === 0) {
       keys.add(toMonthKey(new Date()));
     }
 
     return [...keys].sort((left, right) => right.localeCompare(left));
-  }, [logsByDay]);
+  }, [logsByDay, recurringByDay]);
 
   const fallbackMonth = monthKeys[0] ?? toMonthKey(new Date());
   const [activeMonthKey, setActiveMonthKey] = useState(fallbackMonth);
@@ -195,6 +253,7 @@ export default function LogCalendarScreen() {
   }, [defaultDayForMonth, monthDayKeys, selectedDayKey]);
 
   const selectedDayLogs = logsByDay.get(selectedDayKey) ?? [];
+  const selectedDayRecurring = recurringByDay.get(selectedDayKey) ?? [];
   const selectedDayDate = useMemo(
     () => new Date(`${selectedDayKey}T12:00:00`),
     [selectedDayKey],
@@ -433,11 +492,16 @@ export default function LogCalendarScreen() {
             }
 
             const dayLogs = logsByDay.get(dayKey) ?? [];
+            const dayRecurring = recurringByDay.get(dayKey) ?? [];
             const isSelected = dayKey === selectedDayKey;
             const isToday = dayKey === toDayKey(new Date());
             const hasLogs = dayLogs.length > 0;
+            const hasRecurring = dayRecurring.length > 0;
             const uniqueKinds = Array.from(
               new Set(dayLogs.map((entry) => entry.kind)),
+            ).slice(0, 3);
+            const recurringStatuses = Array.from(
+              new Set(dayRecurring.map((entry) => entry.status)),
             ).slice(0, 3);
 
             return (
@@ -533,6 +597,40 @@ export default function LogCalendarScreen() {
                       No logs
                     </Text>
                   )}
+                  {hasRecurring ? (
+                    <>
+                      <View style={styles.kindDotsRow}>
+                        {recurringStatuses.map((status) => (
+                          <View
+                            key={`${dayKey}-${status}`}
+                            style={[
+                              styles.kindDot,
+                              {
+                                backgroundColor: getRecurringStatusAccent(
+                                  status,
+                                  palette,
+                                  theme,
+                                ),
+                              },
+                            ]}
+                          />
+                        ))}
+                      </View>
+                      <Text
+                        style={[
+                          styles.dayCount,
+                          {
+                            color: isSelected
+                              ? theme.colors.onPrimaryContainer
+                              : theme.colors.onSurfaceVariant,
+                          },
+                        ]}
+                      >
+                        {dayRecurring.length} routine
+                        {dayRecurring.length === 1 ? "" : "s"}
+                      </Text>
+                    </>
+                  ) : null}
                 </MotionPressable>
               </MotionView>
             );
@@ -545,6 +643,83 @@ export default function LogCalendarScreen() {
         label="Day details"
         title={dayFormatter.format(selectedDayDate)}
       >
+        {selectedDayRecurring.length > 0 ? (
+          <View style={styles.dayLogsList}>
+            {selectedDayRecurring.map((item, index) => (
+              <MotionView key={item.occurrenceId} delay={index * 30}>
+                <Surface
+                  style={[
+                    styles.dayLogCard,
+                    {
+                      backgroundColor: theme.colors.elevation.level1,
+                      borderColor: theme.colors.outlineVariant,
+                    },
+                  ]}
+                  elevation={1}
+                >
+                  <View style={styles.dayLogHeader}>
+                    <View style={styles.dayLogHeaderCopy}>
+                      <Text style={styles.dayLogTitle}>{item.title}</Text>
+                      <Text
+                        style={[styles.dayLogMeta, paletteStyles.mutedText]}
+                      >
+                        {timeFormatter.format(new Date(item.dueAt))} • routine
+                        occurrence
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.kindPill,
+                        {
+                          backgroundColor: withAlpha(
+                            getRecurringStatusAccent(
+                              item.status,
+                              palette,
+                              theme,
+                            ),
+                            0.14,
+                          ),
+                          borderColor: withAlpha(
+                            getRecurringStatusAccent(
+                              item.status,
+                              palette,
+                              theme,
+                            ),
+                            0.3,
+                          ),
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.kindPillLabel,
+                          {
+                            color: getRecurringStatusAccent(
+                              item.status,
+                              palette,
+                              theme,
+                            ),
+                          },
+                        ]}
+                      >
+                        {item.status}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.dayLogActionRow}>
+                    <Button
+                      mode="outlined"
+                      compact
+                      onPress={() => router.push("/action-center")}
+                    >
+                      Resolve in action center
+                    </Button>
+                  </View>
+                </Surface>
+              </MotionView>
+            ))}
+          </View>
+        ) : null}
         {selectedDayLogs.length === 0 ? (
           <EmptyStateCard
             palette={palette}
@@ -554,7 +729,11 @@ export default function LogCalendarScreen() {
               web: "event_available",
             }}
             title="No logs on this day"
-            message="This date does not yet have timeline activity. Record a log to start building your calendar trail."
+            message={
+              selectedDayRecurring.length > 0
+                ? "This date has recurring routine activity but no standalone logs yet."
+                : "This date does not yet have timeline activity. Record a log to start building your calendar trail."
+            }
             actionLabel="Open logbook"
             onAction={() => router.push("/logbook")}
             actionAccentColor={palette.tint}

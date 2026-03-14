@@ -14,6 +14,18 @@ import { parseWorkspaceLogCsv } from "@/services/import/workspaceCsvImport";
 import { clearPersistedWorkspace } from "@/services/offline/workspacePersistence";
 import { enqueueWorkspaceSync } from "@/services/offline/workspaceSync";
 import {
+    bulkCompleteRecurringOccurrences,
+    bulkSnoozeRecurringOccurrences,
+    completeRecurringOccurrence,
+    ensureRecurringOccurrencesWindow,
+    resolveRecurringPromptMatchWithLog,
+    skipRecurringOccurrence,
+    snoozeRecurringOccurrence,
+    summarizeRecurringSmartMatches,
+    upsertRecurringPlan,
+    validateRecurringPlanDraft,
+} from "@/services/recurring/recurringPlans";
+import {
     applyReminderTriggerRules,
     getNextReminderDate,
 } from "@/services/reminders/reminderRules";
@@ -24,6 +36,7 @@ import {
 import { applyTemplateImportToWorkspace } from "@/services/templates/templateImport";
 import type { WorkspaceUpdater } from "@/stores/useWorkspaceStore";
 import type {
+    RecurringPlan,
     TemplateCatalogItem,
     TemplateImportMethod,
     WorkspaceSnapshot,
@@ -124,14 +137,36 @@ function applyLogsAndTriggeredReminders(
     ];
   });
 
-  return {
-    workspace: {
-      ...currentWorkspace,
-      generatedAt: newestTimestamp,
-      reminders: nextReminders,
-      logs: [...newLogs, ...reminderLogs, ...currentWorkspace.logs],
+  const workspaceWithLogsAndReminders = {
+    ...currentWorkspace,
+    generatedAt: newestTimestamp,
+    reminders: nextReminders,
+    logs: [...newLogs, ...reminderLogs, ...currentWorkspace.logs],
+  };
+  const windowedWorkspace = ensureRecurringOccurrencesWindow(
+    workspaceWithLogsAndReminders,
+    {
+      now: newestTimestamp,
     },
+  );
+  const recurringMatchSummary = summarizeRecurringSmartMatches(
+    windowedWorkspace,
+    newLogs,
+    newestTimestamp,
+  );
+  const finalizedWorkspace = ensureRecurringOccurrencesWindow(
+    recurringMatchSummary.workspace,
+    {
+      now: newestTimestamp,
+    },
+  );
+
+  return {
+    workspace: finalizedWorkspace,
     triggeredReminderCount,
+    recurringPromptMatches: recurringMatchSummary.promptMatches,
+    recurringPromptMatchCount: recurringMatchSummary.promptMatches.length,
+    recurringAutoLinkedCount: recurringMatchSummary.autoMatchCount,
   };
 }
 
@@ -144,6 +179,9 @@ export function useWorkspaceMutations(
       let result: SaveLogResult = {
         createdCount: 0,
         scheduledReminderCount: 0,
+        recurringPromptMatchCount: 0,
+        recurringAutoLinkedCount: 0,
+        recurringPromptMatches: [],
       };
 
       setWorkspace((currentWorkspace) => {
@@ -167,6 +205,9 @@ export function useWorkspaceMutations(
           entryId: nextLogs[0]?.id,
           createdCount: nextLogs.length,
           scheduledReminderCount: nextState.triggeredReminderCount,
+          recurringPromptMatches: nextState.recurringPromptMatches,
+          recurringPromptMatchCount: nextState.recurringPromptMatchCount,
+          recurringAutoLinkedCount: nextState.recurringAutoLinkedCount,
         };
 
         return enqueueWorkspaceSync(nextState.workspace, {
@@ -188,6 +229,9 @@ export function useWorkspaceMutations(
       let result: SaveLogResult = {
         createdCount: 0,
         scheduledReminderCount: 0,
+        recurringPromptMatchCount: 0,
+        recurringAutoLinkedCount: 0,
+        recurringPromptMatches: [],
       };
 
       setWorkspace((currentWorkspace) => {
@@ -219,6 +263,9 @@ export function useWorkspaceMutations(
           entryId: nextLogs[0]?.id,
           createdCount: nextLogs.length,
           scheduledReminderCount: nextState.triggeredReminderCount,
+          recurringPromptMatches: nextState.recurringPromptMatches,
+          recurringPromptMatchCount: nextState.recurringPromptMatchCount,
+          recurringAutoLinkedCount: nextState.recurringAutoLinkedCount,
         };
 
         return enqueueWorkspaceSync(nextState.workspace, {
@@ -470,6 +517,224 @@ export function useWorkspaceMutations(
     [setWorkspace],
   );
 
+  const saveRecurringPlan = useCallback(
+    (draft: Omit<RecurringPlan, "createdAt" | "updatedAt">) => {
+      const validationErrors = validateRecurringPlanDraft(draft);
+      if (Object.keys(validationErrors).length > 0) {
+        return {
+          status: "invalid" as const,
+          message: "Recurring plan has validation issues.",
+          errors: validationErrors,
+        };
+      }
+
+      const actionAt = new Date().toISOString();
+      setWorkspace((currentWorkspace) => {
+        const savedWorkspace = upsertRecurringPlan(
+          currentWorkspace,
+          draft,
+          actionAt,
+        );
+        const windowedWorkspace = ensureRecurringOccurrencesWindow(
+          savedWorkspace,
+          {
+            now: actionAt,
+          },
+        );
+
+        return enqueueWorkspaceSync(windowedWorkspace, {
+          kind: "recurring-plan-saved",
+          summary: `Saved recurring plan ${draft.title}`,
+        });
+      });
+
+      return {
+        status: "saved" as const,
+        message: `Saved recurring plan ${draft.title}.`,
+        planId: draft.id,
+      };
+    },
+    [setWorkspace],
+  );
+
+  const completeRecurringOccurrenceMutation = useCallback(
+    (occurrenceId: string, options?: { logId?: string }) => {
+      const actionAt = new Date().toISOString();
+      setWorkspace((currentWorkspace) => {
+        const completedWorkspace = completeRecurringOccurrence(
+          currentWorkspace,
+          occurrenceId,
+          {
+            actionAt,
+            logId: options?.logId,
+          },
+        );
+        if (completedWorkspace === currentWorkspace) {
+          return currentWorkspace;
+        }
+
+        const windowedWorkspace = ensureRecurringOccurrencesWindow(
+          completedWorkspace,
+          {
+            now: actionAt,
+          },
+        );
+
+        return enqueueWorkspaceSync(windowedWorkspace, {
+          kind: "recurring-occurrence-updated",
+          summary: "Completed recurring occurrence",
+        });
+      });
+    },
+    [setWorkspace],
+  );
+
+  const snoozeRecurringOccurrenceMutation = useCallback(
+    (occurrenceId: string) => {
+      const actionAt = new Date().toISOString();
+      const snoozedUntil = new Date(actionAt);
+      snoozedUntil.setHours(snoozedUntil.getHours() + 2);
+
+      setWorkspace((currentWorkspace) => {
+        const snoozedWorkspace = snoozeRecurringOccurrence(
+          currentWorkspace,
+          occurrenceId,
+          snoozedUntil.toISOString(),
+          actionAt,
+        );
+        if (snoozedWorkspace === currentWorkspace) {
+          return currentWorkspace;
+        }
+
+        return enqueueWorkspaceSync(snoozedWorkspace, {
+          kind: "recurring-occurrence-updated",
+          summary: "Snoozed recurring occurrence",
+        });
+      });
+    },
+    [setWorkspace],
+  );
+
+  const skipRecurringOccurrenceMutation = useCallback(
+    (occurrenceId: string, reason = "Skipped from action center") => {
+      const actionAt = new Date().toISOString();
+      setWorkspace((currentWorkspace) => {
+        const skippedWorkspace = skipRecurringOccurrence(
+          currentWorkspace,
+          occurrenceId,
+          reason,
+          actionAt,
+        );
+        if (skippedWorkspace === currentWorkspace) {
+          return currentWorkspace;
+        }
+
+        const windowedWorkspace = ensureRecurringOccurrencesWindow(
+          skippedWorkspace,
+          {
+            now: actionAt,
+          },
+        );
+
+        return enqueueWorkspaceSync(windowedWorkspace, {
+          kind: "recurring-occurrence-updated",
+          summary: "Skipped recurring occurrence",
+        });
+      });
+    },
+    [setWorkspace],
+  );
+
+  const bulkCompleteRecurringOccurrencesMutation = useCallback(
+    (occurrenceIds: string[]) => {
+      if (occurrenceIds.length === 0) return;
+      const actionAt = new Date().toISOString();
+
+      setWorkspace((currentWorkspace) => {
+        const completedWorkspace = bulkCompleteRecurringOccurrences(
+          currentWorkspace,
+          occurrenceIds,
+          actionAt,
+        );
+        if (completedWorkspace === currentWorkspace) {
+          return currentWorkspace;
+        }
+
+        const windowedWorkspace = ensureRecurringOccurrencesWindow(
+          completedWorkspace,
+          {
+            now: actionAt,
+          },
+        );
+
+        return enqueueWorkspaceSync(windowedWorkspace, {
+          kind: "recurring-occurrence-updated",
+          summary: `Bulk-completed ${occurrenceIds.length} recurring occurrence(s)`,
+        });
+      });
+    },
+    [setWorkspace],
+  );
+
+  const bulkSnoozeRecurringOccurrencesMutation = useCallback(
+    (occurrenceIds: string[]) => {
+      if (occurrenceIds.length === 0) return;
+      const actionAt = new Date().toISOString();
+      const snoozedUntil = new Date(actionAt);
+      snoozedUntil.setHours(snoozedUntil.getHours() + 2);
+
+      setWorkspace((currentWorkspace) => {
+        const snoozedWorkspace = bulkSnoozeRecurringOccurrences(
+          currentWorkspace,
+          occurrenceIds,
+          snoozedUntil.toISOString(),
+          actionAt,
+        );
+        if (snoozedWorkspace === currentWorkspace) {
+          return currentWorkspace;
+        }
+
+        return enqueueWorkspaceSync(snoozedWorkspace, {
+          kind: "recurring-occurrence-updated",
+          summary: `Bulk-snoozed ${occurrenceIds.length} recurring occurrence(s)`,
+        });
+      });
+    },
+    [setWorkspace],
+  );
+
+  const resolveRecurringPromptMatchMutation = useCallback(
+    (occurrenceId: string, logId: string) => {
+      const actionAt = new Date().toISOString();
+
+      setWorkspace((currentWorkspace) => {
+        const resolvedWorkspace = resolveRecurringPromptMatchWithLog(
+          currentWorkspace,
+          occurrenceId,
+          logId,
+          actionAt,
+        );
+
+        if (resolvedWorkspace === currentWorkspace) {
+          return currentWorkspace;
+        }
+
+        const windowedWorkspace = ensureRecurringOccurrencesWindow(
+          resolvedWorkspace,
+          {
+            now: actionAt,
+          },
+        );
+
+        return enqueueWorkspaceSync(windowedWorkspace, {
+          kind: "recurring-occurrence-updated",
+          summary: "Resolved recurring prompt match",
+        });
+      });
+    },
+    [setWorkspace],
+  );
+
   const importLogsFromCsv = useCallback(
     (csv: string) => {
       let result = { importedCount: 0, warnings: [] as string[] };
@@ -639,6 +904,13 @@ export function useWorkspaceMutations(
     completeReminder,
     snoozeReminder,
     skipReminder,
+    saveRecurringPlan,
+    completeRecurringOccurrence: completeRecurringOccurrenceMutation,
+    snoozeRecurringOccurrence: snoozeRecurringOccurrenceMutation,
+    skipRecurringOccurrence: skipRecurringOccurrenceMutation,
+    bulkCompleteRecurringOccurrences: bulkCompleteRecurringOccurrencesMutation,
+    bulkSnoozeRecurringOccurrences: bulkSnoozeRecurringOccurrencesMutation,
+    resolveRecurringPromptMatch: resolveRecurringPromptMatchMutation,
     importLogsFromCsv,
     importTemplateFromUrl,
     saveCustomTemplate,

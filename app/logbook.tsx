@@ -2,11 +2,11 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Image, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-  Button,
-  Chip,
-  Surface,
-  useTheme,
-  type MD3Theme,
+    Button,
+    Chip,
+    Surface,
+    useTheme,
+    type MD3Theme,
 } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,41 +23,41 @@ import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getReadableTextColor } from "@/constants/Colors";
 import {
-  getLogKindFormTemplate,
-  getQuickActionFormTemplate,
+    getLogKindFormTemplate,
+    getQuickActionFormTemplate,
 } from "@/constants/TrackItUpFormTemplates";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-  uiBorder,
-  uiMotion,
-  uiRadius,
-  uiSpace,
-  uiTypography,
+    uiBorder,
+    uiMotion,
+    uiRadius,
+    uiSpace,
+    uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiLogbookDraftCopy } from "@/services/ai/aiConsentCopy";
 import {
-  buildAiLogbookDraftReviewItems,
-  buildAiLogbookGenerationPrompt,
-  parseAiLogbookDraft,
-  type AiLogbookDraft,
+    buildAiLogbookDraftReviewItems,
+    buildAiLogbookGenerationPrompt,
+    parseAiLogbookDraft,
+    type AiLogbookDraft,
 } from "@/services/ai/aiLogbookDraft";
 import { buildLogbookDraftPrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-  buildInitialFormValues,
-  normalizeFormValues,
-  validateFormValues,
-  type FormValidationErrors,
-  type FormValue,
-  type FormValueMap,
+    buildInitialFormValues,
+    normalizeFormValues,
+    validateFormValues,
+    type FormValidationErrors,
+    type FormValue,
+    type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
 import type {
-  FormFieldDefinition,
-  QuickActionKind,
-  Reminder,
+    FormFieldDefinition,
+    QuickActionKind,
+    Reminder,
 } from "@/types/trackitup";
 
 type GeneratedAiLogbookDraft = {
@@ -72,6 +72,14 @@ type GeneratedAiLogbookDraft = {
   draft: AiLogbookDraft;
 };
 
+type PendingRecurringPromptMatch = {
+  occurrenceId: string;
+  planId: string;
+  logId: string;
+  score: number;
+  title: string;
+};
+
 function buildReminderDraftPatch(reminder: Reminder) {
   return {
     reminderId: reminder.id,
@@ -80,6 +88,26 @@ function buildReminderDraftPatch(reminder: Reminder) {
     note: reminder.description
       ? `Proof captured for reminder completion. ${reminder.description}`
       : "Proof captured for reminder completion.",
+  };
+}
+
+function buildRecurringDraftPatch(
+  occurrenceId: string,
+  plan: {
+    id: string;
+    spaceId: string;
+    title: string;
+    description?: string;
+  },
+) {
+  return {
+    recurringOccurrenceId: occurrenceId,
+    recurringPlanId: plan.id,
+    spaceId: plan.spaceId,
+    title: `${plan.title} completed`,
+    note: plan.description
+      ? `Proof captured for recurring routine completion. ${plan.description}`
+      : "Proof captured for recurring routine completion.",
   };
 }
 
@@ -202,6 +230,22 @@ function getStringListValue(value: FormValue) {
     : [];
 }
 
+type RecurringMatchConfidence = "high" | "medium" | "low";
+
+function getRecurringMatchConfidence(score: number): RecurringMatchConfidence {
+  if (score >= 5) return "high";
+  if (score >= 3) return "medium";
+  return "low";
+}
+
+function getRecurringMatchConfidenceLabel(
+  confidence: RecurringMatchConfidence,
+) {
+  if (confidence === "high") return "High confidence";
+  if (confidence === "medium") return "Medium confidence";
+  return "Low confidence";
+}
+
 export default function LogbookScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
@@ -213,11 +257,13 @@ export default function LogbookScreen() {
   );
   const router = useRouter();
   const {
+    completeRecurringOccurrence,
     createRestorePoint,
     isHydrated,
     logEntries,
     persistenceMode,
     resetWorkspace,
+    resolveRecurringPromptMatch,
     saveLogForAction,
     saveLogForTemplate,
     workspace,
@@ -227,12 +273,19 @@ export default function LogbookScreen() {
   const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
   const [generatedAiDraft, setGeneratedAiDraft] =
     useState<GeneratedAiLogbookDraft | null>(null);
+  const [pendingRecurringPromptMatches, setPendingRecurringPromptMatches] =
+    useState<PendingRecurringPromptMatch[]>([]);
+  const [pendingPromptLogId, setPendingPromptLogId] = useState<string | null>(
+    null,
+  );
   const [formValues, setFormValues] = useState<FormValueMap>({});
   const [formErrors, setFormErrors] = useState<FormValidationErrors>({});
   const params = useLocalSearchParams<{
     actionId?: string;
     createdSpaceName?: string;
     entryId?: string;
+    recurringOccurrenceId?: string;
+    recurringPlanId?: string;
     reminderId?: string;
     spaceId?: string;
     templateId?: string;
@@ -241,6 +294,8 @@ export default function LogbookScreen() {
   const actionId = pickParam(params.actionId);
   const createdSpaceName = pickParam(params.createdSpaceName);
   const entryId = pickParam(params.entryId);
+  const recurringOccurrenceId = pickParam(params.recurringOccurrenceId);
+  const recurringPlanId = pickParam(params.recurringPlanId);
   const initialReminderId = pickParam(params.reminderId);
   const initialSpaceId = pickParam(params.spaceId);
   const templateId = pickParam(params.templateId);
@@ -301,6 +356,18 @@ export default function LogbookScreen() {
   const initialReminder = initialReminderId
     ? workspace.reminders.find((reminder) => reminder.id === initialReminderId)
     : undefined;
+  const initialRecurringOccurrence = recurringOccurrenceId
+    ? workspace.recurringOccurrences.find(
+        (occurrence) => occurrence.id === recurringOccurrenceId,
+      )
+    : undefined;
+  const initialRecurringPlan = recurringPlanId
+    ? workspace.recurringPlans.find((plan) => plan.id === recurringPlanId)
+    : initialRecurringOccurrence
+      ? workspace.recurringPlans.find(
+          (plan) => plan.id === initialRecurringOccurrence.planId,
+        )
+      : undefined;
 
   const activeTemplate = action
     ? getQuickActionFormTemplate(action.kind)
@@ -329,6 +396,12 @@ export default function LogbookScreen() {
         ...(!entry && initialReminder
           ? buildReminderDraftPatch(initialReminder)
           : {}),
+        ...(!entry && initialRecurringOccurrence && initialRecurringPlan
+          ? buildRecurringDraftPatch(
+              initialRecurringOccurrence.id,
+              initialRecurringPlan,
+            )
+          : {}),
       },
       { action, entry },
     );
@@ -337,6 +410,8 @@ export default function LogbookScreen() {
     action,
     entry,
     initialReminder,
+    initialRecurringOccurrence,
+    initialRecurringPlan,
     initialSpaceId,
     workspace,
   ]);
@@ -631,15 +706,50 @@ export default function LogbookScreen() {
       return;
     }
 
+    const recurringOccurrenceIdValue =
+      (typeof formValues.recurringOccurrenceId === "string"
+        ? formValues.recurringOccurrenceId
+        : undefined) ?? recurringOccurrenceId;
+    if (recurringOccurrenceIdValue) {
+      completeRecurringOccurrence(recurringOccurrenceIdValue, {
+        logId: result.entryId,
+      });
+    }
+
+    if ((result.recurringPromptMatches?.length ?? 0) > 0 && result.entryId) {
+      setPendingRecurringPromptMatches(result.recurringPromptMatches ?? []);
+      setPendingPromptLogId(result.entryId);
+      setFeedbackMessage(
+        `Saved log entry. ${result.recurringPromptMatches?.length ?? 0} recurring occurrence match suggestion(s) are ready to resolve.`,
+      );
+      return;
+    }
+
     setFeedbackMessage(
       result.createdCount > 1
-        ? `Saved ${result.createdCount} log entries from one routine/template run.${result.scheduledReminderCount ? ` Triggered ${result.scheduledReminderCount} reminder(s).` : ""}`
-        : `Log entry saved to your workspace.${result.scheduledReminderCount ? ` Triggered ${result.scheduledReminderCount} reminder(s).` : ""}`,
+        ? `Saved ${result.createdCount} log entries from one routine/template run.${result.scheduledReminderCount ? ` Triggered ${result.scheduledReminderCount} reminder(s).` : ""}${result.recurringAutoLinkedCount ? ` Auto-linked ${result.recurringAutoLinkedCount} recurring occurrence(s).` : ""}${result.recurringPromptMatchCount ? ` ${result.recurringPromptMatchCount} recurring match suggestion(s) need review.` : ""}`
+        : `Log entry saved to your workspace.${result.scheduledReminderCount ? ` Triggered ${result.scheduledReminderCount} reminder(s).` : ""}${result.recurringAutoLinkedCount ? ` Auto-linked ${result.recurringAutoLinkedCount} recurring occurrence(s).` : ""}${result.recurringPromptMatchCount ? ` ${result.recurringPromptMatchCount} recurring match suggestion(s) need review.` : ""}`,
     );
     router.replace({
       pathname: "/logbook",
       params: { entryId: result.entryId },
     });
+  }
+
+  function resolvePendingRecurringPromptMatch(occurrenceId: string) {
+    if (!pendingPromptLogId) return;
+
+    resolveRecurringPromptMatch(occurrenceId, pendingPromptLogId);
+    setPendingRecurringPromptMatches((current) =>
+      current.filter((item) => item.occurrenceId !== occurrenceId),
+    );
+    setFeedbackMessage("Resolved recurring occurrence with this saved log.");
+  }
+
+  function dismissPendingRecurringPromptMatch(occurrenceId: string) {
+    setPendingRecurringPromptMatches((current) =>
+      current.filter((item) => item.occurrenceId !== occurrenceId),
+    );
   }
 
   async function handleResetWorkspace() {
@@ -958,6 +1068,116 @@ export default function LogbookScreen() {
               entry={entry}
               onChange={handleFormValueChange}
             />
+          </Surface>
+        ) : null}
+
+        {pendingRecurringPromptMatches.length > 0 ? (
+          <Surface
+            style={[styles.sectionCard, paletteStyles.cardSurface]}
+            elevation={1}
+          >
+            <Text style={[styles.sectionLabel, paletteStyles.tintText]}>
+              Recurring smart matching
+            </Text>
+            <Text style={styles.sectionTitle}>Resolve due occurrence?</Text>
+            <Text style={[styles.templateIntro, paletteStyles.mutedText]}>
+              This saved log matches one or more scheduled recurring
+              occurrences. Resolve any match you want to link now.
+            </Text>
+            {pendingRecurringPromptMatches.map((match, index) => (
+              <MotionView
+                key={`${match.occurrenceId}-${match.logId}`}
+                delay={uiMotion.stagger * (index + 1)}
+              >
+                <View style={styles.listItemCard}>
+                  {(() => {
+                    const confidence = getRecurringMatchConfidence(match.score);
+                    const confidenceChipColors =
+                      confidence === "high"
+                        ? {
+                            backgroundColor: theme.colors.primaryContainer,
+                            color: theme.colors.onPrimaryContainer,
+                          }
+                        : confidence === "medium"
+                          ? {
+                              backgroundColor: theme.colors.tertiaryContainer,
+                              color: theme.colors.onTertiaryContainer,
+                            }
+                          : {
+                              backgroundColor: theme.colors.errorContainer,
+                              color: theme.colors.onErrorContainer,
+                            };
+
+                    return (
+                      <>
+                        <Text style={styles.listTitle}>{match.title}</Text>
+                        <ActionButtonRow>
+                          <Chip
+                            compact
+                            style={{
+                              backgroundColor:
+                                confidenceChipColors.backgroundColor,
+                            }}
+                            textStyle={{ color: confidenceChipColors.color }}
+                          >
+                            {getRecurringMatchConfidenceLabel(confidence)}
+                          </Chip>
+                          <Chip compact>Score {match.score}</Chip>
+                        </ActionButtonRow>
+                        <Text
+                          style={[styles.listCopy, paletteStyles.mutedText]}
+                        >
+                          Review this suggestion and resolve only if the saved
+                          entry clearly maps to this due occurrence.
+                        </Text>
+                        <ActionButtonRow>
+                          <Button
+                            mode="contained"
+                            onPress={() =>
+                              resolvePendingRecurringPromptMatch(
+                                match.occurrenceId,
+                              )
+                            }
+                          >
+                            Resolve with saved log
+                          </Button>
+                          <Button
+                            mode="outlined"
+                            onPress={() =>
+                              dismissPendingRecurringPromptMatch(
+                                match.occurrenceId,
+                              )
+                            }
+                          >
+                            Dismiss
+                          </Button>
+                        </ActionButtonRow>
+                      </>
+                    );
+                  })()}
+                </View>
+              </MotionView>
+            ))}
+            <ActionButtonRow style={styles.actionButtonRow}>
+              <Button
+                mode="outlined"
+                onPress={() => {
+                  if (!pendingPromptLogId) return;
+                  router.replace({
+                    pathname: "/logbook",
+                    params: { entryId: pendingPromptLogId },
+                  });
+                }}
+              >
+                Open saved log
+              </Button>
+              <Button
+                mode="outlined"
+                onPress={() => router.push("/action-center")}
+              >
+                Open action center
+              </Button>
+            </ActionButtonRow>
           </Surface>
         ) : null}
 

@@ -244,6 +244,7 @@ export default function PlannerScreen() {
   }, [workspace.reminders, workspace.spaces]);
   const plannerHighlights = [
     `${workspace.reminders.length} reminders tracked`,
+    `${workspace.recurringPlans.filter((plan) => plan.status === "active").length} active routines`,
     `${selectedDayReminders.length} on the selected day`,
     `${plannerGroups.length} upcoming day groups`,
   ];
@@ -306,6 +307,17 @@ export default function PlannerScreen() {
       label: "Open action center",
       hint: "Complete, snooze, or skip reminder work from a single queue.",
       onPress: () => router.push("/action-center" as never),
+    },
+    {
+      id: "planner-recurring-new",
+      label: "New recurring plan",
+      hint: "Create a first-class routine with times, grace period, and proof settings.",
+      onPress: () =>
+        router.push({
+          pathname: "/recurring-plan-editor",
+          params: { from: "planner" },
+        }),
+      accentColor: palette.tint,
     },
   ];
   const plannerSections = useMemo<FeatureSectionItem<PlannerSection>[]>(
@@ -1185,6 +1197,134 @@ export default function PlannerScreen() {
 
         {activeSection === "schedule" ? (
           <>
+            <SectionSurface
+              palette={palette}
+              label="Recurring plans"
+              title="Routine plan management"
+            >
+              {workspace.recurringPlans.length === 0 ? (
+                <View
+                  style={[
+                    styles.card,
+                    paletteStyles.raisedCardSurface,
+                    raisedCardShadow,
+                    { borderLeftColor: palette.tint },
+                  ]}
+                >
+                  <Text style={styles.cardTitle}>No recurring plans yet</Text>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    Create your first recurring routine and TrackItUp will
+                    generate scheduled occurrences in the planner and action
+                    center.
+                  </Text>
+                  <ActionButtonRow style={styles.buttonRow}>
+                    <Button
+                      mode="contained"
+                      onPress={() =>
+                        router.push({
+                          pathname: "/recurring-plan-editor",
+                          params: { from: "planner" },
+                        })
+                      }
+                      style={styles.button}
+                    >
+                      Create recurring plan
+                    </Button>
+                  </ActionButtonRow>
+                </View>
+              ) : (
+                workspace.recurringPlans.map((plan, index) => {
+                  const space = workspace.spaces.find(
+                    (item) => item.id === plan.spaceId,
+                  );
+
+                  return (
+                    <MotionView
+                      key={plan.id}
+                      delay={uiMotion.stagger * (index + 1)}
+                    >
+                      <View
+                        style={[
+                          styles.card,
+                          paletteStyles.raisedCardSurface,
+                          raisedCardShadow,
+                          {
+                            borderLeftColor: space?.themeColor ?? palette.tint,
+                          },
+                        ]}
+                      >
+                        <Text style={styles.cardTitle}>{plan.title}</Text>
+                        <View style={styles.metaRow}>
+                          <Text
+                            style={[
+                              styles.meta,
+                              { color: space?.themeColor ?? palette.tint },
+                            ]}
+                          >
+                            {space?.name ?? "Unknown space"}
+                          </Text>
+                          <Chip compact>{plan.status.toUpperCase()}</Chip>
+                        </View>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {plan.description?.trim() ?? "Recurring routine plan"}
+                        </Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {plan.scheduleRule.type} • {plan.timezone}
+                          {plan.proofRequired ? " • proof required" : ""}
+                        </Text>
+                        <ActionButtonRow style={styles.buttonRow}>
+                          <Button
+                            mode="outlined"
+                            onPress={() =>
+                              router.push({
+                                pathname: "/recurring-plan-editor",
+                                params: {
+                                  planId: plan.id,
+                                  from: "planner",
+                                },
+                              })
+                            }
+                            style={styles.button}
+                          >
+                            Edit plan
+                          </Button>
+                          <Button
+                            mode="outlined"
+                            onPress={() =>
+                              router.push({
+                                pathname: "/recurring-history",
+                                params: {
+                                  planId: plan.id,
+                                },
+                              })
+                            }
+                            style={styles.button}
+                          >
+                            History
+                          </Button>
+                          <Button
+                            mode="contained-tonal"
+                            onPress={() =>
+                              router.push({
+                                pathname: "/recurring-plan-editor",
+                                params: {
+                                  duplicateFromPlanId: plan.id,
+                                  from: "planner",
+                                },
+                              })
+                            }
+                            style={styles.button}
+                          >
+                            Duplicate
+                          </Button>
+                        </ActionButtonRow>
+                      </View>
+                    </MotionView>
+                  );
+                })
+              )}
+            </SectionSurface>
+
             {plannerGroups.length === 0 ? (
               <View
                 style={[

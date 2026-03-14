@@ -1,4 +1,5 @@
 import type {
+    RecurringOccurrence,
     Reminder,
     ReminderHistoryAction,
     WorkspaceSnapshot,
@@ -43,6 +44,30 @@ export type ReminderActionCenterSpaceGroup = {
   dueTodayCount: number;
   nextDueAt?: string;
   reminderTitles: string[];
+};
+
+export type RecurringActionCenterOccurrence = {
+  occurrenceId: string;
+  planId: string;
+  title: string;
+  description?: string;
+  status: RecurringOccurrence["status"];
+  dueAt: string;
+  effectiveDueAt: string;
+  spaceId: string;
+  spaceName: string;
+  proofRequired: boolean;
+};
+
+export type RecurringActionCenterNextStep = {
+  occurrenceId: string;
+  planId: string;
+  title: string;
+  dueAt: string;
+  spaceId: string;
+  spaceName: string;
+  suggestedAction: "complete-now" | "log-proof" | "snooze" | "open-planner";
+  reason: string;
 };
 
 function isSameDay(left: string, right: string) {
@@ -99,6 +124,9 @@ export function buildReminderActionCenter(workspace: WorkspaceSnapshot) {
   const now = workspace.generatedAt;
   const spacesById = new Map(
     workspace.spaces.map((space) => [space.id, space] as const),
+  );
+  const recurringPlansById = new Map(
+    workspace.recurringPlans.map((plan) => [plan.id, plan] as const),
   );
   const openReminders = [...workspace.reminders]
     .filter(isReminderOpen)
@@ -207,10 +235,105 @@ export function buildReminderActionCenter(workspace: WorkspaceSnapshot) {
     })
     .slice(0, 4);
 
+  const openRecurring = workspace.recurringOccurrences
+    .filter((occurrence) => occurrence.status === "scheduled")
+    .flatMap<RecurringActionCenterOccurrence>((occurrence) => {
+      const plan = recurringPlansById.get(occurrence.planId);
+      if (!plan || plan.status !== "active") return [];
+
+      return [
+        {
+          occurrenceId: occurrence.id,
+          planId: plan.id,
+          title: plan.title,
+          description: plan.description,
+          status: occurrence.status,
+          dueAt: occurrence.dueAt,
+          effectiveDueAt: occurrence.snoozedUntil ?? occurrence.dueAt,
+          spaceId: plan.spaceId,
+          spaceName: spacesById.get(plan.spaceId)?.name ?? "Unknown space",
+          proofRequired: Boolean(plan.proofRequired),
+        },
+      ];
+    })
+    .sort((left, right) =>
+      left.effectiveDueAt.localeCompare(right.effectiveDueAt),
+    );
+
+  const recurringOverdue = openRecurring.filter(
+    (occurrence) => occurrence.effectiveDueAt <= now,
+  );
+  const recurringDueToday = openRecurring.filter((occurrence) => {
+    return (
+      occurrence.effectiveDueAt > now &&
+      isSameDay(occurrence.effectiveDueAt, now)
+    );
+  });
+  const recurringUpcoming = openRecurring.filter((occurrence) => {
+    return (
+      occurrence.effectiveDueAt > now &&
+      !isSameDay(occurrence.effectiveDueAt, now)
+    );
+  });
+
+  const recurringNextBestSteps = openRecurring
+    .slice(0, 6)
+    .map<RecurringActionCenterNextStep>((occurrence) => {
+      if (occurrence.effectiveDueAt <= now) {
+        return {
+          occurrenceId: occurrence.occurrenceId,
+          planId: occurrence.planId,
+          title: occurrence.title,
+          dueAt: occurrence.effectiveDueAt,
+          spaceId: occurrence.spaceId,
+          spaceName: occurrence.spaceName,
+          suggestedAction: occurrence.proofRequired
+            ? "log-proof"
+            : "complete-now",
+          reason: occurrence.proofRequired
+            ? "This routine is overdue and expects proof capture, so log evidence first and resolve it in one flow."
+            : "This routine occurrence is overdue and should be resolved before the queue expands.",
+        };
+      }
+
+      if (isSameDay(occurrence.effectiveDueAt, now)) {
+        return {
+          occurrenceId: occurrence.occurrenceId,
+          planId: occurrence.planId,
+          title: occurrence.title,
+          dueAt: occurrence.effectiveDueAt,
+          spaceId: occurrence.spaceId,
+          spaceName: occurrence.spaceName,
+          suggestedAction: occurrence.proofRequired
+            ? "log-proof"
+            : "complete-now",
+          reason: occurrence.proofRequired
+            ? "This routine is due today and requires proof, so capture evidence while completing it."
+            : "This routine is due today and can be completed quickly to keep streak momentum.",
+        };
+      }
+
+      return {
+        occurrenceId: occurrence.occurrenceId,
+        planId: occurrence.planId,
+        title: occurrence.title,
+        dueAt: occurrence.effectiveDueAt,
+        spaceId: occurrence.spaceId,
+        spaceName: occurrence.spaceName,
+        suggestedAction: "open-planner",
+        reason:
+          "This routine is upcoming and should be reviewed with the rest of the plan so due-time clustering stays manageable.",
+      };
+    });
+
   return {
     overdue,
     dueToday,
     upcoming,
+    recurringOverdue,
+    recurringDueToday,
+    recurringUpcoming,
+    recurringNextBestSteps,
     recentActivity,
     nextBestSteps,
     groupedBySpace,
@@ -218,6 +341,10 @@ export function buildReminderActionCenter(workspace: WorkspaceSnapshot) {
       overdueCount: overdue.length,
       dueTodayCount: dueToday.length,
       upcomingCount: upcoming.length,
+      recurringOverdueCount: recurringOverdue.length,
+      recurringDueTodayCount: recurringDueToday.length,
+      recurringUpcomingCount: recurringUpcoming.length,
+      recurringNextBestStepCount: recurringNextBestSteps.length,
       recentActivityCount: recentActivity.length,
       nextBestStepCount: nextBestSteps.length,
       groupedSpaceCount: groupedBySpace.length,

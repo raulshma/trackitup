@@ -6,9 +6,14 @@ import {
     isReminderOpen,
 } from "@/services/insights/workspaceInsights";
 import {
+    RECURRING_NOTIFICATION_COMPLETE_ACTION_ID,
+    RECURRING_NOTIFICATION_SKIP_ACTION_ID,
+    RECURRING_NOTIFICATION_SNOOZE_ACTION_ID,
     REMINDER_NOTIFICATION_COMPLETE_ACTION_ID,
     REMINDER_NOTIFICATION_SKIP_ACTION_ID,
     REMINDER_NOTIFICATION_SNOOZE_ACTION_ID,
+    TRACKITUP_RECURRING_ROUTE,
+    TRACKITUP_RECURRING_SOURCE,
     TRACKITUP_REMINDER_ROUTE,
     TRACKITUP_REMINDER_SOURCE,
 } from "@/services/reminders/reminderNotificationIntents";
@@ -16,7 +21,9 @@ import type { WorkspaceSnapshot } from "@/types/trackitup";
 
 const TRACKITUP_REMINDER_CHANNEL_ID = "trackitup-reminders";
 const TRACKITUP_REMINDER_CATEGORY_ID = "trackitupReminderActions";
+const TRACKITUP_RECURRING_CATEGORY_ID = "trackitupRecurringActions";
 const MAX_SCHEDULED_REMINDERS = 48;
+const MAX_SCHEDULED_RECURRING_BATCHES = 48;
 
 export type ReminderNotificationPermissionStatus =
   | "unsupported"
@@ -94,6 +101,35 @@ async function ensureReminderNotificationCategory() {
       },
     ],
   );
+
+  await Notifications.setNotificationCategoryAsync(
+    TRACKITUP_RECURRING_CATEGORY_ID,
+    [
+      {
+        identifier: RECURRING_NOTIFICATION_COMPLETE_ACTION_ID,
+        buttonTitle: "Complete",
+      },
+      {
+        identifier: RECURRING_NOTIFICATION_SNOOZE_ACTION_ID,
+        buttonTitle: "Snooze",
+      },
+      {
+        identifier: RECURRING_NOTIFICATION_SKIP_ACTION_ID,
+        buttonTitle: "Skip",
+      },
+    ],
+  );
+}
+
+function toMinuteKey(timestampMs: number) {
+  const date = new Date(timestampMs);
+  date.setSeconds(0, 0);
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hour = `${date.getHours()}`.padStart(2, "0");
+  const minute = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
 }
 
 export async function getReminderNotificationPermissionState(): Promise<ReminderNotificationPermissionState> {
@@ -131,7 +167,9 @@ export async function clearScheduledReminderNotifications() {
 
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
   const reminderNotifications = scheduled.filter(
-    (request) => request.content.data?.source === TRACKITUP_REMINDER_SOURCE,
+    (request) =>
+      request.content.data?.source === TRACKITUP_REMINDER_SOURCE ||
+      request.content.data?.source === TRACKITUP_RECURRING_SOURCE,
   );
 
   await Promise.all(
@@ -175,6 +213,72 @@ export async function syncWorkspaceReminderNotifications(
     .sort((left, right) => left.scheduledAt - right.scheduledAt)
     .slice(0, MAX_SCHEDULED_REMINDERS);
 
+  const activePlansById = new Map(
+    workspace.recurringPlans
+      .filter((plan) => plan.status === "active")
+      .map((plan) => [plan.id, plan] as const),
+  );
+
+  const groupedRecurring = workspace.recurringOccurrences
+    .filter((occurrence) => occurrence.status === "scheduled")
+    .map((occurrence) => {
+      const plan = activePlansById.get(occurrence.planId);
+      if (!plan) return null;
+      const effectiveDueAt = new Date(
+        occurrence.snoozedUntil ?? occurrence.dueAt,
+      ).getTime();
+      if (!Number.isFinite(effectiveDueAt) || effectiveDueAt <= now) {
+        return null;
+      }
+
+      return {
+        occurrence,
+        plan,
+        effectiveDueAt,
+      };
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        occurrence: WorkspaceSnapshot["recurringOccurrences"][number];
+        plan: WorkspaceSnapshot["recurringPlans"][number];
+        effectiveDueAt: number;
+      } => Boolean(item),
+    )
+    .reduce<
+      Map<
+        string,
+        {
+          scheduledAt: number;
+          occurrences: Array<{
+            occurrenceId: string;
+            planId: string;
+            title: string;
+            spaceId: string;
+          }>;
+        }
+      >
+    >((map, item) => {
+      const key = toMinuteKey(item.effectiveDueAt);
+      const existing = map.get(key) ?? {
+        scheduledAt: item.effectiveDueAt,
+        occurrences: [],
+      };
+      existing.occurrences.push({
+        occurrenceId: item.occurrence.id,
+        planId: item.plan.id,
+        title: item.plan.title,
+        spaceId: item.plan.spaceId,
+      });
+      map.set(key, existing);
+      return map;
+    }, new Map());
+
+  const recurringGroups = Array.from(groupedRecurring.values())
+    .sort((left, right) => left.scheduledAt - right.scheduledAt)
+    .slice(0, MAX_SCHEDULED_RECURRING_BATCHES);
+
   for (const { reminder, scheduledAt } of reminders) {
     const spaceName = spacesById.get(reminder.spaceId)?.name ?? "Tracked space";
     const subtitle =
@@ -202,8 +306,61 @@ export async function syncWorkspaceReminderNotifications(
     });
   }
 
+  for (const recurringGroup of recurringGroups) {
+    const first = recurringGroup.occurrences[0];
+    if (!first) continue;
+
+    const firstSpaceName =
+      spacesById.get(first.spaceId)?.name ?? "Tracked space";
+    const body =
+      recurringGroup.occurrences.length === 1
+        ? `${firstSpaceName} • due ${new Date(recurringGroup.scheduledAt).toLocaleString()}`
+        : `${firstSpaceName} • ${recurringGroup.occurrences.length} routine occurrence(s) due now`;
+
+    const title =
+      recurringGroup.occurrences.length === 1
+        ? first.title
+        : `${recurringGroup.occurrences.length} routines due`;
+
+    const subtitle =
+      recurringGroup.occurrences.length === 1
+        ? "Recurring routine"
+        : recurringGroup.occurrences
+            .slice(0, 2)
+            .map((item) => item.title)
+            .join(" • ");
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title,
+        subtitle,
+        body,
+        categoryIdentifier:
+          recurringGroup.occurrences.length === 1
+            ? TRACKITUP_RECURRING_CATEGORY_ID
+            : undefined,
+        sound: "default",
+        data: {
+          source: TRACKITUP_RECURRING_SOURCE,
+          route: TRACKITUP_RECURRING_ROUTE,
+          occurrenceId: first.occurrenceId,
+          occurrenceIds: recurringGroup.occurrences.map(
+            (item) => item.occurrenceId,
+          ),
+          planId: first.planId,
+          spaceId: first.spaceId,
+        },
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        channelId: TRACKITUP_REMINDER_CHANNEL_ID,
+        date: new Date(recurringGroup.scheduledAt),
+      },
+    });
+  }
+
   return {
-    scheduledCount: reminders.length,
+    scheduledCount: reminders.length + recurringGroups.length,
     cancelledCount,
   };
 }

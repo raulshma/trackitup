@@ -121,6 +121,25 @@ function countDueToday(reminders: Reminder[], nowTimestamp: string) {
   ).length;
 }
 
+function countRecurringDueToday(
+  workspace: WorkspaceSnapshot,
+  nowTimestamp: string,
+) {
+  const today = new Date(nowTimestamp);
+  const activePlanIds = new Set(
+    workspace.recurringPlans
+      .filter((plan) => plan.status === "active")
+      .map((plan) => plan.id),
+  );
+
+  return workspace.recurringOccurrences.filter((occurrence) => {
+    if (occurrence.status !== "scheduled") return false;
+    if (!activePlanIds.has(occurrence.planId)) return false;
+    const dueAt = occurrence.snoozedUntil ?? occurrence.dueAt;
+    return isSameDay(new Date(dueAt), today);
+  }).length;
+}
+
 function countLogsThisWeek(logs: LogEntry[], nowTimestamp: string) {
   const now = new Date(nowTimestamp).getTime();
   const weekMs = 7 * 24 * 60 * 60 * 1000;
@@ -134,7 +153,10 @@ export function getOverviewStats(workspace: WorkspaceSnapshot): OverviewStat[] {
     { label: "Active spaces", value: String(workspace.spaces.length) },
     {
       label: "Due today",
-      value: String(countDueToday(workspace.reminders, workspace.generatedAt)),
+      value: String(
+        countDueToday(workspace.reminders, workspace.generatedAt) +
+          countRecurringDueToday(workspace, workspace.generatedAt),
+      ),
     },
     {
       label: "Logs this week",
@@ -182,6 +204,14 @@ export function getSpaceSummaries(
     const pendingTasks = workspace.reminders.filter(
       (reminder) => reminder.spaceId === space.id && isReminderOpen(reminder),
     ).length;
+    const pendingRecurring = workspace.recurringOccurrences.filter(
+      (occurrence) =>
+        occurrence.spaceId === space.id &&
+        occurrence.status === "scheduled" &&
+        workspace.recurringPlans.some(
+          (plan) => plan.id === occurrence.planId && plan.status === "active",
+        ),
+    ).length;
     const latestLog = latestLogsBySpace.get(space.id);
 
     return {
@@ -189,7 +219,7 @@ export function getSpaceSummaries(
       name: space.name,
       category: formatSpaceCategoryLabel(space.category),
       status: statusLabels[space.status],
-      pendingTasks,
+      pendingTasks: pendingTasks + pendingRecurring,
       lastLog: latestLog
         ? `${latestLog.title} • ${formatRelativeLogTime(latestLog.occurredAt, workspace.generatedAt)}`
         : "No logs yet",

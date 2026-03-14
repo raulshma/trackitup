@@ -162,6 +162,51 @@ export default function TabOneScreen() {
         .slice(0, 3),
     [workspace.reminders],
   );
+  const activeRecurringPlansById = useMemo(
+    () =>
+      new Map(
+        workspace.recurringPlans
+          .filter((plan) => plan.status === "active")
+          .map((plan) => [plan.id, plan] as const),
+      ),
+    [workspace.recurringPlans],
+  );
+  const todaysRoutineOccurrences = useMemo(() => {
+    const now = new Date(workspace.generatedAt);
+
+    return workspace.recurringOccurrences
+      .filter((occurrence) => occurrence.status === "scheduled")
+      .flatMap((occurrence) => {
+        const plan = activeRecurringPlansById.get(occurrence.planId);
+        if (!plan) return [];
+
+        const effectiveDueAt = new Date(
+          occurrence.snoozedUntil ?? occurrence.dueAt,
+        );
+        if (
+          effectiveDueAt.getFullYear() !== now.getFullYear() ||
+          effectiveDueAt.getMonth() !== now.getMonth() ||
+          effectiveDueAt.getDate() !== now.getDate()
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            occurrenceId: occurrence.id,
+            title: plan.title,
+            proofRequired: Boolean(plan.proofRequired),
+            dueAt: effectiveDueAt,
+            spaceId: plan.spaceId,
+          },
+        ];
+      })
+      .sort((left, right) => left.dueAt.getTime() - right.dueAt.getTime());
+  }, [
+    activeRecurringPlansById,
+    workspace.generatedAt,
+    workspace.recurringOccurrences,
+  ]);
 
   const visibleWidgets = useMemo(
     () => workspace.dashboardWidgets.filter((widget) => !widget.hidden),
@@ -1231,6 +1276,83 @@ export default function TabOneScreen() {
                   </View>
                 ))}
               </Surface>
+            </SectionSurface>
+
+            <SectionSurface
+              palette={palette}
+              label="Today's routine"
+              title="Recurring occurrences due today"
+            >
+              <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
+                Finish recurring routines from one place and jump directly into
+                proof capture when needed.
+              </Text>
+              {todaysRoutineOccurrences.length === 0 ? (
+                <Text style={[styles.focusText, { color: palette.muted }]}>
+                  No recurring occurrences are due today.
+                </Text>
+              ) : (
+                todaysRoutineOccurrences.slice(0, 5).map((item) => {
+                  const space = spacesById.get(item.spaceId);
+                  return (
+                    <Pressable
+                      key={item.occurrenceId}
+                      onPress={() => router.push("/action-center")}
+                      style={({ pressed }) => [
+                        styles.recommendationRow,
+                        nestedCardSurfaceStyle,
+                        { opacity: pressed ? 0.94 : 1 },
+                      ]}
+                    >
+                      <View style={styles.widgetListCopy}>
+                        <Text style={styles.widgetListTitle}>{item.title}</Text>
+                        <Text
+                          style={[
+                            styles.widgetShortcutMeta,
+                            { color: palette.muted },
+                          ]}
+                        >
+                          {space?.name ?? "Unknown space"} • due{" "}
+                          {item.dueAt.toLocaleTimeString([], {
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })}
+                        </Text>
+                      </View>
+                      <View style={styles.recommendationAside}>
+                        <View
+                          style={[
+                            styles.severityBadge,
+                            {
+                              backgroundColor: item.proofRequired
+                                ? theme.colors.secondaryContainer
+                                : theme.colors.primaryContainer,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.severityBadgeLabel,
+                              {
+                                color: item.proofRequired
+                                  ? theme.colors.onSecondaryContainer
+                                  : theme.colors.onPrimaryContainer,
+                              },
+                            ]}
+                          >
+                            {item.proofRequired ? "proof" : "routine"}
+                          </Text>
+                        </View>
+                        <Text
+                          style={[styles.actionCta, { color: palette.tint }]}
+                        >
+                          Open queue
+                        </Text>
+                      </View>
+                    </Pressable>
+                  );
+                })
+              )}
             </SectionSurface>
           </>
         ) : null}

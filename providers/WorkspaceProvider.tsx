@@ -1,4 +1,5 @@
 import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
 import {
     createContext,
     useCallback,
@@ -63,7 +64,11 @@ import {
     type WorkspaceRestorePointReason,
     type WorkspaceRestorePointSummary,
 } from "@/services/offline/workspaceRestorePoints";
-import { getReminderNotificationResponseIntent } from "@/services/reminders/reminderNotificationIntents";
+import { ensureRecurringOccurrencesWindow } from "@/services/recurring/recurringPlans";
+import {
+    getRecurringNotificationResponseIntent,
+    getReminderNotificationResponseIntent,
+} from "@/services/reminders/reminderNotificationIntents";
 import {
     clearScheduledReminderNotifications,
     getReminderNotificationPermissionState,
@@ -77,6 +82,7 @@ import { useWorkspaceStoreState } from "@/stores/useWorkspaceStore";
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const workspace = useWorkspaceStoreState((state) => state.workspace);
   const isHydrated = useWorkspaceStoreState((state) => state.isHydrated);
   const persistenceMode = useWorkspaceStoreState(
@@ -362,6 +368,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isHydrated) return;
 
+    const now = new Date().toISOString();
+    setWorkspace((currentWorkspace) =>
+      ensureRecurringOccurrencesWindow(currentWorkspace, { now }),
+    );
+  }, [isHydrated, setWorkspace]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
     if (reminderNotificationPermissionStatus !== "granted") {
       void clearScheduledReminderNotifications();
       return;
@@ -371,6 +386,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, [
     isHydrated,
     reminderNotificationPermissionStatus,
+    workspace.recurringOccurrences,
+    workspace.recurringPlans,
     workspace.reminders,
     workspace.spaces,
   ]);
@@ -384,6 +401,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     completeReminder,
     snoozeReminder,
     skipReminder,
+    saveRecurringPlan,
+    completeRecurringOccurrence,
+    snoozeRecurringOccurrence,
+    skipRecurringOccurrence,
+    bulkCompleteRecurringOccurrences,
+    bulkSnoozeRecurringOccurrences,
+    resolveRecurringPromptMatch,
     importLogsFromCsv,
     importTemplateFromUrl,
     saveCustomTemplate,
@@ -403,16 +427,84 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       if (handledReminderNotificationResponseRef.current === key) return;
 
       const intent = getReminderNotificationResponseIntent(response);
-      if (!intent || intent.kind === "default") return;
+      if (intent) {
+        if (intent.kind === "default") {
+          handledReminderNotificationResponseRef.current = key;
+          router.push({
+            pathname: "/action-center",
+            params: {
+              reminderId: intent.reminderId,
+              source: "notification",
+            },
+          });
+          void Notifications.clearLastNotificationResponseAsync();
+          return;
+        }
+
+        handledReminderNotificationResponseRef.current = key;
+
+        if (intent.kind === "complete") {
+          completeReminder(intent.reminderId);
+        } else if (intent.kind === "snooze") {
+          snoozeReminder(intent.reminderId);
+        } else if (intent.kind === "skip") {
+          skipReminder(intent.reminderId, "Skipped from notification action");
+        }
+
+        void Notifications.clearLastNotificationResponseAsync();
+        return;
+      }
+
+      const recurringIntent = getRecurringNotificationResponseIntent(response);
+      if (!recurringIntent) return;
+
+      if (recurringIntent.kind === "default") {
+        handledReminderNotificationResponseRef.current = key;
+
+        const occurrence = workspace.recurringOccurrences.find(
+          (item) => item.id === recurringIntent.occurrenceId,
+        );
+        const plan = workspace.recurringPlans.find(
+          (item) =>
+            item.id === (recurringIntent.planId ?? occurrence?.planId ?? ""),
+        );
+
+        if (occurrence && plan?.proofRequired) {
+          router.push({
+            pathname: "/logbook",
+            params: {
+              actionId: "quick-log",
+              spaceId: plan.spaceId,
+              recurringOccurrenceId: occurrence.id,
+              recurringPlanId: plan.id,
+              source: "notification",
+            },
+          });
+        } else {
+          router.push({
+            pathname: "/action-center",
+            params: {
+              recurringOccurrenceId: recurringIntent.occurrenceId,
+              source: "notification",
+            },
+          });
+        }
+
+        void Notifications.clearLastNotificationResponseAsync();
+        return;
+      }
 
       handledReminderNotificationResponseRef.current = key;
 
-      if (intent.kind === "complete") {
-        completeReminder(intent.reminderId);
-      } else if (intent.kind === "snooze") {
-        snoozeReminder(intent.reminderId);
-      } else if (intent.kind === "skip") {
-        skipReminder(intent.reminderId, "Skipped from notification action");
+      if (recurringIntent.kind === "complete") {
+        completeRecurringOccurrence(recurringIntent.occurrenceId);
+      } else if (recurringIntent.kind === "snooze") {
+        snoozeRecurringOccurrence(recurringIntent.occurrenceId);
+      } else if (recurringIntent.kind === "skip") {
+        skipRecurringOccurrence(
+          recurringIntent.occurrenceId,
+          "Skipped from recurring notification action",
+        );
       }
 
       void Notifications.clearLastNotificationResponseAsync();
@@ -432,7 +524,17 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     return () => {
       subscription.remove();
     };
-  }, [completeReminder, skipReminder, snoozeReminder]);
+  }, [
+    completeReminder,
+    completeRecurringOccurrence,
+    router,
+    skipReminder,
+    skipRecurringOccurrence,
+    snoozeReminder,
+    snoozeRecurringOccurrence,
+    workspace.recurringOccurrences,
+    workspace.recurringPlans,
+  ]);
 
   const setBiometricLockEnabled = useCallback(
     async (enabled: boolean) => {
@@ -899,6 +1001,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       completeReminder,
       snoozeReminder,
       skipReminder,
+      saveRecurringPlan,
+      completeRecurringOccurrence,
+      snoozeRecurringOccurrence,
+      skipRecurringOccurrence,
+      bulkCompleteRecurringOccurrences,
+      bulkSnoozeRecurringOccurrences,
+      resolveRecurringPromptMatch,
       importLogsFromCsv,
       importTemplateFromUrl,
       saveCustomTemplate,
@@ -921,6 +1030,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [
       cycleWidgetSize,
       completeReminder,
+      completeRecurringOccurrence,
       importLogsFromCsv,
       importTemplateFromUrl,
       isHydrated,
@@ -945,19 +1055,25 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       persistenceMode,
       pullWorkspaceFromCloud,
       quickActionCards,
+      bulkCompleteRecurringOccurrences,
+      bulkSnoozeRecurringOccurrences,
       requestReminderNotifications,
       recoverBlockedWorkspace,
       resetWorkspace,
       restoreWorkspaceFromRestorePoint,
       restoreWorkspaceFromCloud,
       saveCustomTemplate,
+      saveRecurringPlan,
       saveLogForAction,
       saveLogForTemplate,
       setBiometricLockEnabled,
       setBiometricReauthTimeout,
       setWorkspacePrivacyMode,
       skipReminder,
+      skipRecurringOccurrence,
       snoozeReminder,
+      snoozeRecurringOccurrence,
+      resolveRecurringPromptMatch,
       spaceSummaries,
       syncWorkspaceNow,
       timelineEntries,

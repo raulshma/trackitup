@@ -69,9 +69,13 @@ const { applyReminderTriggerRules, getNextReminderDate } =
 const { buildReminderActionCenter } =
   await import("../services/reminders/reminderActionCenter.ts");
 const {
+  RECURRING_NOTIFICATION_COMPLETE_ACTION_ID,
+  RECURRING_NOTIFICATION_DEFAULT_ACTION_ID,
+  RECURRING_NOTIFICATION_SKIP_ACTION_ID,
   REMINDER_NOTIFICATION_COMPLETE_ACTION_ID,
   REMINDER_NOTIFICATION_DEFAULT_ACTION_ID,
   REMINDER_NOTIFICATION_SKIP_ACTION_ID,
+  getRecurringNotificationResponseIntent,
   getReminderNotificationResponseIntent,
 } = await import("../services/reminders/reminderNotificationIntents.ts");
 const {
@@ -805,6 +809,67 @@ test("notification response intent distinguishes default and action buttons", ()
     {
       kind: "skip",
       reminderId: "reminder-1",
+      route: "action-center",
+      spaceId: "reef",
+    },
+  );
+});
+
+test("recurring notification response intent distinguishes default and action buttons", () => {
+  const responseBase = {
+    notification: {
+      request: {
+        content: {
+          data: {
+            source: "trackitup-recurring",
+            route: "action-center",
+            occurrenceId: "occ-1",
+            planId: "plan-1",
+            spaceId: "reef",
+          },
+        },
+        identifier: "notification-2",
+      },
+    },
+  };
+
+  assert.deepEqual(
+    getRecurringNotificationResponseIntent({
+      ...responseBase,
+      actionIdentifier: RECURRING_NOTIFICATION_DEFAULT_ACTION_ID,
+    }),
+    {
+      kind: "default",
+      occurrenceId: "occ-1",
+      planId: "plan-1",
+      route: "action-center",
+      spaceId: "reef",
+    },
+  );
+
+  assert.deepEqual(
+    getRecurringNotificationResponseIntent({
+      ...responseBase,
+      actionIdentifier: RECURRING_NOTIFICATION_COMPLETE_ACTION_ID,
+    }),
+    {
+      kind: "complete",
+      occurrenceId: "occ-1",
+      planId: "plan-1",
+      route: "action-center",
+      spaceId: "reef",
+    },
+  );
+
+  assert.deepEqual(
+    getRecurringNotificationResponseIntent({
+      ...responseBase,
+      actionIdentifier: RECURRING_NOTIFICATION_SKIP_ACTION_ID,
+    }),
+    {
+      kind: "skip",
+      occurrenceId: "occ-1",
+      planId: "plan-1",
       route: "action-center",
       spaceId: "reef",
     },

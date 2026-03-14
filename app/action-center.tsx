@@ -1,7 +1,13 @@
-import { useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Platform, ScrollView, StyleSheet, View } from "react-native";
-import { Chip, Surface, useTheme, type MD3Theme } from "react-native-paper";
+import {
+    Checkbox,
+    Chip,
+    Surface,
+    useTheme,
+    type MD3Theme,
+} from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
@@ -12,8 +18,8 @@ import { ChipRow } from "@/components/ui/ChipRow";
 import { CollapsibleSectionCard } from "@/components/ui/CollapsibleSectionCard";
 import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import {
-  FeatureSectionSwitcher,
-  type FeatureSectionItem,
+    FeatureSectionSwitcher,
+    type FeatureSectionItem,
 } from "@/components/ui/FeatureSectionSwitcher";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -23,48 +29,48 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-  uiBorder,
-  uiRadius,
-  uiSpace,
-  uiTypography,
+    uiBorder,
+    uiRadius,
+    uiSpace,
+    uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
-  buildAiActionCenterExplainerGenerationPrompt,
-  buildAiActionCenterExplainerReviewItems,
-  parseAiActionCenterExplainerDraft,
-  type AiActionCenterExplainerActionKind,
-  type AiActionCenterExplainerDraft,
+    buildAiActionCenterExplainerGenerationPrompt,
+    buildAiActionCenterExplainerReviewItems,
+    parseAiActionCenterExplainerDraft,
+    type AiActionCenterExplainerActionKind,
+    type AiActionCenterExplainerDraft,
 } from "@/services/ai/aiActionCenterExplainer";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import {
-  aiActionCenterExplainerCopy,
-  aiTrackingQualityCopy,
-  aiWorkspaceQaCopy,
+    aiActionCenterExplainerCopy,
+    aiTrackingQualityCopy,
+    aiWorkspaceQaCopy,
 } from "@/services/ai/aiConsentCopy";
 import {
-  buildActionCenterExplainerPrompt,
-  buildTrackingQualityPrompt,
-  buildWorkspaceQaPrompt,
+    buildActionCenterExplainerPrompt,
+    buildTrackingQualityPrompt,
+    buildWorkspaceQaPrompt,
 } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-  buildAiTrackingQualityGenerationPrompt,
-  buildAiTrackingQualityReviewItems,
-  formatAiTrackingQualityDestinationLabel,
-  formatAiTrackingQualitySourceLabel,
-  parseAiTrackingQualityDraft,
-  type AiTrackingQualityDraft,
-  type AiTrackingQualitySource,
+    buildAiTrackingQualityGenerationPrompt,
+    buildAiTrackingQualityReviewItems,
+    formatAiTrackingQualityDestinationLabel,
+    formatAiTrackingQualitySourceLabel,
+    parseAiTrackingQualityDraft,
+    type AiTrackingQualityDraft,
+    type AiTrackingQualitySource,
 } from "@/services/ai/aiTrackingQuality";
 import {
-  buildAiWorkspaceQaGenerationPrompt,
-  buildAiWorkspaceQaReviewItems,
-  formatAiWorkspaceQaDestinationLabel,
-  formatAiWorkspaceQaSourceLabel,
-  parseAiWorkspaceQaDraft,
-  type AiWorkspaceQaDraft,
-  type AiWorkspaceQaSource,
+    buildAiWorkspaceQaGenerationPrompt,
+    buildAiWorkspaceQaReviewItems,
+    formatAiWorkspaceQaDestinationLabel,
+    formatAiWorkspaceQaSourceLabel,
+    parseAiWorkspaceQaDraft,
+    type AiWorkspaceQaDraft,
+    type AiWorkspaceQaSource,
 } from "@/services/ai/aiWorkspaceQa";
 import { getReminderScheduleTimestamp } from "@/services/insights/workspaceInsights";
 import { buildWorkspaceTrackingQualitySummary } from "@/services/insights/workspaceTrackingQuality";
@@ -126,6 +132,10 @@ function getSuggestedActionLabel(action: AiActionCenterExplainerActionKind) {
   return "Review later";
 }
 
+function pickParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 type ActionCenterSection = "queue" | "assist" | "review";
 
 export default function ActionCenterScreen() {
@@ -137,11 +147,26 @@ export default function ActionCenterScreen() {
     [palette],
   );
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    reminderId?: string;
+    recurringOccurrenceId?: string;
+    source?: string;
+  }>();
+  const focusedReminderId = pickParam(params.reminderId);
+  const focusedRecurringOccurrenceId = pickParam(params.recurringOccurrenceId);
+  const openedFromNotification = pickParam(params.source) === "notification";
+  const scrollViewRef = useRef<ScrollView>(null);
+  const hasClearedFocusParamsRef = useRef(false);
   const sectionTransition = useState(() => new Animated.Value(1))[0];
   const {
+    bulkSnoozeRecurringOccurrences,
+    bulkCompleteRecurringOccurrences,
+    completeRecurringOccurrence,
     completeReminder,
     recommendations,
+    skipRecurringOccurrence,
     skipReminder,
+    snoozeRecurringOccurrence,
     snoozeReminder,
     workspace,
   } = useWorkspace();
@@ -169,6 +194,9 @@ export default function ActionCenterScreen() {
   >(null);
   const [activeSection, setActiveSection] =
     useState<ActionCenterSection>("queue");
+  const [focusedTargetY, setFocusedTargetY] = useState<number | null>(null);
+  const [selectedRecurringOccurrenceIds, setSelectedRecurringOccurrenceIds] =
+    useState<string[]>([]);
   const shouldAnimateSectionTransition = Platform.OS === "ios";
   useEffect(() => {
     if (!shouldAnimateSectionTransition) {
@@ -299,6 +327,16 @@ export default function ActionCenterScreen() {
     );
   }
 
+  function openRecurringOccurrenceLogbook(
+    occurrenceId: string,
+    planId: string,
+    spaceId: string,
+  ) {
+    router.push(
+      `/logbook?actionId=quick-log&spaceId=${spaceId}&recurringOccurrenceId=${occurrenceId}&recurringPlanId=${planId}` as never,
+    );
+  }
+
   function handleOpenTrackingQualityDestination(
     destination?: AiTrackingQualityDraft["suggestedDestination"],
     source?: Pick<
@@ -399,11 +437,123 @@ export default function ActionCenterScreen() {
     actionCenter.overdue[0] ??
     actionCenter.dueToday[0] ??
     actionCenter.upcoming[0];
+  const overdueCompletableRecurringIds = actionCenter.recurringOverdue
+    .filter((item) => !item.proofRequired)
+    .map((item) => item.occurrenceId);
+
+  function toggleRecurringSelection(occurrenceId: string) {
+    setSelectedRecurringOccurrenceIds((current) =>
+      current.includes(occurrenceId)
+        ? current.filter((item) => item !== occurrenceId)
+        : [...current, occurrenceId],
+    );
+  }
+
+  const selectedCompletableRecurringIds = selectedRecurringOccurrenceIds.filter(
+    (occurrenceId) => {
+      const occurrence =
+        actionCenter.recurringOverdue.find(
+          (item) => item.occurrenceId === occurrenceId,
+        ) ??
+        actionCenter.recurringDueToday.find(
+          (item) => item.occurrenceId === occurrenceId,
+        ) ??
+        actionCenter.recurringUpcoming.find(
+          (item) => item.occurrenceId === occurrenceId,
+        );
+
+      return Boolean(occurrence && !occurrence.proofRequired);
+    },
+  );
+  const visibleRecurringOccurrenceIds = actionCenter.recurringNextBestSteps.map(
+    (item) => item.occurrenceId,
+  );
+  const focusedReminder = focusedReminderId
+    ? actionCenter.nextBestSteps.find(
+        (item) => item.reminderId === focusedReminderId,
+      )
+    : undefined;
+  const focusedRecurringOccurrence = focusedRecurringOccurrenceId
+    ? actionCenter.recurringNextBestSteps.find(
+        (item) => item.occurrenceId === focusedRecurringOccurrenceId,
+      )
+    : undefined;
+
+  useEffect(() => {
+    if (!focusedRecurringOccurrenceId) return;
+
+    setSelectedRecurringOccurrenceIds((current) =>
+      current.includes(focusedRecurringOccurrenceId)
+        ? current
+        : [...current, focusedRecurringOccurrenceId],
+    );
+  }, [focusedRecurringOccurrenceId]);
+
+  useEffect(() => {
+    if (!focusedReminderId && !focusedRecurringOccurrenceId) return;
+    if (activeSection === "queue") return;
+    setActiveSection("queue");
+  }, [activeSection, focusedRecurringOccurrenceId, focusedReminderId]);
+
+  useEffect(() => {
+    if (!focusedReminderId && !focusedRecurringOccurrenceId) return;
+    setFocusedTargetY(null);
+  }, [focusedRecurringOccurrenceId, focusedReminderId]);
+
+  useEffect(() => {
+    if (focusedReminderId || focusedRecurringOccurrenceId) return;
+    hasClearedFocusParamsRef.current = false;
+  }, [focusedRecurringOccurrenceId, focusedReminderId]);
+
+  useEffect(() => {
+    if (focusedTargetY === null) return;
+    if (activeSection !== "queue") return;
+    if (!focusedReminderId && !focusedRecurringOccurrenceId) return;
+
+    let clearFocusTimeout: ReturnType<typeof setTimeout> | undefined;
+    const timeout = setTimeout(
+      () => {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, focusedTargetY - 120),
+          animated: true,
+        });
+
+        if (!hasClearedFocusParamsRef.current) {
+          hasClearedFocusParamsRef.current = true;
+          clearFocusTimeout = setTimeout(
+            () => {
+              router.replace("/action-center" as never);
+            },
+            openedFromNotification ? 220 : 120,
+          );
+        }
+      },
+      openedFromNotification ? 80 : 40,
+    );
+
+    return () => {
+      clearTimeout(timeout);
+      if (clearFocusTimeout) clearTimeout(clearFocusTimeout);
+    };
+  }, [
+    activeSection,
+    focusedRecurringOccurrenceId,
+    focusedReminderId,
+    focusedTargetY,
+    openedFromNotification,
+    router,
+  ]);
+
+  const areAllVisibleRecurringSelected =
+    visibleRecurringOccurrenceIds.length > 0 &&
+    visibleRecurringOccurrenceIds.every((occurrenceId) =>
+      selectedRecurringOccurrenceIds.includes(occurrenceId),
+    );
   const pageQuickActions = [
     {
       id: "action-center-planner",
       label: "Open planner",
-      hint: `${actionCenter.summary.overdueCount} overdue • ${actionCenter.summary.dueTodayCount} due today`,
+      hint: `${actionCenter.summary.recurringOverdueCount + actionCenter.summary.overdueCount} overdue • ${actionCenter.summary.recurringDueTodayCount + actionCenter.summary.dueTodayCount} due today`,
       onPress: () => router.push("/planner" as never),
       accentColor: palette.tint,
     },
@@ -426,6 +576,17 @@ export default function ActionCenterScreen() {
       label: "Review inventory",
       hint: `${workspace.assets.length} asset${workspace.assets.length === 1 ? "" : "s"} can be tied back to reminder work and recommendations.`,
       onPress: () => router.push("/inventory" as never),
+    },
+    {
+      id: "action-center-recurring-create",
+      label: "New recurring plan",
+      hint: "Create a recurring routine with due windows, proof policy, and smart matching.",
+      onPress: () =>
+        router.push({
+          pathname: "/recurring-plan-editor",
+          params: { from: "action-center" },
+        }),
+      accentColor: palette.tint,
     },
   ];
   const actionCenterSections = useMemo<
@@ -769,6 +930,7 @@ export default function ActionCenterScreen() {
 
   return (
     <ScrollView
+      ref={scrollViewRef}
       style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
       scrollEventThrottle={Platform.OS === "web" ? 64 : 32}
@@ -823,6 +985,14 @@ export default function ActionCenterScreen() {
               label="Priority queue"
               title="Next best reminder moves"
             >
+              {focusedReminder ? (
+                <SectionMessage
+                  palette={palette}
+                  label={openedFromNotification ? "Notification" : "Focus"}
+                  title="Focused reminder from alert"
+                  message={`${focusedReminder.reminderTitle} • ${focusedReminder.spaceName} • ${formatTimestamp(focusedReminder.dueAt)}`}
+                />
+              ) : null}
               {actionCenter.nextBestSteps.length === 0 ? (
                 <EmptyStateCard
                   palette={palette}
@@ -840,11 +1010,20 @@ export default function ActionCenterScreen() {
                 actionCenter.nextBestSteps.map((item) => (
                   <Surface
                     key={item.reminderId}
+                    onLayout={
+                      item.reminderId === focusedReminderId
+                        ? (event) =>
+                            setFocusedTargetY(event.nativeEvent.layout.y)
+                        : undefined
+                    }
                     style={[
                       styles.listCard,
                       {
                         backgroundColor: theme.colors.elevation.level1,
-                        borderColor: theme.colors.outlineVariant,
+                        borderColor:
+                          item.reminderId === focusedReminderId
+                            ? theme.colors.primary
+                            : theme.colors.outlineVariant,
                       },
                     ]}
                     elevation={1}
@@ -887,6 +1066,239 @@ export default function ActionCenterScreen() {
                   </Surface>
                 ))
               )}
+            </SectionSurface>
+
+            <SectionSurface
+              palette={palette}
+              label="Today's routine"
+              title="Recurring routine occurrences"
+            >
+              {focusedRecurringOccurrence ? (
+                <SectionMessage
+                  palette={palette}
+                  label={openedFromNotification ? "Notification" : "Focus"}
+                  title="Focused routine from alert"
+                  message={`${focusedRecurringOccurrence.title} • ${focusedRecurringOccurrence.spaceName} • ${formatTimestamp(focusedRecurringOccurrence.dueAt)}`}
+                />
+              ) : null}
+              <Text style={[styles.copy, paletteStyles.mutedText]}>
+                Select routine cards with the checkbox to run bulk actions.
+                Proof-required items stay selectable for bulk snooze but are
+                excluded from bulk complete.
+              </Text>
+              {visibleRecurringOccurrenceIds.length > 0 ? (
+                <ActionButtonRow
+                  separated
+                  separatorColor={theme.colors.outlineVariant}
+                  style={styles.actionRow}
+                >
+                  <CardActionPill
+                    label={
+                      areAllVisibleRecurringSelected
+                        ? "Clear visible selection"
+                        : `Select visible (${visibleRecurringOccurrenceIds.length})`
+                    }
+                    onPress={() => {
+                      setSelectedRecurringOccurrenceIds((current) =>
+                        areAllVisibleRecurringSelected
+                          ? current.filter(
+                              (item) =>
+                                !visibleRecurringOccurrenceIds.includes(item),
+                            )
+                          : Array.from(
+                              new Set([
+                                ...current,
+                                ...visibleRecurringOccurrenceIds,
+                              ]),
+                            ),
+                      );
+                    }}
+                  />
+                  <CardActionPill
+                    label="Clear all selection"
+                    onPress={() => setSelectedRecurringOccurrenceIds([])}
+                    disabled={selectedRecurringOccurrenceIds.length === 0}
+                  />
+                </ActionButtonRow>
+              ) : null}
+              {actionCenter.recurringNextBestSteps.length === 0 ? (
+                <EmptyStateCard
+                  palette={palette}
+                  icon={{
+                    ios: "repeat.circle",
+                    android: "repeat",
+                    web: "repeat",
+                  }}
+                  title="No routine occurrences in the queue"
+                  message="Recurring plans will surface here once due windows open."
+                />
+              ) : (
+                actionCenter.recurringNextBestSteps.map((item) => {
+                  const occurrence =
+                    actionCenter.recurringOverdue.find(
+                      (entry) => entry.occurrenceId === item.occurrenceId,
+                    ) ??
+                    actionCenter.recurringDueToday.find(
+                      (entry) => entry.occurrenceId === item.occurrenceId,
+                    ) ??
+                    actionCenter.recurringUpcoming.find(
+                      (entry) => entry.occurrenceId === item.occurrenceId,
+                    );
+
+                  if (!occurrence) return null;
+
+                  return (
+                    <Surface
+                      key={item.occurrenceId}
+                      onLayout={
+                        item.occurrenceId === focusedRecurringOccurrenceId
+                          ? (event) =>
+                              setFocusedTargetY(event.nativeEvent.layout.y)
+                          : undefined
+                      }
+                      style={[
+                        styles.listCard,
+                        {
+                          backgroundColor: theme.colors.elevation.level1,
+                          borderColor:
+                            item.occurrenceId === focusedRecurringOccurrenceId
+                              ? theme.colors.primary
+                              : theme.colors.outlineVariant,
+                        },
+                      ]}
+                      elevation={1}
+                    >
+                      <View style={styles.listHeader}>
+                        <Checkbox
+                          status={
+                            selectedRecurringOccurrenceIds.includes(
+                              item.occurrenceId,
+                            )
+                              ? "checked"
+                              : "unchecked"
+                          }
+                          onPress={() =>
+                            toggleRecurringSelection(item.occurrenceId)
+                          }
+                        />
+                        <View style={styles.listCopy}>
+                          <Text style={styles.listTitle}>{item.title}</Text>
+                          <Text style={[styles.copy, paletteStyles.mutedText]}>
+                            {item.spaceName} • {formatTimestamp(item.dueAt)}
+                          </Text>
+                          <Text style={[styles.meta, paletteStyles.mutedText]}>
+                            {item.reason}
+                          </Text>
+                        </View>
+                        <Chip compact style={styles.infoChip}>
+                          {occurrence.proofRequired ? "Proof" : "Routine"}
+                        </Chip>
+                      </View>
+                      <ActionButtonRow
+                        separated
+                        separatorColor={theme.colors.outlineVariant}
+                        style={styles.actionRow}
+                      >
+                        <CardActionPill
+                          label={
+                            occurrence.proofRequired ? "Log proof" : "Complete"
+                          }
+                          onPress={() =>
+                            occurrence.proofRequired
+                              ? openRecurringOccurrenceLogbook(
+                                  occurrence.occurrenceId,
+                                  occurrence.planId,
+                                  occurrence.spaceId,
+                                )
+                              : completeRecurringOccurrence(
+                                  occurrence.occurrenceId,
+                                )
+                          }
+                        />
+                        <CardActionPill
+                          label="Snooze"
+                          onPress={() =>
+                            snoozeRecurringOccurrence(occurrence.occurrenceId)
+                          }
+                        />
+                        <CardActionPill
+                          label="Skip"
+                          onPress={() =>
+                            skipRecurringOccurrence(occurrence.occurrenceId)
+                          }
+                        />
+                        <CardActionPill
+                          label="Duplicate"
+                          onPress={() =>
+                            router.push({
+                              pathname: "/recurring-plan-editor",
+                              params: {
+                                duplicateFromPlanId: occurrence.planId,
+                                from: "action-center",
+                              },
+                            })
+                          }
+                        />
+                        <CardActionPill
+                          label="History"
+                          onPress={() =>
+                            router.push({
+                              pathname: "/recurring-history",
+                              params: {
+                                planId: occurrence.planId,
+                              },
+                            })
+                          }
+                        />
+                      </ActionButtonRow>
+                    </Surface>
+                  );
+                })
+              )}
+              {overdueCompletableRecurringIds.length > 1 ? (
+                <ActionButtonRow
+                  separated
+                  separatorColor={theme.colors.outlineVariant}
+                  style={styles.actionRow}
+                >
+                  <CardActionPill
+                    label={`Complete ${overdueCompletableRecurringIds.length} overdue`}
+                    onPress={() =>
+                      bulkCompleteRecurringOccurrences(
+                        overdueCompletableRecurringIds,
+                      )
+                    }
+                  />
+                </ActionButtonRow>
+              ) : null}
+              {selectedRecurringOccurrenceIds.length > 0 ? (
+                <ActionButtonRow
+                  separated
+                  separatorColor={theme.colors.outlineVariant}
+                  style={styles.actionRow}
+                >
+                  <CardActionPill
+                    label={`Complete selected (${selectedCompletableRecurringIds.length})`}
+                    onPress={() => {
+                      if (selectedCompletableRecurringIds.length === 0) return;
+                      bulkCompleteRecurringOccurrences(
+                        selectedCompletableRecurringIds,
+                      );
+                      setSelectedRecurringOccurrenceIds([]);
+                    }}
+                    disabled={selectedCompletableRecurringIds.length === 0}
+                  />
+                  <CardActionPill
+                    label={`Snooze selected (${selectedRecurringOccurrenceIds.length})`}
+                    onPress={() => {
+                      bulkSnoozeRecurringOccurrences(
+                        selectedRecurringOccurrenceIds,
+                      );
+                      setSelectedRecurringOccurrenceIds([]);
+                    }}
+                  />
+                </ActionButtonRow>
+              ) : null}
             </SectionSurface>
 
             <SectionSurface
