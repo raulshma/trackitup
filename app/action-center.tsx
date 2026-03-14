@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Animated, ScrollView, StyleSheet, View } from "react-native";
+import { Animated, Platform, ScrollView, StyleSheet, View } from "react-native";
 import { Chip, Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -12,8 +12,8 @@ import { ChipRow } from "@/components/ui/ChipRow";
 import { CollapsibleSectionCard } from "@/components/ui/CollapsibleSectionCard";
 import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import {
-    FeatureSectionSwitcher,
-    type FeatureSectionItem,
+  FeatureSectionSwitcher,
+  type FeatureSectionItem,
 } from "@/components/ui/FeatureSectionSwitcher";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -23,48 +23,48 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    uiBorder,
-    uiRadius,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiRadius,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
-    buildAiActionCenterExplainerGenerationPrompt,
-    buildAiActionCenterExplainerReviewItems,
-    parseAiActionCenterExplainerDraft,
-    type AiActionCenterExplainerActionKind,
-    type AiActionCenterExplainerDraft,
+  buildAiActionCenterExplainerGenerationPrompt,
+  buildAiActionCenterExplainerReviewItems,
+  parseAiActionCenterExplainerDraft,
+  type AiActionCenterExplainerActionKind,
+  type AiActionCenterExplainerDraft,
 } from "@/services/ai/aiActionCenterExplainer";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import {
-    aiActionCenterExplainerCopy,
-    aiTrackingQualityCopy,
-    aiWorkspaceQaCopy,
+  aiActionCenterExplainerCopy,
+  aiTrackingQualityCopy,
+  aiWorkspaceQaCopy,
 } from "@/services/ai/aiConsentCopy";
 import {
-    buildActionCenterExplainerPrompt,
-    buildTrackingQualityPrompt,
-    buildWorkspaceQaPrompt,
+  buildActionCenterExplainerPrompt,
+  buildTrackingQualityPrompt,
+  buildWorkspaceQaPrompt,
 } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-    buildAiTrackingQualityGenerationPrompt,
-    buildAiTrackingQualityReviewItems,
-    formatAiTrackingQualityDestinationLabel,
-    formatAiTrackingQualitySourceLabel,
-    parseAiTrackingQualityDraft,
-    type AiTrackingQualityDraft,
-    type AiTrackingQualitySource,
+  buildAiTrackingQualityGenerationPrompt,
+  buildAiTrackingQualityReviewItems,
+  formatAiTrackingQualityDestinationLabel,
+  formatAiTrackingQualitySourceLabel,
+  parseAiTrackingQualityDraft,
+  type AiTrackingQualityDraft,
+  type AiTrackingQualitySource,
 } from "@/services/ai/aiTrackingQuality";
 import {
-    buildAiWorkspaceQaGenerationPrompt,
-    buildAiWorkspaceQaReviewItems,
-    formatAiWorkspaceQaDestinationLabel,
-    formatAiWorkspaceQaSourceLabel,
-    parseAiWorkspaceQaDraft,
-    type AiWorkspaceQaDraft,
-    type AiWorkspaceQaSource,
+  buildAiWorkspaceQaGenerationPrompt,
+  buildAiWorkspaceQaReviewItems,
+  formatAiWorkspaceQaDestinationLabel,
+  formatAiWorkspaceQaSourceLabel,
+  parseAiWorkspaceQaDraft,
+  type AiWorkspaceQaDraft,
+  type AiWorkspaceQaSource,
 } from "@/services/ai/aiWorkspaceQa";
 import { getReminderScheduleTimestamp } from "@/services/insights/workspaceInsights";
 import { buildWorkspaceTrackingQualitySummary } from "@/services/insights/workspaceTrackingQuality";
@@ -169,6 +169,7 @@ export default function ActionCenterScreen() {
   >(null);
   const [activeSection, setActiveSection] =
     useState<ActionCenterSection>("queue");
+  const shouldAnimateSectionTransition = Platform.OS === "ios";
   const [isGeneratingWorkspaceQaDraft, setIsGeneratingWorkspaceQaDraft] =
     useState(false);
   const [generatedWorkspaceQaDraft, setGeneratedWorkspaceQaDraft] =
@@ -467,13 +468,18 @@ export default function ActionCenterScreen() {
   );
 
   useEffect(() => {
+    if (!shouldAnimateSectionTransition) {
+      sectionTransition.setValue(1);
+      return;
+    }
+
     sectionTransition.setValue(0);
     Animated.timing(sectionTransition, {
       toValue: 1,
-      duration: 180,
+      duration: 160,
       useNativeDriver: true,
     }).start();
-  }, [activeSection, sectionTransition]);
+  }, [activeSection, sectionTransition, shouldAnimateSectionTransition]);
 
   const sectionContentAnimatedStyle = useMemo(
     () => ({
@@ -765,6 +771,9 @@ export default function ActionCenterScreen() {
     <ScrollView
       style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
+      scrollEventThrottle={Platform.OS === "web" ? 64 : 32}
+      removeClippedSubviews={Platform.OS === "android"}
+      nestedScrollEnabled={Platform.OS === "android"}
     >
       <ScreenHero
         palette={palette}

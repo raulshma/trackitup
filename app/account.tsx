@@ -1,22 +1,22 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-    Animated,
-    Linking,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    View,
+  Animated,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
 } from "react-native";
 import {
-    ActivityIndicator,
-    Button,
-    Chip,
-    Dialog,
-    IconButton,
-    Portal,
-    SegmentedButtons,
-    TextInput,
+  ActivityIndicator,
+  Button,
+  Chip,
+  Dialog,
+  IconButton,
+  Portal,
+  SegmentedButtons,
+  TextInput,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -24,8 +24,8 @@ import { AccentColorPicker } from "@/components/ui/AccentColorPicker";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
 import {
-    FeatureSectionSwitcher,
-    type FeatureSectionItem,
+  FeatureSectionSwitcher,
+  type FeatureSectionItem,
 } from "@/components/ui/FeatureSectionSwitcher";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -41,35 +41,35 @@ import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { aiAccountSettingsCopy } from "@/services/ai/aiConsentCopy";
 import {
-    AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
-    createEmptyAiTelemetrySummary,
-    formatAiTelemetryLastEventLabel,
-    loadAiTelemetrySummary,
-    recordAiTelemetryEvent,
+  AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
+  createEmptyAiTelemetrySummary,
+  formatAiTelemetryLastEventLabel,
+  loadAiTelemetrySummary,
+  recordAiTelemetryEvent,
 } from "@/services/ai/aiTelemetry";
 import { getWorkspaceBiometricDescription } from "@/services/offline/workspaceBiometric";
 import {
-    getWorkspaceBiometricReauthTimeoutDescription,
-    getWorkspaceBiometricReauthTimeoutLabel,
-    WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
-    type WorkspaceBiometricReauthTimeout,
+  getWorkspaceBiometricReauthTimeoutDescription,
+  getWorkspaceBiometricReauthTimeoutLabel,
+  WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
+  type WorkspaceBiometricReauthTimeout,
 } from "@/services/offline/workspaceBiometricSessionPolicy";
 import {
-    getWorkspaceLocalProtectionDescription,
-    getWorkspaceLocalProtectionLabel,
+  getWorkspaceLocalProtectionDescription,
+  getWorkspaceLocalProtectionLabel,
 } from "@/services/offline/workspaceLocalProtection";
 import {
-    getWorkspacePrivacyModeDescription,
-    getWorkspacePrivacyModeLabel,
-    WORKSPACE_PRIVACY_MODE_OPTIONS,
-    type WorkspacePrivacyMode,
+  getWorkspacePrivacyModeDescription,
+  getWorkspacePrivacyModeLabel,
+  WORKSPACE_PRIVACY_MODE_OPTIONS,
+  type WorkspacePrivacyMode,
 } from "@/services/offline/workspacePrivacyMode";
 import {
-    DEFAULT_THEME_ACCENT_COLOR,
-    getThemeAccentLabel,
-    normalizeThemeAccentColor,
-    THEME_PREFERENCE_OPTIONS,
-    type ThemePreference,
+  DEFAULT_THEME_ACCENT_COLOR,
+  getThemeAccentLabel,
+  normalizeThemeAccentColor,
+  THEME_PREFERENCE_OPTIONS,
+  type ThemePreference,
 } from "@/services/theme/themePreferences";
 
 const themeOptionLabels: Record<ThemePreference, string> = {
@@ -109,6 +109,7 @@ export default function AccountScreen() {
   const [activeSection, setActiveSection] = useState<AccountSection>("profile");
   const [pendingPrivacyModeChange, setPendingPrivacyModeChange] =
     useState<WorkspacePrivacyMode | null>(null);
+  const shouldAnimateSectionTransition = Platform.OS === "ios";
 
   const lastLocalSnapshot = new Date(
     workspace.workspace.generatedAt,
@@ -183,13 +184,18 @@ export default function AccountScreen() {
   }, []);
 
   useEffect(() => {
+    if (!shouldAnimateSectionTransition) {
+      sectionTransition.setValue(1);
+      return;
+    }
+
     sectionTransition.setValue(0);
     Animated.timing(sectionTransition, {
       toValue: 1,
-      duration: 180,
+      duration: 160,
       useNativeDriver: true,
     }).start();
-  }, [activeSection, sectionTransition]);
+  }, [activeSection, sectionTransition, shouldAnimateSectionTransition]);
 
   const sectionContentAnimatedStyle = useMemo(
     () => ({
@@ -425,6 +431,9 @@ export default function AccountScreen() {
     <ScrollView
       style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
+      scrollEventThrottle={Platform.OS === "web" ? 64 : 32}
+      removeClippedSubviews={Platform.OS === "android"}
+      nestedScrollEnabled={Platform.OS === "android"}
     >
       <ScreenHero
         palette={palette}

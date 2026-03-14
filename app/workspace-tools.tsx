@@ -2,7 +2,7 @@ import { File } from "expo-file-system";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
-import { Animated, ScrollView, StyleSheet, View } from "react-native";
+import { Animated, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
     Button,
     Chip,
@@ -144,6 +144,7 @@ export default function WorkspaceToolsScreen() {
     useState<WorkspaceRestorePointSummary | null>(null);
   const [activeSection, setActiveSection] =
     useState<WorkspaceToolsSection>("backups");
+  const shouldAnimateSectionTransition = Platform.OS === "ios";
   const latestRestorePoint = restorePoints[0] ?? null;
 
   useEffect(() => {
@@ -448,13 +449,18 @@ export default function WorkspaceToolsScreen() {
   );
 
   useEffect(() => {
+    if (!shouldAnimateSectionTransition) {
+      sectionTransition.setValue(1);
+      return;
+    }
+
     sectionTransition.setValue(0);
     Animated.timing(sectionTransition, {
       toValue: 1,
-      duration: 180,
+      duration: 160,
       useNativeDriver: true,
     }).start();
-  }, [activeSection, sectionTransition]);
+  }, [activeSection, sectionTransition, shouldAnimateSectionTransition]);
 
   const sectionContentAnimatedStyle = useMemo(
     () => ({
@@ -475,6 +481,9 @@ export default function WorkspaceToolsScreen() {
     <ScrollView
       style={[styles.screen, paletteStyles.screenBackground]}
       contentContainerStyle={styles.content}
+      scrollEventThrottle={Platform.OS === "web" ? 64 : 32}
+      removeClippedSubviews={Platform.OS === "android"}
+      nestedScrollEnabled={Platform.OS === "android"}
     >
       <ScreenHero
         palette={palette}
