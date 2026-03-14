@@ -170,6 +170,35 @@ export default function ActionCenterScreen() {
   const [activeSection, setActiveSection] =
     useState<ActionCenterSection>("queue");
   const shouldAnimateSectionTransition = Platform.OS === "ios";
+  useEffect(() => {
+    if (!shouldAnimateSectionTransition) {
+      sectionTransition.setValue(1);
+      return;
+    }
+
+    sectionTransition.setValue(0);
+    Animated.timing(sectionTransition, {
+      toValue: 1,
+      duration: 160,
+      useNativeDriver: true,
+    }).start();
+  }, [activeSection, sectionTransition, shouldAnimateSectionTransition]);
+
+  const sectionContentAnimatedStyle = useMemo(
+    () => ({
+      opacity: sectionTransition,
+      transform: [
+        {
+          translateY: sectionTransition.interpolate({
+            inputRange: [0, 1],
+            outputRange: [10, 0],
+          }),
+        },
+      ],
+    }),
+    [sectionTransition],
+  );
+
   const [isGeneratingWorkspaceQaDraft, setIsGeneratingWorkspaceQaDraft] =
     useState(false);
   const [generatedWorkspaceQaDraft, setGeneratedWorkspaceQaDraft] =
@@ -465,35 +494,6 @@ export default function ActionCenterScreen() {
       workspace.logs.length,
       workspace.reminders.length,
     ],
-  );
-
-  useEffect(() => {
-    if (!shouldAnimateSectionTransition) {
-      sectionTransition.setValue(1);
-      return;
-    }
-
-    sectionTransition.setValue(0);
-    Animated.timing(sectionTransition, {
-      toValue: 1,
-      duration: 160,
-      useNativeDriver: true,
-    }).start();
-  }, [activeSection, sectionTransition, shouldAnimateSectionTransition]);
-
-  const sectionContentAnimatedStyle = useMemo(
-    () => ({
-      opacity: sectionTransition,
-      transform: [
-        {
-          translateY: sectionTransition.interpolate({
-            inputRange: [0, 1],
-            outputRange: [10, 0],
-          }),
-        },
-      ],
-    }),
-    [sectionTransition],
   );
 
   async function handleGenerateAiDraft() {

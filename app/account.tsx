@@ -1,13 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import {
-  Animated,
-  Linking,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  View,
-} from "react-native";
+import { Linking, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
   Button,
@@ -90,7 +83,6 @@ export default function AccountScreen() {
     [palette],
   );
   const router = useRouter();
-  const sectionTransition = useState(() => new Animated.Value(1))[0];
   const aiPreferences = useAiPreferences();
   const auth = useAppAuth();
   const workspace = useWorkspace();
@@ -109,7 +101,6 @@ export default function AccountScreen() {
   const [activeSection, setActiveSection] = useState<AccountSection>("profile");
   const [pendingPrivacyModeChange, setPendingPrivacyModeChange] =
     useState<WorkspacePrivacyMode | null>(null);
-  const shouldAnimateSectionTransition = Platform.OS === "ios";
 
   const lastLocalSnapshot = new Date(
     workspace.workspace.generatedAt,
@@ -182,35 +173,6 @@ export default function AccountScreen() {
       isMounted = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (!shouldAnimateSectionTransition) {
-      sectionTransition.setValue(1);
-      return;
-    }
-
-    sectionTransition.setValue(0);
-    Animated.timing(sectionTransition, {
-      toValue: 1,
-      duration: 160,
-      useNativeDriver: true,
-    }).start();
-  }, [activeSection, sectionTransition, shouldAnimateSectionTransition]);
-
-  const sectionContentAnimatedStyle = useMemo(
-    () => ({
-      opacity: sectionTransition,
-      transform: [
-        {
-          translateY: sectionTransition.interpolate({
-            inputRange: [0, 1],
-            outputRange: [10, 0],
-          }),
-        },
-      ],
-    }),
-    [sectionTransition],
-  );
 
   const pageQuickActions = [
     {
@@ -473,7 +435,7 @@ export default function AccountScreen() {
         onChange={setActiveSection}
       />
 
-      <Animated.View style={sectionContentAnimatedStyle}>
+      <View>
         {activeSection === "appearance" ? (
           <SectionSurface
             palette={palette}
@@ -1082,7 +1044,7 @@ export default function AccountScreen() {
             ) : null}
           </SectionSurface>
         ) : null}
-      </Animated.View>
+      </View>
 
       <SectionMessage
         palette={palette}

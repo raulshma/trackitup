@@ -2,7 +2,7 @@ import { File } from "expo-file-system";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
-import { Animated, Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
     Button,
     Chip,
@@ -120,7 +120,6 @@ export default function WorkspaceToolsScreen() {
     [palette],
   );
   const router = useRouter();
-  const sectionTransition = useState(() => new Animated.Value(1))[0];
   const { themePreference, setThemePreference } = useThemePreference();
   const {
     createRestorePoint,
@@ -144,7 +143,6 @@ export default function WorkspaceToolsScreen() {
     useState<WorkspaceRestorePointSummary | null>(null);
   const [activeSection, setActiveSection] =
     useState<WorkspaceToolsSection>("backups");
-  const shouldAnimateSectionTransition = Platform.OS === "ios";
   const latestRestorePoint = restorePoints[0] ?? null;
 
   useEffect(() => {
@@ -448,35 +446,6 @@ export default function WorkspaceToolsScreen() {
     ],
   );
 
-  useEffect(() => {
-    if (!shouldAnimateSectionTransition) {
-      sectionTransition.setValue(1);
-      return;
-    }
-
-    sectionTransition.setValue(0);
-    Animated.timing(sectionTransition, {
-      toValue: 1,
-      duration: 160,
-      useNativeDriver: true,
-    }).start();
-  }, [activeSection, sectionTransition, shouldAnimateSectionTransition]);
-
-  const sectionContentAnimatedStyle = useMemo(
-    () => ({
-      opacity: sectionTransition,
-      transform: [
-        {
-          translateY: sectionTransition.interpolate({
-            inputRange: [0, 1],
-            outputRange: [10, 0],
-          }),
-        },
-      ],
-    }),
-    [sectionTransition],
-  );
-
   return (
     <ScrollView
       style={[styles.screen, paletteStyles.screenBackground]}
@@ -523,7 +492,7 @@ export default function WorkspaceToolsScreen() {
         onChange={setActiveSection}
       />
 
-      <Animated.View style={sectionContentAnimatedStyle}>
+      <View>
         {activeSection === "backups" ? (
           <SectionSurface
             palette={palette}
@@ -920,7 +889,7 @@ export default function WorkspaceToolsScreen() {
             </ActionButtonRow>
           </SectionSurface>
         ) : null}
-      </Animated.View>
+      </View>
 
       {toolMessage ? (
         <SectionMessage
