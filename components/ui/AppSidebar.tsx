@@ -198,6 +198,18 @@ const sidebarGroups: Array<{
         },
         matches: (pathname) => pathname.startsWith("/logbook"),
       },
+      {
+        id: "log-calendar",
+        label: "Log calendar",
+        hint: "Visualize all logs in a high-fidelity monthly timeline",
+        href: "/log-calendar",
+        icon: {
+          ios: "calendar.badge.clock",
+          android: "calendar_view_month",
+          web: "calendar_view_month",
+        },
+        matches: (pathname) => pathname.startsWith("/log-calendar"),
+      },
     ],
   },
   {
