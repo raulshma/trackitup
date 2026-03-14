@@ -6,12 +6,12 @@ import { router, Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useRef } from "react";
 import {
-  ActivityIndicator,
-  Platform,
-  StyleSheet,
-  Text,
-  useColorScheme as useNativeColorScheme,
-  View,
+    ActivityIndicator,
+    Platform,
+    StyleSheet,
+    Text,
+    useColorScheme as useNativeColorScheme,
+    View,
 } from "react-native";
 import BootSplash from "react-native-bootsplash";
 import { PaperProvider } from "react-native-paper";
@@ -25,13 +25,13 @@ import { getAppThemes, isDarkColorScheme } from "@/constants/AppTheme";
 import { uiSpace, uiTypography } from "@/constants/UiTokens";
 import { AiPreferencesProvider } from "@/providers/AiPreferencesProvider";
 import {
-  AppSidebarProvider,
-  useAppSidebar,
+    AppSidebarProvider,
+    useAppSidebarActions,
 } from "@/providers/AppSidebarProvider";
 import { AuthProvider } from "@/providers/AuthProvider";
 import {
-  OnboardingProvider,
-  useOnboarding,
+    OnboardingProvider,
+    useOnboarding,
 } from "@/providers/OnboardingProvider";
 import { ThemePreferenceProvider } from "@/providers/ThemePreferenceProvider";
 import { WorkspacePrivacyModeProvider } from "@/providers/WorkspacePrivacyModeProvider";
@@ -39,8 +39,8 @@ import { WorkspaceProvider } from "@/providers/WorkspaceProvider";
 import { getReminderNotificationResponseIntent } from "@/services/reminders/reminderNotificationIntents";
 
 export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary
+    // Catch any errors thrown by the Layout component.
+    ErrorBoundary
 } from "expo-router";
 
 export const unstable_settings = {
@@ -217,7 +217,7 @@ function StartupLoadingScreen({
 }
 
 function WorkspaceNavigator({ palette }: { palette: string }) {
-  const { toggleSidebar } = useAppSidebar();
+  const { toggleSidebar } = useAppSidebarActions();
 
   return (
     <Stack

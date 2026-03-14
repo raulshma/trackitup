@@ -8,6 +8,14 @@ type AppSidebarContextValue = {
   toggleSidebar: () => void;
 };
 
+type AppSidebarActionsValue = Pick<
+  AppSidebarContextValue,
+  "openSidebar" | "closeSidebar" | "toggleSidebar"
+>;
+
+const AppSidebarStateContext = React.createContext<boolean | null>(null);
+const AppSidebarActionsContext =
+  React.createContext<AppSidebarActionsValue | null>(null);
 const AppSidebarContext = React.createContext<AppSidebarContextValue | null>(
   null,
 );
@@ -36,20 +44,31 @@ export function AppSidebarProvider({
     setIsOpen(false);
   }, [pathname]);
 
-  const value = React.useMemo<AppSidebarContextValue>(
+  const actions = React.useMemo<AppSidebarActionsValue>(
     () => ({
-      isOpen,
       openSidebar,
       closeSidebar,
       toggleSidebar,
     }),
-    [closeSidebar, isOpen, openSidebar, toggleSidebar],
+    [closeSidebar, openSidebar, toggleSidebar],
+  );
+
+  const value = React.useMemo<AppSidebarContextValue>(
+    () => ({
+      isOpen,
+      ...actions,
+    }),
+    [actions, isOpen],
   );
 
   return (
-    <AppSidebarContext.Provider value={value}>
-      {children}
-    </AppSidebarContext.Provider>
+    <AppSidebarActionsContext.Provider value={actions}>
+      <AppSidebarStateContext.Provider value={isOpen}>
+        <AppSidebarContext.Provider value={value}>
+          {children}
+        </AppSidebarContext.Provider>
+      </AppSidebarStateContext.Provider>
+    </AppSidebarActionsContext.Provider>
   );
 }
 
@@ -58,6 +77,30 @@ export function useAppSidebar() {
 
   if (!context) {
     throw new Error("useAppSidebar must be used inside AppSidebarProvider.");
+  }
+
+  return context;
+}
+
+export function useAppSidebarActions() {
+  const context = React.useContext(AppSidebarActionsContext);
+
+  if (!context) {
+    throw new Error(
+      "useAppSidebarActions must be used inside AppSidebarProvider.",
+    );
+  }
+
+  return context;
+}
+
+export function useAppSidebarState() {
+  const context = React.useContext(AppSidebarStateContext);
+
+  if (context === null) {
+    throw new Error(
+      "useAppSidebarState must be used inside AppSidebarProvider.",
+    );
   }
 
   return context;

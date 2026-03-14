@@ -6,28 +6,28 @@ import { StyleSheet, View } from "react-native";
 import { type MD3Theme, useTheme } from "react-native-paper";
 
 import {
-  MaterialCompactTopAppBar,
-  type MaterialCompactTopAppBarAction,
+    MaterialCompactTopAppBar,
+    type MaterialCompactTopAppBarAction,
 } from "@/components/ui/MaterialCompactTopAppBar";
 import { RecordEventFab } from "@/components/ui/RecordEventFab";
 import {
-  TabHeaderScrollProvider,
-  useTabHeaderScrollValue,
+    TabHeaderScrollProvider,
+    useTabHeaderScrollValue,
 } from "@/components/ui/TabHeaderScrollContext";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { useColorScheme } from "@/components/useColorScheme";
 import { getAppPalette } from "@/constants/AppTheme";
 import {
-  getShadowStyle,
-  uiBorder,
-  uiElevation,
-  uiRadius,
-  uiShadow,
-  uiSize,
-  uiSpace,
-  uiTypography,
+    getShadowStyle,
+    uiBorder,
+    uiElevation,
+    uiRadius,
+    uiShadow,
+    uiSize,
+    uiSpace,
+    uiTypography,
 } from "@/constants/UiTokens";
-import { useAppSidebar } from "@/providers/AppSidebarProvider";
+import { useAppSidebarActions } from "@/providers/AppSidebarProvider";
 
 function TabRouteHeader({
   routeName,
@@ -69,7 +69,7 @@ export default function TabLayout() {
   const palette = getAppPalette(colorScheme);
   const theme = useTheme<MD3Theme>();
   const router = useRouter();
-  const { toggleSidebar } = useAppSidebar();
+  const { toggleSidebar } = useAppSidebarActions();
   const activeTabColor = theme.colors.onPrimaryContainer;
   const inactiveTabColor = theme.colors.onSurfaceVariant;
   const tabBarShadow = React.useMemo(

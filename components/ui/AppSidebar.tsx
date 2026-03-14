@@ -28,7 +28,10 @@ import {
   uiSpace,
   uiTypography,
 } from "@/constants/UiTokens";
-import { useAppSidebar } from "@/providers/AppSidebarProvider";
+import {
+  useAppSidebarActions,
+  useAppSidebarState,
+} from "@/providers/AppSidebarProvider";
 
 type SidebarIconName = React.ComponentProps<typeof SymbolView>["name"];
 
@@ -290,7 +293,8 @@ const sidebarGroups: Array<{
 ];
 
 export function AppSidebar() {
-  const { isOpen, closeSidebar, openSidebar } = useAppSidebar();
+  const isOpen = useAppSidebarState();
+  const { closeSidebar, openSidebar } = useAppSidebarActions();
   const router = useRouter();
   const pathname = usePathname();
   const theme = useTheme<MD3Theme>();
@@ -316,6 +320,17 @@ export function AppSidebar() {
       })),
     [],
   );
+  const activeRouteIds = React.useMemo(() => {
+    const activeIds = new Set<string>();
+    for (const group of sidebarGroups) {
+      for (const route of group.items) {
+        if (route.matches(pathname)) {
+          activeIds.add(route.id);
+        }
+      }
+    }
+    return activeIds;
+  }, [pathname]);
   const handleRoutePress = React.useCallback(
     (item: SidebarRoute) => {
       closeSidebar();
@@ -323,6 +338,46 @@ export function AppSidebar() {
     },
     [closeSidebar, router],
   );
+  const renderSectionHeader = React.useCallback(
+    ({ section }: { section: { title: string } }) => (
+      <Text
+        style={[styles.groupTitle, { color: theme.colors.onSurfaceVariant }]}
+      >
+        {section.title}
+      </Text>
+    ),
+    [theme.colors.onSurfaceVariant],
+  );
+  const renderRouteItem = React.useCallback(
+    ({ item }: { item: SidebarRoute }) => (
+      <SidebarRouteRow
+        item={item}
+        isActive={activeRouteIds.has(item.id)}
+        onPress={handleRoutePress}
+        primaryContainer={theme.colors.primaryContainer}
+        onPrimaryContainer={theme.colors.onPrimaryContainer}
+        onSurface={theme.colors.onSurface}
+        onSurfaceVariant={theme.colors.onSurfaceVariant}
+        outlineVariant={theme.colors.outlineVariant}
+        elevationLevel1={theme.colors.elevation.level1}
+        elevationLevel2={theme.colors.elevation.level2}
+        primary={theme.colors.primary}
+      />
+    ),
+    [
+      activeRouteIds,
+      handleRoutePress,
+      theme.colors.elevation.level1,
+      theme.colors.elevation.level2,
+      theme.colors.onPrimaryContainer,
+      theme.colors.onSurface,
+      theme.colors.onSurfaceVariant,
+      theme.colors.outlineVariant,
+      theme.colors.primary,
+      theme.colors.primaryContainer,
+    ],
+  );
+  const keyExtractor = React.useCallback((item: SidebarRoute) => item.id, []);
 
   React.useEffect(() => {
     const subscription = progress.addListener(({ value }) => {
@@ -572,32 +627,9 @@ export function AppSidebar() {
               {isDrawerContentReady ? (
                 <SectionList
                   sections={sectionListSections}
-                  keyExtractor={(item) => item.id}
-                  renderSectionHeader={({ section }) => (
-                    <Text
-                      style={[
-                        styles.groupTitle,
-                        { color: theme.colors.onSurfaceVariant },
-                      ]}
-                    >
-                      {section.title}
-                    </Text>
-                  )}
-                  renderItem={({ item }) => (
-                    <SidebarRouteRow
-                      item={item}
-                      isActive={item.matches(pathname)}
-                      onPress={handleRoutePress}
-                      primaryContainer={theme.colors.primaryContainer}
-                      onPrimaryContainer={theme.colors.onPrimaryContainer}
-                      onSurface={theme.colors.onSurface}
-                      onSurfaceVariant={theme.colors.onSurfaceVariant}
-                      outlineVariant={theme.colors.outlineVariant}
-                      elevationLevel1={theme.colors.elevation.level1}
-                      elevationLevel2={theme.colors.elevation.level2}
-                      primary={theme.colors.primary}
-                    />
-                  )}
+                  keyExtractor={keyExtractor}
+                  renderSectionHeader={renderSectionHeader}
+                  renderItem={renderRouteItem}
                   contentContainerStyle={[
                     styles.scrollContent,
                     { paddingBottom: insets.bottom + uiSpace.surface },
