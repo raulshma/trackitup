@@ -28,6 +28,7 @@ type PageQuickActionsProps = {
   actions: PageQuickActionItem[];
   title?: string;
   description?: string;
+  compact?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -60,6 +61,7 @@ export function PageQuickActions({
   actions,
   title = "Keep this page moving",
   description,
+  compact = false,
   style,
 }: PageQuickActionsProps) {
   const theme = useTheme<MD3Theme>();
@@ -77,11 +79,17 @@ export function PageQuickActions({
       motionDelay={uiMotion.stagger * 3}
     >
       {description ? (
-        <Text style={[styles.description, { color: palette.muted }]}>
+        <Text
+          style={[
+            styles.description,
+            compact ? styles.descriptionCompact : null,
+            { color: palette.muted },
+          ]}
+        >
           {description}
         </Text>
       ) : null}
-      <View style={styles.grid}>
+      <View style={[styles.grid, compact ? styles.gridCompact : null]}>
         {actions.map((action, index) => {
           const accentColor = action.accentColor ?? theme.colors.primary;
           const ctaLabel = formatQuickActionCtaLabel(action.label);
@@ -90,12 +98,13 @@ export function PageQuickActions({
             <MotionView
               key={action.id}
               delay={uiMotion.stagger * (index + 1)}
-              style={styles.gridItem}
+              style={[styles.gridItem, compact ? styles.gridItemCompact : null]}
             >
               <Surface
                 style={[
                   styles.pressable,
                   styles.card,
+                  compact ? styles.cardCompact : null,
                   {
                     backgroundColor: theme.colors.surface,
                     borderColor: action.disabled
@@ -123,17 +132,29 @@ export function PageQuickActions({
                       ]}
                     />
                   </View>
-                  <View style={styles.cardContent}>
+                  <View
+                    style={[
+                      styles.cardContent,
+                      compact ? styles.cardContentCompact : null,
+                    ]}
+                  >
                     <View
                       style={[
                         styles.accentBar,
+                        compact ? styles.accentBarCompact : null,
                         { backgroundColor: accentColor },
                       ]}
                     />
-                    <View style={styles.copyColumn}>
+                    <View
+                      style={[
+                        styles.copyColumn,
+                        compact ? styles.copyColumnCompact : null,
+                      ]}
+                    >
                       <Text
                         style={[
                           styles.label,
+                          compact ? styles.labelCompact : null,
                           { color: theme.colors.onSurface },
                         ]}
                       >
@@ -142,16 +163,23 @@ export function PageQuickActions({
                       <Text
                         style={[
                           styles.hint,
+                          compact ? styles.hintCompact : null,
                           { color: theme.colors.onSurfaceVariant },
                         ]}
                       >
                         {action.hint}
                       </Text>
                     </View>
-                    <View style={styles.cardFooter}>
+                    <View
+                      style={[
+                        styles.cardFooter,
+                        compact ? styles.cardFooterCompact : null,
+                      ]}
+                    >
                       <View
                         style={[
                           styles.actionButton,
+                          compact ? styles.actionButtonCompact : null,
                           {
                             backgroundColor: action.disabled
                               ? theme.colors.elevation.level1
@@ -165,6 +193,7 @@ export function PageQuickActions({
                         <Text
                           style={[
                             styles.actionButtonLabel,
+                            compact ? styles.actionButtonLabelCompact : null,
                             {
                               color: action.disabled
                                 ? theme.colors.onSurfaceVariant
@@ -192,15 +221,25 @@ const styles = StyleSheet.create({
     ...uiTypography.body,
     marginBottom: uiSpace.lg,
   },
+  descriptionCompact: {
+    marginBottom: uiSpace.md,
+  },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: uiSpace.md,
   },
+  gridCompact: {
+    gap: uiSpace.sm,
+  },
   gridItem: {
     flexGrow: 1,
     flexBasis: 220,
     minWidth: 220,
+  },
+  gridItemCompact: {
+    flexBasis: 180,
+    minWidth: 168,
   },
   pressable: {
     flexGrow: 1,
@@ -211,6 +250,9 @@ const styles = StyleSheet.create({
   },
   card: {
     minHeight: 118,
+  },
+  cardCompact: {
+    minHeight: 94,
   },
   touchable: {
     flex: 1,
@@ -232,18 +274,32 @@ const styles = StyleSheet.create({
     minHeight: 118,
     padding: uiSpace.surface,
   },
+  cardContentCompact: {
+    minHeight: 94,
+    padding: uiSpace.lg,
+  },
   accentBar: {
     width: 36,
     height: 4,
     borderRadius: uiRadius.pill,
     marginBottom: uiSpace.lg,
   },
+  accentBarCompact: {
+    width: 28,
+    marginBottom: uiSpace.sm,
+  },
   copyColumn: {
     gap: uiSpace.xs,
+  },
+  copyColumnCompact: {
+    gap: 2,
   },
   cardFooter: {
     marginTop: uiSpace.md,
     alignItems: "flex-end",
+  },
+  cardFooterCompact: {
+    marginTop: uiSpace.sm,
   },
   actionButton: {
     minWidth: 74,
@@ -254,10 +310,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  actionButtonCompact: {
+    minWidth: 64,
+    paddingHorizontal: uiSpace.md,
+    paddingVertical: uiSpace.xs,
+  },
   actionButtonLabel: {
     ...uiTypography.label,
     textTransform: "none",
   },
+  actionButtonLabelCompact: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
   label: uiTypography.titleSm,
+  labelCompact: {
+    fontSize: 14,
+    lineHeight: 18,
+  },
   hint: uiTypography.bodySmall,
+  hintCompact: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
 });

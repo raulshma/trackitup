@@ -229,6 +229,7 @@ export default function TabOneScreen() {
     `${workspace.assets.length} assets`,
     `${workspace.logs.length} logs`,
   ];
+  const dashboardQuickActionCount = quickActionCards.length + 5;
   const attentionSummary =
     recommendations.length > 0
       ? `${recommendations.length} recommendation${recommendations.length === 1 ? "" : "s"} ready`
@@ -259,9 +260,9 @@ export default function TabOneScreen() {
           web: "add_circle",
         } satisfies HomeSectionIconName,
         hint: "Recording shortcuts and fast event entry",
-        meta: `${quickActionCards.length} quick log${quickActionCards.length === 1 ? "" : "s"}`,
+        meta: `${dashboardQuickActionCount} quick action${dashboardQuickActionCount === 1 ? "" : "s"}`,
         badges: [
-          `${quickActionCards.length} shortcut${quickActionCards.length === 1 ? "" : "s"}`,
+          `${dashboardQuickActionCount} shortcut${dashboardQuickActionCount === 1 ? "" : "s"}`,
           `${workspace.logs.length} logs`,
         ],
       },
@@ -298,8 +299,8 @@ export default function TabOneScreen() {
     ],
     [
       attentionItems.length,
+      dashboardQuickActionCount,
       hiddenWidgets.length,
-      quickActionCards.length,
       recommendations.length,
       spaceSummaries.length,
       totalSpacePhotos,
@@ -363,8 +364,8 @@ export default function TabOneScreen() {
   const widgetButtonColor = theme.colors.elevation.level2;
   const widgetButtonTextColor = theme.colors.onSurface;
   const homeQuickActions = useMemo(
-    () =>
-      quickActionCards.map((action) => ({
+    () => [
+      ...quickActionCards.map((action) => ({
         id: action.id,
         label: action.label,
         hint: `${action.description} ${action.target}`,
@@ -375,7 +376,51 @@ export default function TabOneScreen() {
             params: { actionId: action.id },
           }),
       })),
-    [quickActionCards, router],
+      {
+        id: "dashboard-open-action-center",
+        label: "Open action center",
+        hint: "Review attention items, due reminders, and suggested next steps.",
+        accentColor: theme.colors.error,
+        onPress: () => router.push("/action-center"),
+      },
+      {
+        id: "dashboard-open-planner",
+        label: "Open planner",
+        hint: "Check calendar timelines, due reminders, and recurring plans.",
+        accentColor: theme.colors.tertiary,
+        onPress: () => router.push("/planner"),
+      },
+      {
+        id: "dashboard-scan-barcode",
+        label: "Scan barcode",
+        hint: "Use the camera scanner to find assets and jump into updates.",
+        accentColor: theme.colors.primary,
+        onPress: () => router.push("/scanner"),
+      },
+      {
+        id: "dashboard-open-visual-history",
+        label: "Open visual history",
+        hint: "Review photos and timeline snapshots across every tracked space.",
+        accentColor: theme.colors.secondary,
+        onPress: () => router.push("/visual-history"),
+      },
+      {
+        id: "dashboard-open-workspace-tools",
+        label: "Open workspace tools",
+        hint: "Export, import, and run workspace maintenance from one place.",
+        accentColor: palette.tint,
+        onPress: () => router.push("/workspace-tools"),
+      },
+    ],
+    [
+      palette.tint,
+      quickActionCards,
+      router,
+      theme.colors.error,
+      theme.colors.primary,
+      theme.colors.secondary,
+      theme.colors.tertiary,
+    ],
   );
 
   useEffect(() => {
@@ -1363,6 +1408,7 @@ export default function TabOneScreen() {
             title="Start recording"
             description="Choose what happened and TrackItUp will guide you into the right event-entry flow."
             actions={homeQuickActions}
+            compact
           />
         ) : null}
 
