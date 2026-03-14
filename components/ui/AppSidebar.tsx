@@ -513,7 +513,7 @@ export function AppSidebar() {
       {!isVisible ? (
         <View
           style={styles.edgeSwipeArea}
-          pointerEvents="box-none"
+          pointerEvents="auto"
           {...drawerPanResponder.panHandlers}
         />
       ) : null}

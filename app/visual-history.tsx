@@ -1,21 +1,21 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    FlatList,
-    Image,
-    Platform,
-    Pressable,
-    ScrollView,
-    Share,
-    StyleSheet,
-    View,
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  View,
 } from "react-native";
 import {
-    Button,
-    Chip,
-    Surface,
-    useTheme,
-    type MD3Theme,
+  Button,
+  Chip,
+  Surface,
+  useTheme,
+  type MD3Theme,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -30,8 +30,8 @@ import { WorkspacePageSkeleton } from "@/components/ui/LoadingSkeleton";
 import { MotionView } from "@/components/ui/Motion";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import {
-    PhotoLightbox,
-    type LightboxItem,
+  PhotoLightbox,
+  type LightboxItem,
 } from "@/components/ui/PhotoLightbox";
 import { ReorderGestureCard } from "@/components/ui/ReorderGestureCard";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -42,60 +42,60 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { withAlpha } from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    getShadowStyle,
-    uiBorder,
-    uiMotion,
-    uiRadius,
-    uiShadow,
-    uiSpace,
-    uiTypography,
+  getShadowStyle,
+  uiBorder,
+  uiMotion,
+  uiRadius,
+  uiShadow,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import {
-    aiCrossSpaceTrendCopy,
-    aiVisualRecapCopy,
+  aiCrossSpaceTrendCopy,
+  aiVisualRecapCopy,
 } from "@/services/ai/aiConsentCopy";
 import {
-    buildAiCrossSpaceTrendGenerationPrompt,
-    buildAiCrossSpaceTrendReviewItems,
-    formatAiCrossSpaceTrendDestinationLabel,
-    formatAiCrossSpaceTrendSourceLabel,
-    parseAiCrossSpaceTrendDraft,
-    type AiCrossSpaceTrendDraft,
-    type AiCrossSpaceTrendSource,
+  buildAiCrossSpaceTrendGenerationPrompt,
+  buildAiCrossSpaceTrendReviewItems,
+  formatAiCrossSpaceTrendDestinationLabel,
+  formatAiCrossSpaceTrendSourceLabel,
+  parseAiCrossSpaceTrendDraft,
+  type AiCrossSpaceTrendDraft,
+  type AiCrossSpaceTrendSource,
 } from "@/services/ai/aiCrossSpaceTrends";
 import {
-    buildCrossSpaceTrendPrompt,
-    buildVisualRecapPrompt,
+  buildCrossSpaceTrendPrompt,
+  buildVisualRecapPrompt,
 } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-    buildAiVisualRecapGenerationPrompt,
-    buildAiVisualRecapReviewItems,
-    parseAiVisualRecapDraft,
-    type AiVisualRecapDraft,
+  buildAiVisualRecapGenerationPrompt,
+  buildAiVisualRecapReviewItems,
+  parseAiVisualRecapDraft,
+  type AiVisualRecapDraft,
 } from "@/services/ai/aiVisualRecap";
 import {
-    triggerSelectionFeedback,
-    triggerSuccessFeedback,
+  triggerSelectionFeedback,
+  triggerSuccessFeedback,
 } from "@/services/device/haptics";
 import {
-    buildVisualRecapShareMessage,
-    buildVisualRecapTitle,
+  buildVisualRecapShareMessage,
+  buildVisualRecapTitle,
 } from "@/services/export/workspaceVisualRecapContent";
 import { exportVisualRecapPdfAsync } from "@/services/export/workspaceVisualRecapExport";
 import {
-    loadVisualRecapCoverSelections,
-    persistVisualRecapCoverSelections,
+  loadVisualRecapCoverSelections,
+  persistVisualRecapCoverSelections,
 } from "@/services/insights/visualRecapPreferencePersistence";
 import { buildWorkspaceTrendSummary } from "@/services/insights/workspaceTrendSummary";
 import {
-    applyVisualRecapCoverSelections,
-    buildWorkspaceVisualHistory,
-    getVisualRecapCoverSelectionKey,
-    type VisualHistoryPhotoItem,
-    type VisualRecapCoverSelections,
+  applyVisualRecapCoverSelections,
+  buildWorkspaceVisualHistory,
+  getVisualRecapCoverSelectionKey,
+  type VisualHistoryPhotoItem,
+  type VisualRecapCoverSelections,
 } from "@/services/insights/workspaceVisualHistory";
 
 type VisualHistoryParams = {
@@ -135,20 +135,24 @@ function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+const dateTimeFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+const monthFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "long",
+  year: "numeric",
+});
+
 function formatDateTime(timestamp: string) {
-  return new Date(timestamp).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return dateTimeFormatter.format(new Date(timestamp));
 }
 
 function formatMonth(monthKey: string) {
-  return new Date(`${monthKey}-01T00:00:00`).toLocaleDateString([], {
-    month: "long",
-    year: "numeric",
-  });
+  return monthFormatter.format(new Date(`${monthKey}-01T00:00:00`));
 }
 
 function buildLightboxItems(photos: VisualHistoryPhotoItem[]): LightboxItem[] {
@@ -247,43 +251,56 @@ export default function VisualHistoryScreen() {
     : space
       ? (`/logbook?actionId=quick-log&spaceId=${space.id}` as never)
       : ("/logbook?actionId=quick-log" as never);
-  const pageQuickActions = [
-    {
-      id: "visual-history-log",
-      label: latestPhoto ? "Open latest log" : "Record proof",
-      hint: latestPhoto
-        ? `Jump back to ${latestPhoto.logTitle} and the photo context behind it.`
-        : `Start the next proof capture for ${scopeLabel.toLowerCase()}.`,
-      onPress: () =>
-        router.push(
-          latestPhoto
-            ? (`/logbook?entryId=${latestPhoto.logId}` as never)
-            : logbookActionPath,
-        ),
-      accentColor: palette.tint,
-    },
-    {
-      id: "visual-history-record",
-      label: "Add new proof",
-      hint: `Capture another photo so ${scopeLabel.toLowerCase()} keeps a stronger visual trail.`,
-      onPress: () => router.push(logbookActionPath),
-      accentColor: palette.secondary,
-    },
-    {
-      id: "visual-history-scope",
-      label: asset || space ? "Open workspace gallery" : "Open inventory",
-      hint:
-        asset || space
-          ? "Step back out to the wider workspace photo timeline."
-          : `${workspace.assets.length} tracked asset${workspace.assets.length === 1 ? "" : "s"} connect into this gallery.`,
-      onPress: () =>
-        router.push(
+  const pageQuickActions = useMemo(
+    () => [
+      {
+        id: "visual-history-log",
+        label: latestPhoto ? "Open latest log" : "Record proof",
+        hint: latestPhoto
+          ? `Jump back to ${latestPhoto.logTitle} and the photo context behind it.`
+          : `Start the next proof capture for ${scopeLabel.toLowerCase()}.`,
+        onPress: () =>
+          router.push(
+            latestPhoto
+              ? (`/logbook?entryId=${latestPhoto.logId}` as never)
+              : logbookActionPath,
+          ),
+        accentColor: palette.tint,
+      },
+      {
+        id: "visual-history-record",
+        label: "Add new proof",
+        hint: `Capture another photo so ${scopeLabel.toLowerCase()} keeps a stronger visual trail.`,
+        onPress: () => router.push(logbookActionPath),
+        accentColor: palette.secondary,
+      },
+      {
+        id: "visual-history-scope",
+        label: asset || space ? "Open workspace gallery" : "Open inventory",
+        hint:
           asset || space
-            ? ("/visual-history" as never)
-            : ("/inventory" as never),
-        ),
-    },
-  ];
+            ? "Step back out to the wider workspace photo timeline."
+            : `${workspace.assets.length} tracked asset${workspace.assets.length === 1 ? "" : "s"} connect into this gallery.`,
+        onPress: () =>
+          router.push(
+            asset || space
+              ? ("/visual-history" as never)
+              : ("/inventory" as never),
+          ),
+      },
+    ],
+    [
+      asset,
+      latestPhoto,
+      logbookActionPath,
+      palette.secondary,
+      palette.tint,
+      router,
+      scopeLabel,
+      space,
+      workspace.assets.length,
+    ],
+  );
 
   useEffect(() => {
     let isCancelled = false;
@@ -342,142 +359,168 @@ export default function VisualHistoryScreen() {
     [isWorkspaceScope, selectedAiMonthKey, workspace],
   );
 
-  function openLightbox(items: LightboxItem[], initialIndex: number) {
-    setLightboxState({ items, initialIndex });
-  }
+  const lightboxIndexById = useMemo(
+    () =>
+      new Map(lightboxItems.map((item, index) => [item.id, index] as const)),
+    [lightboxItems],
+  );
 
-  function renderTimelinePhoto({
-    item: photo,
-  }: {
-    item: (typeof history.photos)[number];
-  }) {
-    return (
-      <SwipeActionCard
-        rightActions={[
-          {
-            label: "Open log",
-            accentColor: palette.tint,
-            onPress: () =>
-              router.push(`/logbook?entryId=${photo.logId}` as never),
-          },
-          ...(!assetId && photo.assetIds.length === 1
-            ? [
-                {
-                  label: "Asset",
-                  accentColor: palette.secondary,
-                  onPress: () =>
-                    router.push(
-                      `/visual-history?assetId=${photo.assetIds[0]}` as never,
-                    ),
-                },
-              ]
-            : []),
-        ]}
-      >
-        <Surface
-          style={[
-            styles.photoCard,
+  const openLightbox = useCallback(
+    (items: LightboxItem[], initialIndex: number) => {
+      setLightboxState({ items, initialIndex });
+    },
+    [],
+  );
+
+  const openLightboxForPhotoId = useCallback(
+    (photoId: string) => {
+      openLightbox(lightboxItems, lightboxIndexById.get(photoId) ?? 0);
+    },
+    [lightboxIndexById, lightboxItems, openLightbox],
+  );
+
+  const renderTimelinePhoto = useCallback(
+    ({ item: photo }: { item: (typeof history.photos)[number] }) => {
+      return (
+        <SwipeActionCard
+          rightActions={[
             {
-              backgroundColor: theme.colors.elevation.level1,
-              borderColor: theme.colors.outlineVariant,
+              label: "Open log",
+              accentColor: palette.tint,
+              onPress: () =>
+                router.push(`/logbook?entryId=${photo.logId}` as never),
             },
+            ...(!assetId && photo.assetIds.length === 1
+              ? [
+                  {
+                    label: "Asset",
+                    accentColor: palette.secondary,
+                    onPress: () =>
+                      router.push(
+                        `/visual-history?assetId=${photo.assetIds[0]}` as never,
+                      ),
+                  },
+                ]
+              : []),
           ]}
-          elevation={1}
         >
-          <Pressable
-            onPress={() =>
-              openLightbox(
-                lightboxItems,
-                lightboxItems.findIndex((item) => item.id === photo.id),
-              )
-            }
+          <Surface
+            style={[
+              styles.photoCard,
+              {
+                backgroundColor: theme.colors.elevation.level1,
+                borderColor: theme.colors.outlineVariant,
+              },
+            ]}
+            elevation={1}
           >
-            <Image
-              source={{ uri: photo.uri }}
-              style={[styles.photoImage, { backgroundColor: palette.surface3 }]}
-            />
-          </Pressable>
-          <View style={styles.photoCopy}>
-            <ChipRow style={styles.photoChipRow}>
-              <Chip
-                compact
+            <Pressable onPress={() => openLightboxForPhotoId(photo.id)}>
+              <Image
+                source={{ uri: photo.uri }}
                 style={[
-                  styles.infoChip,
-                  { backgroundColor: theme.colors.surfaceVariant },
+                  styles.photoImage,
+                  { backgroundColor: palette.surface3 },
                 ]}
-                textStyle={[
-                  styles.infoChipText,
-                  { color: theme.colors.onSurfaceVariant },
-                ]}
-              >
-                {photo.spaceName}
-              </Chip>
-              <Chip
-                compact
-                style={[
-                  styles.infoChip,
-                  { backgroundColor: theme.colors.surfaceVariant },
-                ]}
-                textStyle={[
-                  styles.infoChipText,
-                  { color: theme.colors.onSurfaceVariant },
-                ]}
-              >
-                {formatDateTime(photo.capturedAt)}
-              </Chip>
-              {photo.proofLabel ? (
+              />
+            </Pressable>
+            <View style={styles.photoCopy}>
+              <ChipRow style={styles.photoChipRow}>
                 <Chip
                   compact
                   style={[
                     styles.infoChip,
-                    {
-                      backgroundColor: theme.colors.secondaryContainer,
-                    },
+                    { backgroundColor: theme.colors.surfaceVariant },
                   ]}
                   textStyle={[
                     styles.infoChipText,
-                    { color: theme.colors.onSecondaryContainer },
+                    { color: theme.colors.onSurfaceVariant },
                   ]}
                 >
-                  {photo.proofLabel}
+                  {photo.spaceName}
                 </Chip>
-              ) : null}
-            </ChipRow>
-            <Text style={styles.photoTitle}>{photo.logTitle}</Text>
-            <Text style={[styles.copy, paletteStyles.mutedText]}>
-              {photo.logNote}
-            </Text>
-            {photo.assetNames.length > 0 ? (
-              <Text style={[styles.meta, paletteStyles.mutedText]}>
-                Assets: {photo.assetNames.join(" • ")}
+                <Chip
+                  compact
+                  style={[
+                    styles.infoChip,
+                    { backgroundColor: theme.colors.surfaceVariant },
+                  ]}
+                  textStyle={[
+                    styles.infoChipText,
+                    { color: theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  {formatDateTime(photo.capturedAt)}
+                </Chip>
+                {photo.proofLabel ? (
+                  <Chip
+                    compact
+                    style={[
+                      styles.infoChip,
+                      {
+                        backgroundColor: theme.colors.secondaryContainer,
+                      },
+                    ]}
+                    textStyle={[
+                      styles.infoChipText,
+                      { color: theme.colors.onSecondaryContainer },
+                    ]}
+                  >
+                    {photo.proofLabel}
+                  </Chip>
+                ) : null}
+              </ChipRow>
+              <Text style={styles.photoTitle}>{photo.logTitle}</Text>
+              <Text style={[styles.copy, paletteStyles.mutedText]}>
+                {photo.logNote}
               </Text>
-            ) : null}
-            <ActionButtonRow
-              separated
-              separatorColor={theme.colors.outlineVariant}
-            >
-              <CardActionPill
-                label="Open log"
-                onPress={() =>
-                  router.push(`/logbook?entryId=${photo.logId}` as never)
-                }
-              />
-              {!assetId && photo.assetIds.length === 1 ? (
+              {photo.assetNames.length > 0 ? (
+                <Text style={[styles.meta, paletteStyles.mutedText]}>
+                  Assets: {photo.assetNames.join(" • ")}
+                </Text>
+              ) : null}
+              <ActionButtonRow
+                separated
+                separatorColor={theme.colors.outlineVariant}
+              >
                 <CardActionPill
-                  label="Asset gallery"
+                  label="Open log"
                   onPress={() =>
-                    router.push(
-                      `/visual-history?assetId=${photo.assetIds[0]}` as never,
-                    )
+                    router.push(`/logbook?entryId=${photo.logId}` as never)
                   }
                 />
-              ) : null}
-            </ActionButtonRow>
-          </View>
-        </Surface>
-      </SwipeActionCard>
-    );
-  }
+                {!assetId && photo.assetIds.length === 1 ? (
+                  <CardActionPill
+                    label="Asset gallery"
+                    onPress={() =>
+                      router.push(
+                        `/visual-history?assetId=${photo.assetIds[0]}` as never,
+                      )
+                    }
+                  />
+                ) : null}
+              </ActionButtonRow>
+            </View>
+          </Surface>
+        </SwipeActionCard>
+      );
+    },
+    [
+      assetId,
+      lightboxItems,
+      openLightboxForPhotoId,
+      palette.surface3,
+      palette.secondary,
+      palette.tint,
+      paletteStyles.mutedText,
+      router,
+      theme.colors.elevation.level1,
+      theme.colors.onSecondaryContainer,
+      theme.colors.onSurfaceVariant,
+      theme.colors.outlineVariant,
+      theme.colors.secondaryContainer,
+      theme.colors.surfaceVariant,
+    ],
+  );
 
   async function handleGenerateAiRecap() {
     if (!selectedAiRecap || !selectedAiMonthKey) {

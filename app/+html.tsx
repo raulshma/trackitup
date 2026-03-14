@@ -1,9 +1,9 @@
 import { ScrollViewStyleReset } from "expo-router/html";
 
 import {
-    DEFAULT_THEME_PREFERENCE,
-    THEME_PREFERENCE_STORAGE_KEY,
-    getThemeBackgroundColor,
+  DEFAULT_THEME_PREFERENCE,
+  THEME_PREFERENCE_STORAGE_KEY,
+  getThemeBackgroundColor,
 } from "@/services/theme/themePreferences";
 
 // This file is web-only and used to configure the root HTML for every
@@ -51,6 +51,12 @@ export default function Root({ children }: { children: React.ReactNode }) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
+        <meta
+          name="theme-color"
+          content={getThemeBackgroundColor(DEFAULT_THEME_PREFERENCE)}
+        />
+
+        <link rel="preconnect" href="https://img.clerk.com" crossOrigin="" />
 
         {/* 
           Disable body scrolling on web. This makes ScrollView components work closer to how they do on native. 
@@ -92,6 +98,7 @@ const themeBootstrapScript = `
 const responsiveBackground = `
 html,
 body {
+  color-scheme: dark;
   background-color: ${getThemeBackgroundColor(DEFAULT_THEME_PREFERENCE)};
 }
 html[data-theme-preference="light"],
