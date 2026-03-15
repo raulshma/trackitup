@@ -135,6 +135,9 @@ function getSuggestedActionLabel(action: AiActionCenterExplainerActionKind) {
   if (action === "log-proof") return "Log proof";
   if (action === "snooze") return "Snooze";
   if (action === "open-planner") return "Open planner";
+  if (action === "create-log") return "Create log";
+  if (action === "create-recurring-plan") return "Create recurring plan";
+  if (action === "complete-recurring-now") return "Complete recurring now";
   return "Review later";
 }
 
@@ -449,19 +452,23 @@ export default function ActionCenterScreen() {
     handleOpenWorkspaceQaDestination(source.route);
   }
 
-  function handleSuggestedReminderAction(
-    reminderId: string,
-    action: AiActionCenterExplainerActionKind,
-  ) {
-    const reminder = remindersById.get(reminderId);
-    if (!reminder) return;
+  function handleSuggestedAction(options: {
+    reminderId?: string;
+    recurringOccurrenceId?: string;
+    action: AiActionCenterExplainerActionKind;
+  }) {
+    const reminder = options.reminderId
+      ? remindersById.get(options.reminderId)
+      : undefined;
 
-    if (action === "complete-now") {
+    if (options.action === "complete-now") {
+      if (!reminder) return;
       completeReminder(reminder.id);
       return;
     }
 
-    if (action === "log-proof") {
+    if (options.action === "log-proof") {
+      if (!reminder) return;
       openReminderLogbook(
         reminder.id,
         reminder.spaceId,
@@ -470,8 +477,38 @@ export default function ActionCenterScreen() {
       return;
     }
 
-    if (action === "snooze") {
+    if (options.action === "snooze") {
+      if (!reminder) return;
       snoozeReminder(reminder.id);
+      return;
+    }
+
+    if (options.action === "create-log") {
+      router.push({
+        pathname: "/logbook",
+        params: {
+          actionId: "quick-log",
+          ...(reminder?.id ? { reminderId: reminder.id } : {}),
+          ...(reminder?.spaceId ? { spaceId: reminder.spaceId } : {}),
+          ...(reminder?.spaceIds?.length
+            ? { spaceIds: reminder.spaceIds.join(",") }
+            : {}),
+        },
+      });
+      return;
+    }
+
+    if (options.action === "create-recurring-plan") {
+      router.push({
+        pathname: "/recurring-plan-editor",
+        params: { from: "action-center" },
+      });
+      return;
+    }
+
+    if (options.action === "complete-recurring-now") {
+      if (!options.recurringOccurrenceId) return;
+      completeRecurringOccurrence(options.recurringOccurrenceId);
       return;
     }
 
@@ -751,13 +788,17 @@ export default function ActionCenterScreen() {
       return;
     }
 
-    const parsedDraft = parseAiActionCenterExplainerDraft(
-      result.text,
-      workspace.reminders.map((reminder) => ({
+    const parsedDraft = parseAiActionCenterExplainerDraft(result.text, {
+      reminders: workspace.reminders.map((reminder) => ({
         id: reminder.id,
         title: reminder.title,
       })),
-    );
+      recurringOccurrences: actionCenter.recurringNextBestSteps.map((item) => ({
+        id: item.occurrenceId,
+        title: item.title,
+        planId: item.planId,
+      })),
+    });
     if (!parsedDraft) {
       setGeneratedAiDraft(null);
       setAiStatusMessage(
@@ -870,7 +911,18 @@ export default function ActionCenterScreen() {
       {
         completeReminder,
         snoozeReminder,
+        completeRecurringOccurrence,
         openPlanner: () => router.push("/planner" as never),
+        openQuickLog: () =>
+          router.push({
+            pathname: "/logbook",
+            params: { actionId: "quick-log" },
+          }),
+        openRecurringPlanEditor: () =>
+          router.push({
+            pathname: "/recurring-plan-editor",
+            params: { from: "action-center" },
+          }),
         openReminderLogbook,
       },
     );
@@ -1202,10 +1254,10 @@ export default function ActionCenterScreen() {
                       <CardActionPill
                         label={getSuggestedActionLabel(item.suggestedAction)}
                         onPress={() =>
-                          handleSuggestedReminderAction(
-                            item.reminderId,
-                            item.suggestedAction,
-                          )
+                          handleSuggestedAction({
+                            reminderId: item.reminderId,
+                            action: item.suggestedAction,
+                          })
                         }
                       />
                       <CardActionPill
@@ -1808,12 +1860,13 @@ export default function ActionCenterScreen() {
                       </Text>
                     ) : null}
                     {appliedAiDraft.draft.suggestedActions.map((item) => {
-                      const reminder = remindersById.get(item.reminderId);
-                      if (!reminder) return null;
+                      const reminder = item.reminderId
+                        ? remindersById.get(item.reminderId)
+                        : undefined;
 
                       return (
                         <Surface
-                          key={item.reminderId}
+                          key={`${item.action}-${item.reminderId ?? "no-reminder"}-${item.recurringOccurrenceId ?? "no-occurrence"}-${item.title}`}
                           style={[
                             styles.listCard,
                             styles.aiActionCard,
@@ -1830,12 +1883,13 @@ export default function ActionCenterScreen() {
                               <Text
                                 style={[styles.copy, paletteStyles.mutedText]}
                               >
-                                {spacesById.get(reminder.spaceId)?.name ??
-                                  "Unknown space"}{" "}
-                                •{" "}
-                                {formatTimestamp(
-                                  getReminderScheduleTimestamp(reminder),
-                                )}
+                                {reminder
+                                  ? `${spacesById.get(reminder.spaceId)?.name ?? "Unknown space"} • ${formatTimestamp(
+                                      getReminderScheduleTimestamp(reminder),
+                                    )}`
+                                  : item.recurringOccurrenceId
+                                    ? `Recurring occurrence • ${item.recurringOccurrenceId}`
+                                    : "Workspace action"}
                               </Text>
                               <Text
                                 style={[styles.meta, paletteStyles.mutedText]}
@@ -1855,22 +1909,26 @@ export default function ActionCenterScreen() {
                             <CardActionPill
                               label={getSuggestedActionLabel(item.action)}
                               onPress={() =>
-                                handleSuggestedReminderAction(
-                                  item.reminderId,
-                                  item.action,
-                                )
+                                handleSuggestedAction({
+                                  reminderId: item.reminderId,
+                                  recurringOccurrenceId:
+                                    item.recurringOccurrenceId,
+                                  action: item.action,
+                                })
                               }
                             />
-                            <CardActionPill
-                              label="Log proof"
-                              onPress={() =>
-                                openReminderLogbook(
-                                  reminder.id,
-                                  reminder.spaceId,
-                                  normalizeSpaceIds(reminder),
-                                )
-                              }
-                            />
+                            {reminder ? (
+                              <CardActionPill
+                                label="Log proof"
+                                onPress={() =>
+                                  openReminderLogbook(
+                                    reminder.id,
+                                    reminder.spaceId,
+                                    normalizeSpaceIds(reminder),
+                                  )
+                                }
+                              />
+                            ) : null}
                           </ActionButtonRow>
                         </Surface>
                       );

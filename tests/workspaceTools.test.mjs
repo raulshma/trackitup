@@ -2201,7 +2201,7 @@ test("action center explainer prompt includes grouped workload and next steps", 
   assert.match(draft.prompt, /ordered by actionability/i);
   assert.match(
     draft.prompt,
-    /complete-now, log-proof, snooze, open-planner, review-later/i,
+    /complete-now, log-proof, snooze, open-planner, create-log, create-recurring-plan, complete-recurring-now, review-later/i,
   );
 });
 
@@ -2751,6 +2751,12 @@ test("ai action center explainer parser extracts grounded queue guidance", () =>
               "This one is already overdue and is the clearest item to remove from the queue first.",
           },
           {
+            action: "create-log",
+            title: "Capture a quick progress note",
+            reason:
+              "A lightweight log can capture current state before the next queue pass.",
+          },
+          {
             reminderId: "missing-reminder",
             title: "Ignore",
             action: "open-planner",
@@ -2765,10 +2771,12 @@ test("ai action center explainer parser extracts grounded queue guidance", () =>
     "```",
   ].join("\n");
 
-  const parsed = parseAiActionCenterExplainerDraft(rawResponse, reminders);
+  const parsed = parseAiActionCenterExplainerDraft(rawResponse, {
+    reminders,
+  });
 
   assert.ok(parsed);
-  assert.equal(parsed?.suggestedActions.length, 1);
+  assert.equal(parsed?.suggestedActions.length, 2);
   assert.equal(parsed?.groupedInsights.length, 2);
   assert.match(parsed?.summary ?? "", /Most urgency sits/i);
 
@@ -2789,7 +2797,11 @@ test("ai action center explainer parser extracts grounded queue guidance", () =>
 
 test("ai action plan helpers build transparent steps and execute approved actions", () => {
   const reminder = trackItUpWorkspace.reminders[0];
+  const recurringOccurrence = trackItUpWorkspace.recurringOccurrences.find(
+    (item) => item.status === "scheduled",
+  );
   assert.ok(reminder);
+  assert.ok(recurringOccurrence);
 
   const draft = {
     headline: "Queue needs triage",
@@ -2809,6 +2821,23 @@ test("ai action plan helpers build transparent steps and execute approved action
         action: "open-planner",
         reason: "Review broader planner pressure.",
       },
+      {
+        title: "Create a quick log",
+        action: "create-log",
+        reason: "Capture a brief status note now.",
+      },
+      {
+        title: "Create recurring plan",
+        action: "create-recurring-plan",
+        reason: "Set up a recurring cadence for this workflow.",
+      },
+      {
+        recurringOccurrenceId: recurringOccurrence?.id,
+        recurringPlanId: recurringOccurrence?.planId,
+        title: "Complete recurring run",
+        action: "complete-recurring-now",
+        reason: "Current occurrence can be marked complete now.",
+      },
     ],
   };
 
@@ -2822,7 +2851,7 @@ test("ai action plan helpers build transparent steps and execute approved action
   });
 
   assert.equal(plan.surface, "action-center-explainer");
-  assert.equal(plan.steps.length, 2);
+  assert.equal(plan.steps.length, 5);
   assert.equal(plan.steps[0].approved, true);
   assert.match(plan.transcript.interpretedIntentSummary, /Queue needs triage/i);
 
@@ -2835,6 +2864,7 @@ test("ai action plan helpers build transparent steps and execute approved action
   assert.equal(partiallyApprovedPlan.status, "partially-approved");
 
   const completedReminderIds = [];
+  const completedRecurringIds = [];
   const openedRoutes = [];
   const result = executeAiActionPlan(
     partiallyApprovedPlan,
@@ -2842,16 +2872,20 @@ test("ai action plan helpers build transparent steps and execute approved action
     {
       completeReminder: (id) => completedReminderIds.push(id),
       snoozeReminder: () => {},
+      completeRecurringOccurrence: (id) => completedRecurringIds.push(id),
       openPlanner: () => openedRoutes.push("planner"),
+      openQuickLog: () => openedRoutes.push("quick-log"),
+      openRecurringPlanEditor: () => openedRoutes.push("recurring-plan"),
       openReminderLogbook: () => openedRoutes.push("logbook"),
     },
   );
 
-  assert.equal(result.executedCount, 1);
+  assert.equal(result.executedCount, 4);
   assert.equal(result.skippedCount, 1);
   assert.equal(result.failedCount, 0);
   assert.deepEqual(completedReminderIds, [reminder.id]);
-  assert.deepEqual(openedRoutes, []);
+  assert.deepEqual(completedRecurringIds, [recurringOccurrence?.id]);
+  assert.deepEqual(openedRoutes, ["quick-log", "recurring-plan"]);
   assert.equal(result.updatedPlan.status, "executed");
 });
 

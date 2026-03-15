@@ -1,14 +1,14 @@
 import {
-  getOverviewStats,
-  getSpaceSummaries,
+    getOverviewStats,
+    getSpaceSummaries,
 } from "../../constants/TrackItUpSelectors.ts";
 import type {
-  WorkspaceRecommendation,
-  WorkspaceSnapshot,
+    WorkspaceRecommendation,
+    WorkspaceSnapshot,
 } from "../../types/trackitup.ts";
 import {
-  getReminderScheduleTimestamp,
-  isReminderOpen,
+    getReminderScheduleTimestamp,
+    isReminderOpen,
 } from "./workspaceInsights.ts";
 import { getWorkspaceRecommendations } from "./workspaceRecommendations.ts";
 import { buildWorkspaceVisualHistory } from "./workspaceVisualHistory.ts";
@@ -85,7 +85,9 @@ function mapRecommendationRoute(
 export function buildWorkspaceDashboardPulse(
   workspace: WorkspaceSnapshot,
 ): WorkspaceDashboardPulseSummary {
-  const spacesById = new Map(workspace.spaces.map((space) => [space.id, space] as const));
+  const spacesById = new Map(
+    workspace.spaces.map((space) => [space.id, space] as const),
+  );
   const metricsById = new Map(
     workspace.metricDefinitions.map((metric) => [metric.id, metric] as const),
   );
@@ -120,7 +122,8 @@ export function buildWorkspaceDashboardPulse(
           metric.safeMax !== undefined && reading.value > metric.safeMax;
         if (!belowSafeMin && !aboveSafeMax) return [];
         const logSpaceId = primarySpaceId(log);
-        const spaceName = spacesById.get(logSpaceId ?? "")?.name ?? "Unknown space";
+        const spaceName =
+          spacesById.get(logSpaceId ?? "")?.name ?? "Unknown space";
         return [
           {
             id: `metric-alert:${log.id}:${metric.id}`,
@@ -151,7 +154,8 @@ export function buildWorkspaceDashboardPulse(
 
   const attentionItems = [...reminderAlerts, ...metricAlerts]
     .sort((left, right) => {
-      if (right.priority !== left.priority) return right.priority - left.priority;
+      if (right.priority !== left.priority)
+        return right.priority - left.priority;
       return left.timestamp.localeCompare(right.timestamp);
     })
     .filter(
@@ -177,7 +181,8 @@ export function buildWorkspaceDashboardPulse(
       if (right.pendingTasks !== left.pendingTasks) {
         return right.pendingTasks - left.pendingTasks;
       }
-      if (right.photoCount !== left.photoCount) return right.photoCount - left.photoCount;
+      if (right.photoCount !== left.photoCount)
+        return right.photoCount - left.photoCount;
       return left.name.localeCompare(right.name);
     })
     .slice(0, 4);
@@ -189,8 +194,12 @@ export function buildWorkspaceDashboardPulse(
       logCount: workspace.logs.length,
       openReminderCount: workspace.reminders.filter(isReminderOpen).length,
       recommendationCount: recommendations.length,
-      visibleWidgetCount: workspace.dashboardWidgets.filter((widget) => !widget.hidden).length,
-      hiddenWidgetCount: workspace.dashboardWidgets.filter((widget) => widget.hidden).length,
+      visibleWidgetCount: workspace.dashboardWidgets.filter(
+        (widget) => !widget.hidden,
+      ).length,
+      hiddenWidgetCount: workspace.dashboardWidgets.filter(
+        (widget) => widget.hidden,
+      ).length,
     },
     overviewStats: getOverviewStats(workspace),
     recommendations,

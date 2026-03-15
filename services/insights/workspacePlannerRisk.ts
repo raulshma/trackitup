@@ -1,9 +1,12 @@
-import type { ReminderHistoryAction, WorkspaceSnapshot } from "../../types/trackitup.ts";
+import type {
+    ReminderHistoryAction,
+    WorkspaceSnapshot,
+} from "../../types/trackitup.ts";
 
 import {
-  getReminderDateKey,
-  getReminderScheduleTimestamp,
-  isReminderOpen,
+    getReminderDateKey,
+    getReminderScheduleTimestamp,
+    isReminderOpen,
 } from "./workspaceInsights.ts";
 
 export type WorkspacePlannerRiskRoute = "planner" | "action-center" | "logbook";
@@ -91,7 +94,9 @@ export function buildWorkspacePlannerRiskSummary(
   activeDateKey: string,
 ): WorkspacePlannerRiskSummary {
   const now = workspace.generatedAt;
-  const spacesById = new Map(workspace.spaces.map((space) => [space.id, space] as const));
+  const spacesById = new Map(
+    workspace.spaces.map((space) => [space.id, space] as const),
+  );
   const openReminders = [...workspace.reminders]
     .filter(isReminderOpen)
     .sort((left, right) =>
@@ -103,8 +108,12 @@ export function buildWorkspacePlannerRiskSummary(
   const highestRiskReminders = openReminders
     .map((reminder) => {
       const history = reminder.history ?? [];
-      const snoozeCount = history.filter((item) => item.action === "snoozed").length;
-      const skipCount = history.filter((item) => item.action === "skipped").length;
+      const snoozeCount = history.filter(
+        (item) => item.action === "snoozed",
+      ).length;
+      const skipCount = history.filter(
+        (item) => item.action === "skipped",
+      ).length;
       const latestHistoryAction = getLatestHistoryAction(history);
       const dueAt = getReminderScheduleTimestamp(reminder);
       const isSelectedDay = getReminderDateKey(reminder) === activeDateKey;
@@ -119,7 +128,10 @@ export function buildWorkspacePlannerRiskSummary(
         riskReasons.push("Falls on the currently selected planner day.");
         riskScore += 2;
       }
-      if (latestHistoryAction === "snoozed" || latestHistoryAction === "skipped") {
+      if (
+        latestHistoryAction === "snoozed" ||
+        latestHistoryAction === "skipped"
+      ) {
         riskReasons.push("It was recently deferred instead of being cleared.");
         riskScore += 2;
       }
@@ -148,7 +160,9 @@ export function buildWorkspacePlannerRiskSummary(
         riskReasons,
         riskScore,
         route:
-          dueAt <= now || latestHistoryAction === "snoozed" || latestHistoryAction === "skipped"
+          dueAt <= now ||
+          latestHistoryAction === "snoozed" ||
+          latestHistoryAction === "skipped"
             ? ("action-center" as const)
             : isSelectedDay
               ? ("logbook" as const)
@@ -157,7 +171,8 @@ export function buildWorkspacePlannerRiskSummary(
     })
     .filter((item) => item.riskReasons.length > 0)
     .sort((left, right) => {
-      if (right.riskScore !== left.riskScore) return right.riskScore - left.riskScore;
+      if (right.riskScore !== left.riskScore)
+        return right.riskScore - left.riskScore;
       return left.dueAt.localeCompare(right.dueAt);
     })
     .slice(0, 5)
@@ -188,11 +203,17 @@ export function buildWorkspacePlannerRiskSummary(
     .slice(0, 5);
 
   const spaceHotspots = Array.from(
-    openReminders.reduce<Map<string, typeof openReminders>>((current, reminder) => {
-      const reminderSpaceId = primarySpaceId(reminder) ?? "";
-      current.set(reminderSpaceId, [...(current.get(reminderSpaceId) ?? []), reminder]);
-      return current;
-    }, new Map()),
+    openReminders.reduce<Map<string, typeof openReminders>>(
+      (current, reminder) => {
+        const reminderSpaceId = primarySpaceId(reminder) ?? "";
+        current.set(reminderSpaceId, [
+          ...(current.get(reminderSpaceId) ?? []),
+          reminder,
+        ]);
+        return current;
+      },
+      new Map(),
+    ),
   )
     .map<WorkspacePlannerRiskSpaceHotspot>(([spaceId, reminders]) => {
       const overdueCount = reminders.filter(
@@ -224,7 +245,9 @@ export function buildWorkspacePlannerRiskSummary(
         nextDueAt: sortedReminders[0]
           ? getReminderScheduleTimestamp(sortedReminders[0])
           : undefined,
-        reminderTitles: sortedReminders.slice(0, 4).map((reminder) => reminder.title),
+        reminderTitles: sortedReminders
+          .slice(0, 4)
+          .map((reminder) => reminder.title),
         route:
           overdueCount > 0 || deferredCount > 0
             ? ("action-center" as const)

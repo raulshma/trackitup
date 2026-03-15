@@ -89,18 +89,28 @@ export function buildWorkspaceInventoryLifecycleSummary(
   const now = workspace.generatedAt;
   const recentLogThreshold = addDays(now, -RECENT_ASSET_LOG_DAYS);
   const upcomingWarrantyThreshold = addDays(now, UPCOMING_WARRANTY_DAYS);
-  const spacesById = new Map(workspace.spaces.map((space) => [space.id, space] as const));
+  const spacesById = new Map(
+    workspace.spaces.map((space) => [space.id, space] as const),
+  );
   const visualHistory = buildWorkspaceVisualHistory(workspace);
   const assetGalleryById = new Map(
-    visualHistory.assetGalleries.map((gallery) => [gallery.id, gallery] as const),
+    visualHistory.assetGalleries.map(
+      (gallery) => [gallery.id, gallery] as const,
+    ),
   );
   const expenseTotals = new Map(
-    workspace.assets.map((asset) => [
-      asset.id,
-      workspace.expenses
-        .filter((expense) => expense.assetId === asset.id)
-        .reduce((total, expense) => total + expense.amount, asset.purchasePrice ?? 0),
-    ] as const),
+    workspace.assets.map(
+      (asset) =>
+        [
+          asset.id,
+          workspace.expenses
+            .filter((expense) => expense.assetId === asset.id)
+            .reduce(
+              (total, expense) => total + expense.amount,
+              asset.purchasePrice ?? 0,
+            ),
+        ] as const,
+    ),
   );
   const highOwnershipAssetIds = new Set(
     [...expenseTotals.entries()]
@@ -122,7 +132,8 @@ export function buildWorkspaceInventoryLifecycleSummary(
       const photoCount = gallery?.photoCount ?? 0;
       const proofCount = gallery?.proofCount ?? 0;
       const hasWarrantyRisk = Boolean(
-        asset.warrantyExpiresAt && asset.warrantyExpiresAt <= upcomingWarrantyThreshold,
+        asset.warrantyExpiresAt &&
+        asset.warrantyExpiresAt <= upcomingWarrantyThreshold,
       );
       const reasons: string[] = [];
       let score = 0;
@@ -135,25 +146,33 @@ export function buildWorkspaceInventoryLifecycleSummary(
         reasons.push("Its warranty coverage has already expired.");
         score += 3;
       } else if (hasWarrantyRisk) {
-        reasons.push(`Its warranty coverage expires within ${UPCOMING_WARRANTY_DAYS} days.`);
+        reasons.push(
+          `Its warranty coverage expires within ${UPCOMING_WARRANTY_DAYS} days.`,
+        );
         score += 2;
       }
       if (relatedLogs.length === 0) {
         reasons.push("No linked asset logs have been recorded yet.");
         score += 2;
       } else if (recentLogCount === 0) {
-        reasons.push(`No linked asset log was recorded in the last ${RECENT_ASSET_LOG_DAYS} days.`);
+        reasons.push(
+          `No linked asset log was recorded in the last ${RECENT_ASSET_LOG_DAYS} days.`,
+        );
         score += 1;
       }
       if (photoCount === 0) {
         reasons.push("No photo history is attached to this asset yet.");
         score += 1;
       } else if (proofCount === 0) {
-        reasons.push("The asset has photos, but none are flagged as proof evidence.");
+        reasons.push(
+          "The asset has photos, but none are flagged as proof evidence.",
+        );
         score += 1;
       }
       if (highOwnershipAssetIds.has(asset.id)) {
-        reasons.push("Its ownership cost is among the highest tracked asset totals.");
+        reasons.push(
+          "Its ownership cost is among the highest tracked asset totals.",
+        );
         score += 1;
       }
 
@@ -191,7 +210,9 @@ export function buildWorkspaceInventoryLifecycleSummary(
     .map(({ score: _score, ...asset }) => asset);
 
   const recommendations = getWorkspaceRecommendations(workspace, 8)
-    .filter((item) => item.type === "warranty-expiring" || Boolean(item.assetId))
+    .filter(
+      (item) => item.type === "warranty-expiring" || Boolean(item.assetId),
+    )
     .map<WorkspaceInventoryLifecycleRecommendation>((item) => ({
       id: item.id,
       title: item.title,
@@ -209,7 +230,8 @@ export function buildWorkspaceInventoryLifecycleSummary(
       assetCount: workspace.assets.length,
       warrantyRiskCount: workspace.assets.filter(
         (asset) =>
-          asset.warrantyExpiresAt && asset.warrantyExpiresAt <= upcomingWarrantyThreshold,
+          asset.warrantyExpiresAt &&
+          asset.warrantyExpiresAt <= upcomingWarrantyThreshold,
       ).length,
       maintenanceCount: workspace.assets.filter(
         (asset) => asset.status === "maintenance",

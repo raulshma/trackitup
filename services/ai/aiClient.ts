@@ -2,14 +2,14 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { generateText, streamText, type FinishReason } from "ai";
 
 import {
-    isAiKeyStorageAvailable,
-    loadStoredOpenRouterApiKey,
+  isAiKeyStorageAvailable,
+  loadStoredOpenRouterApiKey,
 } from "./aiKeyStorage.ts";
 import { normalizeOpenRouterTextModel } from "./aiPreferences.ts";
 
 export {
-    DEFAULT_OPENROUTER_TEXT_MODEL,
-    normalizeOpenRouterTextModel
+  DEFAULT_OPENROUTER_TEXT_MODEL,
+  normalizeOpenRouterTextModel
 } from "./aiPreferences.ts";
 export const DEFAULT_AI_MAX_OUTPUT_TOKENS = 700;
 export const DEFAULT_AI_TIMEOUT_MS = 30_000;

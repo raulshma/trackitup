@@ -285,8 +285,12 @@ export type ActionCenterExplainerPromptContext = {
     overdueCount: number;
     dueTodayCount: number;
     upcomingCount: number;
+    recurringOverdueCount: number;
+    recurringDueTodayCount: number;
+    recurringUpcomingCount: number;
     recentActivityCount: number;
     nextBestStepCount: number;
+    recurringNextBestStepCount: number;
   };
   nextBestSteps: Array<{
     reminderId: string;
@@ -313,6 +317,15 @@ export type ActionCenterExplainerPromptContext = {
     dueTodayCount: number;
     nextDueAt?: string;
     reminderTitles: string[];
+  }>;
+  recurringNextBestSteps: Array<{
+    occurrenceId: string;
+    planId: string;
+    title: string;
+    dueAt: string;
+    spaceName: string;
+    suggestedAction: string;
+    reason: string;
   }>;
   recentActivity: Array<{
     reminderTitle: string;
@@ -1703,8 +1716,13 @@ export function buildActionCenterExplainerPrompt(options: {
       overdueCount: actionCenter.summary.overdueCount,
       dueTodayCount: actionCenter.summary.dueTodayCount,
       upcomingCount: actionCenter.summary.upcomingCount,
+      recurringOverdueCount: actionCenter.summary.recurringOverdueCount,
+      recurringDueTodayCount: actionCenter.summary.recurringDueTodayCount,
+      recurringUpcomingCount: actionCenter.summary.recurringUpcomingCount,
       recentActivityCount: actionCenter.summary.recentActivityCount,
       nextBestStepCount: actionCenter.summary.nextBestStepCount,
+      recurringNextBestStepCount:
+        actionCenter.summary.recurringNextBestStepCount,
     },
     nextBestSteps: actionCenter.nextBestSteps
       .slice(0, MAX_ACTION_CENTER_NEXT_STEPS)
@@ -1739,6 +1757,17 @@ export function buildActionCenterExplainerPrompt(options: {
           .slice(0, 4)
           .map((title) => compactText(title, 90)),
       })),
+    recurringNextBestSteps: actionCenter.recurringNextBestSteps
+      .slice(0, MAX_ACTION_CENTER_NEXT_STEPS)
+      .map((item) => ({
+        occurrenceId: item.occurrenceId,
+        planId: item.planId,
+        title: compactText(item.title, 90),
+        dueAt: item.dueAt,
+        spaceName: compactText(item.spaceName, 60),
+        suggestedAction: item.suggestedAction,
+        reason: compactText(item.reason, 120),
+      })),
     recentActivity: actionCenter.recentActivity
       .slice(0, MAX_ACTION_CENTER_RECENT_ACTIVITY)
       .map((item) => ({
@@ -1754,13 +1783,13 @@ export function buildActionCenterExplainerPrompt(options: {
 
   return {
     system:
-      "You are a TrackItUp action-center explainer. Prioritize immediate, executable reminder moves using only the provided queue pressure, grouped workload, reminder behavior signals, recent activity, and recommendation context.",
+      "You are a TrackItUp action-center explainer. Prioritize immediate, executable reminder and recurring-queue moves using only the provided queue pressure, grouped workload, reminder behavior signals, recurring signals, recent activity, and recommendation context.",
     consentLabel: aiActionCenterExplainerCopy.consentLabel,
     prompt: buildPromptBody(
       [
         `User request: ${context.userRequest}`,
         "Explain what matters most in the current action center, highlight grouped workload pressure, and recommend a short review-only next-step sequence ordered by actionability.",
-        "Prefer suggestions that map directly to TrackItUp-native actions (complete-now, log-proof, snooze, open-planner, review-later) and account for recent deferrals or completion patterns when provided.",
+        "Prefer suggestions that map directly to TrackItUp-native actions (complete-now, log-proof, snooze, open-planner, create-log, create-recurring-plan, complete-recurring-now, review-later) and account for recent deferrals or completion patterns when provided.",
         "Do not invent reminders, completion state changes, automation, or evidence that is not present in the provided context.",
       ],
       context,

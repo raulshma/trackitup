@@ -1,14 +1,15 @@
 import type {
-  AiActionCenterExplainerActionKind,
-  AiActionCenterExplainerDraft,
+    AiActionCenterExplainerActionKind,
+    AiActionCenterExplainerDraft,
 } from "@/services/ai/aiActionCenterExplainer";
 import type {
-  AiActionPlan,
-  AiActionPlanExecutionState,
-  AiActionPlanStep,
-  AiTranscriptRecord,
-  Reminder,
-  WorkspaceSnapshot,
+    AiActionPlan,
+    AiActionPlanExecutionState,
+    AiActionPlanStep,
+    AiTranscriptRecord,
+    RecurringOccurrence,
+    Reminder,
+    WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 type BuildAiActionPlanFromActionCenterDraftOptions = {
@@ -27,7 +28,10 @@ type BuildAiActionPlanFromActionCenterDraftOptions = {
 type ExecuteAiActionPlanBindings = {
   completeReminder: (reminderId: string) => void;
   snoozeReminder: (reminderId: string) => void;
+  completeRecurringOccurrence: (occurrenceId: string) => void;
   openPlanner: () => void;
+  openQuickLog: () => void;
+  openRecurringPlanEditor: () => void;
   openReminderLogbook: (
     reminderId: string,
     spaceId: string,
@@ -54,6 +58,13 @@ function buildStepActionClass(action: AiActionCenterExplainerActionKind) {
   if (action === "snooze") return "snooze-reminder" as const;
   if (action === "log-proof") return "log-reminder-proof" as const;
   if (action === "open-planner") return "navigate-planner" as const;
+  if (
+    action === "create-log" ||
+    action === "create-recurring-plan" ||
+    action === "complete-recurring-now"
+  ) {
+    return "custom" as const;
+  }
   return "review-later" as const;
 }
 
@@ -62,12 +73,21 @@ function buildStepExecutionNote(action: AiActionCenterExplainerActionKind) {
   if (action === "snooze") return "Reminder snoozed.";
   if (action === "log-proof") return "Opened logbook proof capture.";
   if (action === "open-planner") return "Opened planner route.";
+  if (action === "create-log") return "Opened quick log flow.";
+  if (action === "create-recurring-plan") {
+    return "Opened recurring plan creation flow.";
+  }
+  if (action === "complete-recurring-now") {
+    return "Current recurring occurrence marked complete.";
+  }
   return "Marked for later review.";
 }
 
 function defaultStepRiskLevel(action: AiActionCenterExplainerActionKind) {
   if (action === "review-later") return "safe" as const;
   if (action === "open-planner") return "safe" as const;
+  if (action === "create-log") return "safe" as const;
+  if (action === "create-recurring-plan") return "safe" as const;
   return "elevated" as const;
 }
 
@@ -105,6 +125,49 @@ function formatIntentSummary(
     .join(" • ");
 }
 
+function findReminderById(
+  reminders: Reminder[],
+  reminderId: string | undefined,
+): Reminder | undefined {
+  if (!reminderId) return undefined;
+  return reminders.find((reminder) => reminder.id === reminderId);
+}
+
+function findRecurringOccurrenceById(
+  occurrences: RecurringOccurrence[],
+  occurrenceId: string | undefined,
+): RecurringOccurrence | undefined {
+  if (!occurrenceId) return undefined;
+  return occurrences.find((occurrence) => occurrence.id === occurrenceId);
+}
+
+function parseStepActionKind(
+  step: AiActionPlanStep,
+): AiActionCenterExplainerActionKind {
+  const rawNote = step.executionNote ?? "";
+  if (rawNote.startsWith("kind:")) {
+    const kind = rawNote.slice("kind:".length);
+    if (
+      kind === "complete-now" ||
+      kind === "log-proof" ||
+      kind === "snooze" ||
+      kind === "open-planner" ||
+      kind === "create-log" ||
+      kind === "create-recurring-plan" ||
+      kind === "complete-recurring-now" ||
+      kind === "review-later"
+    ) {
+      return kind;
+    }
+  }
+
+  if (step.actionClass === "complete-reminder") return "complete-now";
+  if (step.actionClass === "snooze-reminder") return "snooze";
+  if (step.actionClass === "log-reminder-proof") return "log-proof";
+  if (step.actionClass === "navigate-planner") return "open-planner";
+  return "review-later";
+}
+
 export function buildAiActionPlanFromActionCenterDraft(
   options: BuildAiActionPlanFromActionCenterDraftOptions,
 ): AiActionPlan {
@@ -130,7 +193,9 @@ export function buildAiActionPlanFromActionCenterDraft(
   };
 
   const steps = options.draft.suggestedActions.map((action, index) => {
-    const reminder = remindersById.get(action.reminderId);
+    const reminder = action.reminderId
+      ? remindersById.get(action.reminderId)
+      : undefined;
 
     return {
       id: `ai-plan-step-${Date.now()}-${index}`,
@@ -140,9 +205,10 @@ export function buildAiActionPlanFromActionCenterDraft(
       actionClass: buildStepActionClass(action.action),
       riskLevel: defaultStepRiskLevel(action.action),
       approved: true,
-      targetId: action.reminderId,
+      targetId: action.recurringOccurrenceId ?? action.reminderId,
       targetLabel: reminder?.title ?? action.title,
       executionState: "pending",
+      executionNote: `kind:${action.action}`,
     } satisfies AiActionPlanStep;
   });
 
@@ -176,14 +242,6 @@ export function setAiActionPlanStepApproved(
   };
 }
 
-function findReminderById(
-  reminders: Reminder[],
-  reminderId: string | undefined,
-): Reminder | undefined {
-  if (!reminderId) return undefined;
-  return reminders.find((reminder) => reminder.id === reminderId);
-}
-
 export function executeAiActionPlan(
   plan: AiActionPlan,
   workspace: WorkspaceSnapshot,
@@ -203,16 +261,21 @@ export function executeAiActionPlan(
       });
     }
 
+    const action = parseStepActionKind(step);
     const reminder = findReminderById(workspace.reminders, step.targetId);
+    const recurringOccurrence = findRecurringOccurrenceById(
+      workspace.recurringOccurrences,
+      step.targetId,
+    );
 
     try {
-      if (step.actionClass === "complete-reminder") {
+      if (action === "complete-now") {
         if (!reminder) throw new Error("Reminder target no longer exists.");
         bindings.completeReminder(reminder.id);
-      } else if (step.actionClass === "snooze-reminder") {
+      } else if (action === "snooze") {
         if (!reminder) throw new Error("Reminder target no longer exists.");
         bindings.snoozeReminder(reminder.id);
-      } else if (step.actionClass === "log-reminder-proof") {
+      } else if (action === "log-proof") {
         if (!reminder) throw new Error("Reminder target no longer exists.");
         const spaceIds = normalizeSpaceIds(reminder);
         bindings.openReminderLogbook(
@@ -220,24 +283,23 @@ export function executeAiActionPlan(
           spaceIds[0] ?? reminder.spaceId,
           spaceIds,
         );
-      } else if (step.actionClass === "navigate-planner") {
+      } else if (action === "open-planner") {
         bindings.openPlanner();
+      } else if (action === "create-log") {
+        bindings.openQuickLog();
+      } else if (action === "create-recurring-plan") {
+        bindings.openRecurringPlanEditor();
+      } else if (action === "complete-recurring-now") {
+        if (!recurringOccurrence) {
+          throw new Error("Recurring occurrence target no longer exists.");
+        }
+        bindings.completeRecurringOccurrence(recurringOccurrence.id);
       }
 
       executedCount += 1;
       return updatePlanStep(step, {
         executionState: "completed",
-        executionNote: buildStepExecutionNote(
-          step.actionClass === "complete-reminder"
-            ? "complete-now"
-            : step.actionClass === "snooze-reminder"
-              ? "snooze"
-              : step.actionClass === "log-reminder-proof"
-                ? "log-proof"
-                : step.actionClass === "navigate-planner"
-                  ? "open-planner"
-                  : "review-later",
-        ),
+        executionNote: buildStepExecutionNote(action),
         executedAt: executionAt,
       });
     } catch (error) {
