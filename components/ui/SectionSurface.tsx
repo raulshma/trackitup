@@ -3,8 +3,10 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { Surface, useTheme, type MD3Theme } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
+import { withAlpha } from "@/constants/Colors";
 import type { AppPalette } from "@/constants/AppTheme";
 import {
+    getShadowStyle,
     uiBorder,
     uiRadius,
     uiSpace,
@@ -39,56 +41,73 @@ export function SectionSurface({
 
   return (
     <MotionView delay={motionDelay}>
-      <Surface
+      <View
         style={[
-          styles.card,
-          {
-            backgroundColor: surfaceColor,
-            borderColor: theme.colors.outlineVariant,
-          },
+          styles.shadowWrapper,
+          elevation > 0
+            ? getShadowStyle(palette.shadow, {
+                shadowOpacity: 0.06,
+                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 6 },
+              })
+            : undefined,
           style,
         ]}
-        elevation={elevation}
       >
-        {label || title ? (
-          <View style={styles.header}>
-            {label ? (
-              <View
-                style={[
-                  styles.labelBadge,
-                  {
-                    backgroundColor: palette.accentSoft,
-                    borderColor: theme.colors.outlineVariant,
-                  },
-                ]}
-              >
-                <Text style={[styles.label, { color: theme.colors.primary }]}>
-                  {label}
+        <Surface
+          style={[
+            styles.card,
+            {
+              backgroundColor: surfaceColor,
+              borderColor: withAlpha(theme.colors.outlineVariant, 0.4),
+            },
+          ]}
+          elevation={0}
+        >
+          {label || title ? (
+            <View style={styles.header}>
+              {label ? (
+                <View
+                  style={[
+                    styles.labelBadge,
+                    {
+                      backgroundColor: withAlpha(palette.accentSoft, 0.7),
+                      borderColor: withAlpha(theme.colors.outlineVariant, 0.3),
+                    },
+                  ]}
+                >
+                  <Text style={[styles.label, { color: theme.colors.primary }]}>
+                    {label}
+                  </Text>
+                </View>
+              ) : null}
+              {title ? (
+                <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+                  {title}
                 </Text>
-              </View>
-            ) : null}
-            {title ? (
-              <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-                {title}
-              </Text>
-            ) : null}
-          </View>
-        ) : null}
-        {children}
-      </Surface>
+              ) : null}
+            </View>
+          ) : null}
+          {children}
+        </Surface>
+      </View>
     </MotionView>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderWidth: uiBorder.standard,
-    borderRadius: uiRadius.panel,
-    padding: uiSpace.surface,
+  shadowWrapper: {
     marginBottom: uiSpace.xxl,
+    borderRadius: uiRadius.xl,
+  },
+  card: {
+    borderWidth: uiBorder.hairline,
+    borderRadius: uiRadius.xl,
+    padding: uiSpace.hero,
+    overflow: "hidden",
   },
   header: {
-    marginBottom: uiSpace.md,
+    marginBottom: uiSpace.lg,
   },
   labelBadge: {
     alignSelf: "flex-start",
@@ -99,10 +118,12 @@ const styles = StyleSheet.create({
     marginBottom: uiSpace.sm,
   },
   label: {
-    ...uiTypography.label,
+    ...uiTypography.microLabel,
     textTransform: "uppercase",
   },
   title: {
     ...uiTypography.titleLg,
+    fontWeight: "700",
+    letterSpacing: -0.2,
   },
 });

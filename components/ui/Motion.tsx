@@ -54,9 +54,10 @@ export function MotionView({
     progress.value = 0;
     progress.value = withDelay(
       delay,
-      withTiming(1, {
-        duration: uiMotion.slow,
-        easing: Easing.out(Easing.cubic),
+      withSpring(1, {
+        damping: 16,
+        stiffness: 150,
+        mass: 0.8,
       }),
     );
   }, [delay, progress, shouldSkipEnterAnimation]);
@@ -120,15 +121,16 @@ export function MotionPressable({
     return {
       transform: [
         {
-          translateY: withTiming(targetTranslateY, {
-            duration: uiMotion.quick,
-            easing: Easing.out(Easing.quad),
+          translateY: withSpring(targetTranslateY, {
+            damping: 14,
+            stiffness: 300,
+            mass: 0.5,
           }),
         },
         {
           scale: withSpring(targetScale, {
-            damping: 18,
-            stiffness: 260,
+            damping: 14,
+            stiffness: 300,
             mass: 0.5,
           }),
         },

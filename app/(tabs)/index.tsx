@@ -26,7 +26,7 @@ import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
-import Colors, { getChartSeriesColor } from "@/constants/Colors";
+import Colors, { getChartSeriesColor, withAlpha } from "@/constants/Colors";
 import {
     getShadowStyle,
     uiMotion,
@@ -345,19 +345,23 @@ export default function TabOneScreen() {
     workspace.templates.length,
   ]);
   const raisedCardShadow = useMemo(
-    () => getShadowStyle(theme.colors.shadow, uiShadow.raisedCard),
-    [theme.colors.shadow],
+    () => getShadowStyle(palette.shadow, {
+        shadowOpacity: 0.08,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 12 },
+    }),
+    [palette.shadow],
   );
 
   const baseCardSurfaceStyle = {
     backgroundColor: theme.colors.elevation.level1,
-    borderColor: theme.colors.outlineVariant,
+    borderColor: withAlpha(theme.colors.outlineVariant, 0.5),
     ...raisedCardShadow,
   };
 
   const nestedCardSurfaceStyle = {
     backgroundColor: theme.colors.elevation.level2,
-    borderColor: theme.colors.outlineVariant,
+    borderColor: withAlpha(theme.colors.outlineVariant, 0.4),
     ...raisedCardShadow,
   };
 
@@ -922,7 +926,8 @@ export default function TabOneScreen() {
                         : theme.colors.elevation.level1,
                       borderColor: isActive
                         ? theme.colors.primary
-                        : theme.colors.outlineVariant,
+                        : withAlpha(theme.colors.outlineVariant, 0.6),
+                      ...(isActive ? raisedCardShadow : {}),
                     },
                   ]}
                 >
@@ -1862,9 +1867,9 @@ const styles = StyleSheet.create({
     flexBasis: 148,
     minHeight: 116,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    padding: 16,
-    gap: 6,
+    borderRadius: uiRadius.xl,
+    padding: 18,
+    gap: 8,
   },
   sectionSwitchMotionWrap: {
     flexGrow: 1,
@@ -1915,10 +1920,10 @@ const styles = StyleSheet.create({
   },
   activeSectionCard: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 18,
-    padding: 14,
+    borderRadius: uiRadius.xl,
+    padding: 16,
     gap: 6,
-    marginTop: 14,
+    marginTop: uiSpace.surface,
   },
   activeSectionSummaryRow: {
     flexDirection: "row",
@@ -1937,8 +1942,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 100,
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 20,
+    borderRadius: uiRadius.xl,
     padding: 20,
+    paddingVertical: 24,
   },
   statEyebrow: {
     fontSize: 11,
@@ -1970,8 +1976,9 @@ const styles = StyleSheet.create({
   },
   spaceCard: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: uiRadius.xl,
+    padding: 22,
+    paddingBottom: 24,
   },
   spaceHeader: {
     flexDirection: "row",
@@ -2020,8 +2027,9 @@ const styles = StyleSheet.create({
   },
   focusCard: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 20,
+    borderRadius: uiRadius.xl,
     padding: 20,
+    paddingVertical: 22,
   },
   focusItem: {
     flexDirection: "row",

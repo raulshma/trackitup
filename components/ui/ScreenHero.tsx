@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
-import { Chip, Surface, useTheme, type MD3Theme } from "react-native-paper";
+import { Chip, useTheme, type MD3Theme } from "react-native-paper";
+import { BlurView } from "expo-blur";
 import Animated, {
     Easing,
     interpolate,
@@ -13,10 +14,12 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { Text } from "@/components/Themed";
+import { useColorScheme } from "@/components/useColorScheme";
+import { withAlpha } from "@/constants/Colors";
 import type { AppPalette } from "@/constants/AppTheme";
 import {
+    getShadowStyle,
     uiBorder,
-    uiElevation,
     uiMotion,
     uiRadius,
     uiSpace,
@@ -48,6 +51,7 @@ export function ScreenHero({
   children,
 }: ScreenHeroProps) {
   const theme = useTheme<MD3Theme>();
+  const colorScheme = useColorScheme();
   const reduceMotion = useReducedMotion();
   const ambientProgress = useSharedValue(0);
 
@@ -60,12 +64,12 @@ export function ScreenHero({
     ambientProgress.value = withRepeat(
       withSequence(
         withTiming(1, {
-          duration: 3200,
-          easing: Easing.inOut(Easing.quad),
+          duration: 4000,
+          easing: Easing.inOut(Easing.sin),
         }),
         withTiming(0, {
-          duration: 3200,
-          easing: Easing.inOut(Easing.quad),
+          duration: 4000,
+          easing: Easing.inOut(Easing.sin),
         }),
       ),
       -1,
@@ -74,136 +78,153 @@ export function ScreenHero({
   }, [ambientProgress, reduceMotion]);
 
   const primaryOrbStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(ambientProgress.value, [0, 1], [0.6, 0.82]),
+    opacity: interpolate(ambientProgress.value, [0, 1], [0.65, 0.9]),
     transform: [
-      {
-        translateX: interpolate(ambientProgress.value, [0, 1], [0, -10]),
-      },
-      {
-        translateY: interpolate(ambientProgress.value, [0, 1], [0, 10]),
-      },
-      {
-        scale: interpolate(ambientProgress.value, [0, 1], [1, 1.05]),
-      },
+      { translateX: interpolate(ambientProgress.value, [0, 1], [0, -15]) },
+      { translateY: interpolate(ambientProgress.value, [0, 1], [0, 15]) },
+      { scale: interpolate(ambientProgress.value, [0, 1], [1, 1.1]) },
     ],
   }));
 
   const secondaryOrbStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(ambientProgress.value, [0, 1], [0.42, 0.62]),
+    opacity: interpolate(ambientProgress.value, [0, 1], [0.45, 0.7]),
     transform: [
-      {
-        translateX: interpolate(ambientProgress.value, [0, 1], [0, 8]),
-      },
-      {
-        translateY: interpolate(ambientProgress.value, [0, 1], [0, -8]),
-      },
-      {
-        scale: interpolate(ambientProgress.value, [0, 1], [1, 1.08]),
-      },
+      { translateX: interpolate(ambientProgress.value, [0, 1], [0, 12]) },
+      { translateY: interpolate(ambientProgress.value, [0, 1], [0, -12]) },
+      { scale: interpolate(ambientProgress.value, [0, 1], [1, 1.15]) },
     ],
   }));
 
   return (
-    <MotionView delay={uiMotion.stagger} fromScale={0.975}>
-      <Surface
+    <MotionView delay={uiMotion.stagger} fromScale={0.96}>
+      <View
         style={[
-          styles.hero,
-          {
-            backgroundColor: palette.hero,
-            borderColor: palette.heroBorder,
-          },
+          styles.heroShadowWrapper,
+          getShadowStyle(palette.shadow, {
+            shadowOpacity: 0.12,
+            shadowRadius: 24,
+            shadowOffset: { width: 0, height: 10 },
+          }),
         ]}
-        elevation={uiElevation.hero}
       >
-        <View style={[styles.ambientLayer, { pointerEvents: "none" }]}>
-          <Animated.View
+        <View
+          style={[
+            styles.heroContainer,
+            { borderColor: withAlpha(palette.heroBorder, 0.5) },
+          ]}
+        >
+          <View style={[styles.ambientLayer, { backgroundColor: palette.hero }]}>
+            <Animated.View
+              style={[
+                styles.ambientOrb,
+                styles.ambientOrbPrimary,
+                { backgroundColor: theme.colors.primaryContainer },
+                primaryOrbStyle,
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.ambientOrb,
+                styles.ambientOrbSecondary,
+                { backgroundColor: theme.colors.tertiaryContainer },
+                secondaryOrbStyle,
+              ]}
+            />
+          </View>
+          
+          <BlurView
+            intensity={colorScheme === "dark" ? 30 : 50}
+            tint={colorScheme === "dark" ? "dark" : "light"}
+            style={StyleSheet.absoluteFillObject}
+          />
+          
+          <View
             style={[
-              styles.ambientOrb,
-              styles.ambientOrbPrimary,
-              { backgroundColor: theme.colors.primaryContainer },
-              primaryOrbStyle,
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: withAlpha(palette.hero, 0.35) },
             ]}
           />
-          <Animated.View
-            style={[
-              styles.ambientOrb,
-              styles.ambientOrbSecondary,
-              { backgroundColor: theme.colors.surface },
-              secondaryOrbStyle,
-            ]}
-          />
-        </View>
-        <View style={styles.content}>
-          {badges.length > 0 ? (
-            <View style={styles.badgeRow}>
-              {badges.map((badge) => (
-                <Chip
-                  key={badge.label}
-                  compact
-                  style={[
-                    styles.badge,
-                    {
-                      backgroundColor:
-                        badge.backgroundColor ?? theme.colors.surface,
-                      borderColor: theme.colors.outlineVariant,
-                    },
-                  ]}
-                  textStyle={[
-                    styles.badgeText,
-                    { color: badge.textColor ?? theme.colors.onSurface },
-                  ]}
-                >
-                  {badge.label}
-                </Chip>
-              ))}
-            </View>
-          ) : null}
-          {eyebrow ? (
-            <View
+
+          <View style={styles.content}>
+            {badges.length > 0 ? (
+              <View style={styles.badgeRow}>
+                {badges.map((badge) => (
+                  <Chip
+                    key={badge.label}
+                    compact
+                    style={[
+                      styles.badge,
+                      {
+                        backgroundColor: withAlpha(
+                          badge.backgroundColor ?? theme.colors.surface,
+                          0.7
+                        ),
+                        borderColor: withAlpha(theme.colors.outlineVariant, 0.5),
+                      },
+                    ]}
+                    textStyle={[
+                      styles.badgeText,
+                      { color: badge.textColor ?? theme.colors.onSurface },
+                    ]}
+                  >
+                    {badge.label}
+                  </Chip>
+                ))}
+              </View>
+            ) : null}
+            {eyebrow ? (
+              <View
+                style={[
+                  styles.eyebrowBadge,
+                  {
+                    backgroundColor: withAlpha(theme.colors.surface, 0.6),
+                    borderColor: withAlpha(palette.heroBorder, 0.4),
+                  },
+                ]}
+              >
+                <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>
+                  {eyebrow}
+                </Text>
+              </View>
+            ) : null}
+            <Text style={[styles.title, { color: theme.colors.onSurface }]}>
+              {title}
+            </Text>
+            <Text
               style={[
-                styles.eyebrowBadge,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: palette.heroBorder,
-                },
+                styles.subtitle,
+                { color: theme.colors.onSurfaceVariant },
               ]}
             >
-              <Text style={[styles.eyebrow, { color: theme.colors.primary }]}>
-                {eyebrow}
-              </Text>
-            </View>
-          ) : null}
-          <Text style={[styles.title, { color: theme.colors.onSurface }]}>
-            {title}
-          </Text>
-          <Text
-            style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}
-          >
-            {subtitle}
-          </Text>
-          {children ? (
-            <View
-              style={[
-                styles.childrenContainer,
-                { borderTopColor: palette.heroBorder },
-              ]}
-            >
-              {children}
-            </View>
-          ) : null}
+              {subtitle}
+            </Text>
+            {children ? (
+              <View
+                style={[
+                  styles.childrenContainer,
+                  { borderTopColor: withAlpha(palette.heroBorder, 0.4) },
+                ]}
+              >
+                {children}
+              </View>
+            ) : null}
+          </View>
         </View>
-      </Surface>
+      </View>
     </MotionView>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    borderWidth: uiBorder.standard,
-    borderRadius: uiRadius.hero,
-    padding: uiSpace.hero,
+  heroShadowWrapper: {
     marginBottom: uiSpace.surface,
+    borderRadius: uiRadius.hero,
+  },
+  heroContainer: {
+    borderWidth: uiBorder.hairline,
+    borderRadius: uiRadius.hero,
     overflow: "hidden",
+    position: "relative",
   },
   ambientLayer: {
     ...StyleSheet.absoluteFillObject,
@@ -211,23 +232,24 @@ const styles = StyleSheet.create({
   ambientOrb: {
     position: "absolute",
     borderRadius: uiRadius.pill,
-    opacity: 0.7,
+    opacity: 0.8,
   },
   ambientOrbPrimary: {
-    width: 156,
-    height: 156,
-    top: -56,
-    right: -20,
+    width: 200,
+    height: 200,
+    top: -80,
+    right: -40,
   },
   ambientOrbSecondary: {
-    width: 96,
-    height: 96,
-    top: 54,
-    right: 72,
-    opacity: 0.55,
+    width: 140,
+    height: 140,
+    bottom: -40,
+    left: -20,
+    opacity: 0.65,
   },
   content: {
     position: "relative",
+    padding: uiSpace.hero,
   },
   badgeRow: {
     flexDirection: "row",
@@ -254,8 +276,13 @@ const styles = StyleSheet.create({
   title: {
     ...uiTypography.heroTitle,
     marginBottom: uiSpace.sm,
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
-  subtitle: uiTypography.subtitle,
+  subtitle: {
+    ...uiTypography.subtitle,
+    lineHeight: 24,
+  },
   childrenContainer: {
     marginTop: uiSpace.surface,
     paddingTop: uiSpace.lg,
