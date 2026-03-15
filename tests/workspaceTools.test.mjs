@@ -508,12 +508,13 @@ test("dictation transcript helper appends speech cleanly", () => {
   );
 });
 
-test("browser dictation streams live transcript updates before returning final text", async () => {
+test("browser dictation streams live transcript updates without auto-stopping on final text", async () => {
   const originalDocument = globalThis.document;
   const originalSpeechRecognition = globalThis.SpeechRecognition;
   const originalWebkitSpeechRecognition = globalThis.webkitSpeechRecognition;
   const transcriptUpdates = [];
   let observedInterimResults = null;
+  let observedContinuous = null;
   let stopCalled = false;
 
   function createRecognitionResult(transcript, isFinal = false) {
@@ -532,12 +533,14 @@ test("browser dictation streams live transcript updates before returning final t
 
     start() {
       observedInterimResults = this.interimResults;
+      observedContinuous = this.continuous;
       this.onresult?.({
         results: [createRecognitionResult("reef maintenance", false)],
       });
       this.onresult?.({
         results: [createRecognitionResult("reef maintenance note", true)],
       });
+      this.onend?.();
     }
 
     stop() {
@@ -558,13 +561,85 @@ test("browser dictation streams live transcript updates before returning final t
     });
 
     assert.equal(observedInterimResults, true);
-    assert.equal(stopCalled, true);
+    assert.equal(observedContinuous, true);
+    assert.equal(stopCalled, false);
     assert.deepEqual(transcriptUpdates, [
       "reef maintenance",
       "reef maintenance note",
     ]);
     assert.equal(result.mode, "speech-recognition");
     assert.equal(result.transcript, "reef maintenance note");
+  } finally {
+    if (originalDocument === undefined) {
+      Reflect.deleteProperty(globalThis, "document");
+    } else {
+      globalThis.document = originalDocument;
+    }
+
+    if (originalSpeechRecognition === undefined) {
+      Reflect.deleteProperty(globalThis, "SpeechRecognition");
+    } else {
+      globalThis.SpeechRecognition = originalSpeechRecognition;
+    }
+
+    if (originalWebkitSpeechRecognition === undefined) {
+      Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
+    } else {
+      globalThis.webkitSpeechRecognition = originalWebkitSpeechRecognition;
+    }
+  }
+});
+
+test("browser dictation supports explicit stop requests via abort signal", async () => {
+  const originalDocument = globalThis.document;
+  const originalSpeechRecognition = globalThis.SpeechRecognition;
+  const originalWebkitSpeechRecognition = globalThis.webkitSpeechRecognition;
+  let stopCalled = false;
+
+  function createRecognitionResult(transcript, isFinal = false) {
+    const alternatives = [{ transcript }];
+    alternatives.isFinal = isFinal;
+    return alternatives;
+  }
+
+  class MockSpeechRecognition {
+    continuous = false;
+    interimResults = false;
+    lang = undefined;
+    onend = null;
+    onerror = null;
+    onresult = null;
+
+    start() {
+      this.onresult?.({
+        results: [
+          createRecognitionResult("reef maintenance in progress", false),
+        ],
+      });
+    }
+
+    stop() {
+      stopCalled = true;
+      this.onend?.();
+    }
+  }
+
+  globalThis.document = {};
+  globalThis.SpeechRecognition = MockSpeechRecognition;
+  Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
+
+  try {
+    const abortController = new AbortController();
+    const resultPromise = captureDictationAsync({
+      signal: abortController.signal,
+    });
+
+    abortController.abort();
+
+    const result = await resultPromise;
+    assert.equal(stopCalled, true);
+    assert.equal(result.mode, "speech-recognition");
+    assert.equal(result.transcript, "reef maintenance in progress");
   } finally {
     if (originalDocument === undefined) {
       Reflect.deleteProperty(globalThis, "document");

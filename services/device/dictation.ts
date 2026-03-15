@@ -23,6 +23,7 @@ export type DictationCaptureResult = {
 
 type CaptureDictationOptions = {
   onTranscript?: (transcript: string) => void;
+  signal?: AbortSignal;
 };
 
 function getRuntimePlatform() {
@@ -59,10 +60,27 @@ function captureBrowserTranscript(
 ) {
   return new Promise<string>((resolve, reject) => {
     const recognition = new Ctor();
-    let resolved = false;
+    let settled = false;
     let latestTranscript = "";
+    const stopOnAbort = () => {
+      recognition.stop();
+    };
 
-    recognition.continuous = false;
+    function finish(transcript: string) {
+      if (settled) return;
+      settled = true;
+      options?.signal?.removeEventListener("abort", stopOnAbort);
+      resolve(transcript);
+    }
+
+    function fail(error: Error) {
+      if (settled) return;
+      settled = true;
+      options?.signal?.removeEventListener("abort", stopOnAbort);
+      reject(error);
+    }
+
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = "en-US";
 
@@ -77,33 +95,28 @@ function captureBrowserTranscript(
       if (transcript) {
         options?.onTranscript?.(transcript);
       }
-
-      const hasFinalResult = Array.from(event.results).some(
-        (result) => result.isFinal,
-      );
-
-      if (!hasFinalResult) {
-        return;
-      }
-
-      resolved = true;
-      recognition.stop();
-      resolve(transcript);
     };
 
     recognition.onerror = (event) => {
-      resolved = true;
-      reject(new Error(event.error ?? "Speech recognition failed."));
+      if (options?.signal?.aborted) {
+        finish(latestTranscript.trim());
+        return;
+      }
+
+      fail(new Error(event.error ?? "Speech recognition failed."));
     };
 
     recognition.onend = () => {
-      if (!resolved) {
-        resolved = true;
-        resolve(latestTranscript.trim());
-      }
+      finish(latestTranscript.trim());
     };
 
+    options?.signal?.addEventListener("abort", stopOnAbort);
+
     recognition.start();
+
+    if (options?.signal?.aborted) {
+      stopOnAbort();
+    }
   });
 }
 

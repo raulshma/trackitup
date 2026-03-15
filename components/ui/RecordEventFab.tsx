@@ -120,7 +120,7 @@ export function RecordEventFab() {
           label: "Set up voice control",
           accessibilityLabel: "Create a space to enable live dictation",
           tone: "default",
-          onPress: handleCreateSpace,
+          onPress: handleLiveDictation,
         },
       ];
 

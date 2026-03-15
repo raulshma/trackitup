@@ -59,7 +59,17 @@ test("live dictation route uses dedicated modal and FAB menu launcher", () => {
   assert.match(fabSource, /actions\.map\(\(action\) =>/);
   assert.match(fabSource, /setIsOpen\(\(current\) => !current\)/);
   assert.match(fabSource, /router\.push\("\/live-dictation-action"\)/);
+  assert.match(
+    fabSource,
+    /label:\s*"Set up voice control"[\s\S]*onPress:\s*handleLiveDictation/,
+  );
   assert.match(fabSource, /label:\s*"Create space"/);
   assert.match(liveDictationRoute, /Send \+ generate plan/);
   assert.match(liveDictationRoute, /dictatedRequest/);
+  assert.match(liveDictationRoute, /<ScrollView/);
+  assert.match(
+    liveDictationRoute,
+    /contentContainerStyle=\{styles\.screenContent\}/,
+  );
+  assert.match(liveDictationRoute, /Stop listening/);
 });

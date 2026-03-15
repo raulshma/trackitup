@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useMemo, useRef, useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 import {
     Button,
     Chip,
@@ -33,6 +33,7 @@ export default function LiveDictationActionScreen() {
   const palette = Colors[colorScheme];
   const theme = useTheme<MD3Theme>();
   const transcriptRef = useRef("");
+  const dictationAbortControllerRef = useRef<AbortController | null>(null);
 
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -53,11 +54,14 @@ export default function LiveDictationActionScreen() {
   async function handleStartListening() {
     if (isListening) return;
 
+    const abortController = new AbortController();
+    dictationAbortControllerRef.current = abortController;
     setIsListening(true);
-    setStatusMessage(null);
+    setStatusMessage("Listening now. Tap Stop listening when you’re done.");
 
     try {
       const result = await captureDictationAsync({
+        signal: abortController.signal,
         onTranscript: (nextTranscript) => {
           transcriptRef.current = nextTranscript;
           setTranscript(nextTranscript);
@@ -79,8 +83,16 @@ export default function LiveDictationActionScreen() {
         "Live speech capture was unavailable. Try device keyboard dictation, then paste here to continue.",
       );
     } finally {
+      dictationAbortControllerRef.current = null;
       setIsListening(false);
     }
+  }
+
+  function handleStopListening() {
+    if (!isListening) return;
+
+    setStatusMessage("Stopping live capture…");
+    dictationAbortControllerRef.current?.abort();
   }
 
   function handleClear() {
@@ -106,7 +118,10 @@ export default function LiveDictationActionScreen() {
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: palette.background }]}>
+    <ScrollView
+      style={[styles.screen, { backgroundColor: palette.background }]}
+      contentContainerStyle={styles.screenContent}
+    >
       <ScreenHero
         palette={palette}
         title="Live dictation"
@@ -178,13 +193,18 @@ export default function LiveDictationActionScreen() {
         ) : null}
 
         <View style={styles.actionsRow}>
-          <Button
-            mode="contained"
-            onPress={() => void handleStartListening()}
-            loading={isListening}
-          >
-            Start listening
-          </Button>
+          {isListening ? (
+            <Button mode="contained" onPress={handleStopListening}>
+              Stop listening
+            </Button>
+          ) : (
+            <Button
+              mode="contained"
+              onPress={() => void handleStartListening()}
+            >
+              Start listening
+            </Button>
+          )}
           <Button
             mode="outlined"
             onPress={handleClear}
@@ -222,13 +242,15 @@ export default function LiveDictationActionScreen() {
           </Button>
         </View>
       </SectionSurface>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  screenContent: {
     padding: uiSpace.screen,
     paddingBottom: uiSpace.screenBottom,
     gap: uiSpace.lg,
