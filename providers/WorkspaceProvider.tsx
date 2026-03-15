@@ -139,6 +139,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const backgroundedAtRef = useRef<number | null>(null);
   const syncEndpoint = process.env.EXPO_PUBLIC_TRACKITUP_SYNC_ENDPOINT;
+  const syncAllowedHosts = useMemo(
+    () =>
+      (process.env.EXPO_PUBLIC_TRACKITUP_SYNC_ALLOWED_HOSTS ?? "")
+        .split(/[\s,]+/)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    [],
+  );
   const {
     workspacePrivacyMode,
     setWorkspacePrivacyModePreference,
@@ -837,6 +845,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isSyncing,
     setIsSyncing,
     syncEndpoint,
+    syncAllowedHosts,
     workspace,
     setWorkspace,
   });

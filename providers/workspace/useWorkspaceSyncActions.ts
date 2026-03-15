@@ -24,6 +24,7 @@ type UseWorkspaceSyncActionsArgs = {
   isSyncing: boolean;
   setIsSyncing: (value: boolean) => void;
   syncEndpoint?: string;
+  syncAllowedHosts?: string[];
   workspace: WorkspaceSnapshot;
   setWorkspace: WorkspaceSetter;
 };
@@ -33,6 +34,7 @@ export function useWorkspaceSyncActions({
   isSyncing,
   setIsSyncing,
   setWorkspace,
+  syncAllowedHosts,
   syncEndpoint,
   workspace,
 }: UseWorkspaceSyncActionsArgs) {
@@ -59,16 +61,18 @@ export function useWorkspaceSyncActions({
       } satisfies SyncActionResult;
     }
 
-    if (!isTrustedSyncEndpoint(syncEndpoint)) {
+    if (
+      !isTrustedSyncEndpoint(syncEndpoint, { allowedHosts: syncAllowedHosts })
+    ) {
       return {
         status: "blocked",
         message:
-          "The sync endpoint must use HTTPS unless you are targeting localhost for development.",
+          "The sync endpoint must use HTTPS (or localhost for development) and match EXPO_PUBLIC_TRACKITUP_SYNC_ALLOWED_HOSTS.",
       } satisfies SyncActionResult;
     }
 
     return null;
-  }, [auth.isSignedIn, auth.userId, isSyncing, syncEndpoint]);
+  }, [auth.isSignedIn, auth.userId, isSyncing, syncAllowedHosts, syncEndpoint]);
 
   const getCloudSyncToken = useCallback(async () => {
     const token = await auth.getToken();

@@ -390,7 +390,10 @@ test("workspace sync helpers can resolve and pull a remote snapshot", async () =
     assert.equal(init?.headers["x-trackitup-user-id"], "user_123");
     return new Response(JSON.stringify({ snapshot: remoteSnapshot }), {
       status: 200,
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "x-trackitup-sync-version": "1",
+      },
     });
   };
 

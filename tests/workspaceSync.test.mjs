@@ -12,10 +12,28 @@ function createSnapshot(overrides = {}) {
   };
 }
 
-test("trusted sync endpoints require https unless using localhost", () => {
-  assert.equal(isTrustedSyncEndpoint("https://api.example.com/sync"), true);
+test("trusted sync endpoints require localhost or an explicit HTTPS host allowlist", () => {
+  assert.equal(isTrustedSyncEndpoint("https://api.example.com/sync"), false);
+  assert.equal(
+    isTrustedSyncEndpoint("https://api.example.com/sync", {
+      allowedHosts: ["api.example.com"],
+    }),
+    true,
+  );
+  assert.equal(
+    isTrustedSyncEndpoint("https://sub.api.example.com/sync", {
+      allowedHosts: ["*.api.example.com"],
+    }),
+    true,
+  );
   assert.equal(isTrustedSyncEndpoint("http://localhost:3000/sync"), true);
   assert.equal(isTrustedSyncEndpoint("http://127.0.0.1:3000/sync"), true);
+  assert.equal(
+    isTrustedSyncEndpoint("https://user:pass@example.com/sync", {
+      allowedHosts: ["example.com"],
+    }),
+    false,
+  );
   assert.equal(isTrustedSyncEndpoint("http://example.com/sync"), false);
   assert.equal(isTrustedSyncEndpoint("not-a-url"), false);
 });
@@ -102,6 +120,34 @@ test("pullWorkspaceSync includes version metadata and rejects incompatible respo
 
     assert.equal(result.status, "error");
     assert.match(result.message, /incompatible sync protocol version/i);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("pullWorkspaceSync rejects non-JSON responses", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = async () => {
+    return new Response("<html>not json</html>", {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "x-trackitup-sync-version": "1",
+      },
+    });
+  };
+
+  try {
+    const result = await pullWorkspaceSync({
+      endpoint: "https://example.com/api/trackitup-sync",
+      fallbackSnapshot: trackItUpWorkspace,
+      userId: "user_123",
+      getToken: async () => "token-123",
+    });
+
+    assert.equal(result.status, "error");
+    assert.match(result.message, /unexpected response format/i);
   } finally {
     globalThis.fetch = originalFetch;
   }

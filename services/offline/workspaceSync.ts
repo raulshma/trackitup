@@ -29,6 +29,10 @@ type PullOptions = {
   getToken: () => Promise<string | null>;
 };
 
+type TrustedSyncEndpointOptions = {
+  allowedHosts?: readonly string[];
+};
+
 export type PullSyncActionResult = SyncActionResult & {
   snapshot?: WorkspaceSnapshot;
   remoteGeneratedAt?: string;
@@ -71,12 +75,47 @@ function readProtocolVersion(payload: unknown) {
     : null;
 }
 
+function normalizeTrustedHost(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^\.+|\.+$/g, "");
+}
+
+function isTrustedHostAllowed(
+  hostname: string,
+  allowedHosts: readonly string[],
+) {
+  const normalizedHostname = normalizeTrustedHost(hostname);
+  if (!normalizedHostname) return false;
+
+  return allowedHosts.some((allowedHost) => {
+    const normalizedAllowedHost = normalizeTrustedHost(allowedHost);
+    if (!normalizedAllowedHost) return false;
+
+    if (normalizedAllowedHost.startsWith("*.")) {
+      const suffix = normalizedAllowedHost.slice(1);
+      return (
+        normalizedHostname.endsWith(suffix) &&
+        normalizedHostname.length > suffix.length
+      );
+    }
+
+    return normalizedHostname === normalizedAllowedHost;
+  });
+}
+
 function hasCompatibleProtocolVersion(response: Response, payload?: unknown) {
   const responseVersion =
     response.headers.get("x-trackitup-sync-version") ??
     readProtocolVersion(payload);
 
-  return !responseVersion || responseVersion === SYNC_PROTOCOL_VERSION;
+  return responseVersion === SYNC_PROTOCOL_VERSION;
+}
+
+function hasJsonContentType(response: Response) {
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  return contentType.includes("application/json");
 }
 
 function buildSyncHeaders(
@@ -139,14 +178,45 @@ async function fetchWithTimeoutAndRetry(
     : new Error("Workspace sync failed before receiving a response.");
 }
 
-export function isTrustedSyncEndpoint(endpoint: string) {
+export function isTrustedSyncEndpoint(
+  endpoint: string,
+  options?: TrustedSyncEndpointOptions,
+) {
   try {
     const url = new URL(endpoint);
+
+    if (url.username || url.password) {
+      return false;
+    }
+
     const isLocalHttp =
       url.protocol === "http:" &&
       ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
 
-    return url.protocol === "https:" || isLocalHttp;
+    if (isLocalHttp) {
+      return true;
+    }
+
+    const isLocalHttps =
+      url.protocol === "https:" &&
+      ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
+
+    if (isLocalHttps) {
+      return true;
+    }
+
+    if (url.protocol !== "https:") {
+      return false;
+    }
+
+    const allowedHosts = (options?.allowedHosts ?? []).filter(
+      (value) => value.trim().length > 0,
+    );
+    if (allowedHosts.length === 0) {
+      return false;
+    }
+
+    return isTrustedHostAllowed(url.hostname, allowedHosts);
   } catch {
     return false;
   }
@@ -327,6 +397,13 @@ export async function pullWorkspaceSync({
     return {
       status: "error",
       message: `Cloud restore request failed with status ${response.status}.`,
+    };
+  }
+
+  if (!hasJsonContentType(response)) {
+    return {
+      status: "error",
+      message: "Cloud restore returned an unexpected response format.",
     };
   }
 

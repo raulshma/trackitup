@@ -997,9 +997,9 @@ export default function AccountScreen() {
               Last error: {workspace.workspace.lastSyncError ?? "None"}
             </Text>
             <Text style={[styles.copy, paletteStyles.mutedText]}>
-              Configure EXPO_PUBLIC_TRACKITUP_SYNC_ENDPOINT to enable push,
-              pull, and force-restore cloud backups when Clerk auth is
-              available.
+              Configure EXPO_PUBLIC_TRACKITUP_SYNC_ENDPOINT and
+              EXPO_PUBLIC_TRACKITUP_SYNC_ALLOWED_HOSTS to enable push, pull, and
+              force-restore cloud backups when Clerk auth is available.
             </Text>
             <Button
               mode="contained"
