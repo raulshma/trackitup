@@ -1,7 +1,7 @@
 {
   "name": "trackitup",
   "main": "expo-router/entry",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "scripts": {
     "start": "bun expo start",
     "android": "bun expo run:android",

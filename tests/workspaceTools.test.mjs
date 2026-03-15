@@ -170,6 +170,11 @@ const {
   parseAiActionCenterExplainerDraft,
 } = await import("../services/ai/aiActionCenterExplainer.ts");
 const {
+  buildAiActionPlanFromActionCenterDraft,
+  executeAiActionPlan,
+  setAiActionPlanStepApproved,
+} = await import("../services/ai/aiActionPlan.ts");
+const {
   buildAiPlannerCopilotGenerationPrompt,
   buildAiPlannerCopilotReviewItems,
   parseAiPlannerCopilotDraft,
@@ -2306,6 +2311,74 @@ test("ai action center explainer parser extracts grounded queue guidance", () =>
     buildAiActionCenterExplainerGenerationPrompt("Base prompt"),
     /review-only explanation/i,
   );
+});
+
+test("ai action plan helpers build transparent steps and execute approved actions", () => {
+  const reminder = trackItUpWorkspace.reminders[0];
+  assert.ok(reminder);
+
+  const draft = {
+    headline: "Queue needs triage",
+    summary: "Handle the most urgent item first.",
+    groupedInsights: [],
+    recommendationTakeaways: [],
+    suggestedActions: [
+      {
+        reminderId: reminder.id,
+        title: reminder.title,
+        action: "complete-now",
+        reason: "Most urgent in the queue.",
+      },
+      {
+        reminderId: reminder.id,
+        title: reminder.title,
+        action: "open-planner",
+        reason: "Review broader planner pressure.",
+      },
+    ],
+  };
+
+  const plan = buildAiActionPlanFromActionCenterDraft({
+    draft,
+    request: "Handle my queue",
+    consentLabel: "Only compact reminder context was shared.",
+    modelId: "demo/model",
+    usage: { inputTokens: 100, outputTokens: 50 },
+    workspace: trackItUpWorkspace,
+  });
+
+  assert.equal(plan.surface, "action-center-explainer");
+  assert.equal(plan.steps.length, 2);
+  assert.equal(plan.steps[0].approved, true);
+  assert.match(plan.transcript.interpretedIntentSummary, /Queue needs triage/i);
+
+  const partiallyApprovedPlan = setAiActionPlanStepApproved(
+    plan,
+    plan.steps[1].id,
+    false,
+  );
+  assert.equal(partiallyApprovedPlan.steps[1].approved, false);
+  assert.equal(partiallyApprovedPlan.status, "partially-approved");
+
+  const completedReminderIds = [];
+  const openedRoutes = [];
+  const result = executeAiActionPlan(
+    partiallyApprovedPlan,
+    trackItUpWorkspace,
+    {
+      completeReminder: (id) => completedReminderIds.push(id),
+      snoozeReminder: () => {},
+      openPlanner: () => openedRoutes.push("planner"),
+      openReminderLogbook: () => openedRoutes.push("logbook"),
+    },
+  );
+
+  assert.equal(result.executedCount, 1);
+  assert.equal(result.skippedCount, 1);
+  assert.equal(result.failedCount, 0);
+  assert.deepEqual(completedReminderIds, [reminder.id]);
+  assert.deepEqual(openedRoutes, []);
+  assert.equal(result.updatedPlan.status, "executed");
 });
 
 test("ai workspace q&a parser extracts cited grounded answers", () => {

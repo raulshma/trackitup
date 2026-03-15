@@ -38,3 +38,12 @@ test("action center wires grounded tracking-quality brief flow", () => {
   assert.match(consentCopy, /export const aiTrackingQualityCopy = \{/);
   assert.match(telemetry, /"tracking-quality-brief"/);
 });
+
+test("action center accepts voice transcript seed params for dictation handoff", () => {
+  const actionCenter = readWorkspaceFile("app/action-center.tsx");
+
+  assert.match(actionCenter, /dictatedRequest\?: string/);
+  assert.match(actionCenter, /autoGenerate\?: string/);
+  assert.match(actionCenter, /setAiRequest\(dictatedRequest\)/);
+  assert.match(actionCenter, /void handleGenerateAiDraft\(dictatedRequest\)/);
+});

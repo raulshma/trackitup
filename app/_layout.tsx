@@ -287,6 +287,17 @@ function WorkspaceNavigator({ palette }: { palette: string }) {
         }}
       />
       <Stack.Screen
+        name="live-dictation-action"
+        options={{
+          animation:
+            Platform.OS === "android"
+              ? "fade_from_bottom"
+              : "slide_from_bottom",
+          title: "Live voice command",
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen
         name="modal"
         options={{ animation: "fade_from_bottom", headerShown: false }}
       />

@@ -441,3 +441,68 @@ export type WorkspaceSnapshot = {
   lastSyncAt?: string;
   lastSyncError?: string;
 };
+
+export type AiActionPlanRiskLevel = "safe" | "elevated" | "destructive";
+
+export type AiActionPlanStatus =
+  | "pending-review"
+  | "approved"
+  | "partially-approved"
+  | "rejected"
+  | "executed";
+
+export type AiActionPlanExecutionState =
+  | "pending"
+  | "executing"
+  | "completed"
+  | "failed"
+  | "skipped";
+
+export type AiActionPlanExecutionActionClass =
+  | "complete-reminder"
+  | "snooze-reminder"
+  | "log-reminder-proof"
+  | "navigate-planner"
+  | "review-later"
+  | "custom";
+
+export type AiActionPlanStep = {
+  id: string;
+  stepNumber: number;
+  title: string;
+  reason: string;
+  actionClass: AiActionPlanExecutionActionClass;
+  riskLevel: AiActionPlanRiskLevel;
+  approved: boolean;
+  targetId?: string;
+  targetLabel?: string;
+  executionState: AiActionPlanExecutionState;
+  executionNote?: string;
+  executedAt?: string;
+};
+
+export type AiTranscriptRecord = {
+  id: string;
+  surface: string;
+  transcript: string;
+  interpretedIntentSummary: string;
+  dataSentLabel: string;
+  modelId: string;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    totalTokens?: number;
+  };
+  createdAt: string;
+};
+
+export type AiActionPlan = {
+  id: string;
+  surface: string;
+  status: AiActionPlanStatus;
+  transcript: AiTranscriptRecord;
+  steps: AiActionPlanStep[];
+  createdAt: string;
+  approvedAt?: string;
+  executedAt?: string;
+};

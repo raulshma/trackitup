@@ -11,6 +11,7 @@ import {
 
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
+import { AiActionPlanReviewCard } from "@/components/ui/AiActionPlanReviewCard";
 import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
 import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
 import { CardActionPill } from "@/components/ui/CardActionPill";
@@ -42,6 +43,11 @@ import {
     type AiActionCenterExplainerActionKind,
     type AiActionCenterExplainerDraft,
 } from "@/services/ai/aiActionCenterExplainer";
+import {
+    buildAiActionPlanFromActionCenterDraft,
+    executeAiActionPlan,
+    setAiActionPlanStepApproved,
+} from "@/services/ai/aiActionPlan";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import {
     aiActionCenterExplainerCopy,
@@ -75,7 +81,7 @@ import {
 import { getReminderScheduleTimestamp } from "@/services/insights/workspaceInsights";
 import { buildWorkspaceTrackingQualitySummary } from "@/services/insights/workspaceTrackingQuality";
 import { buildReminderActionCenter } from "@/services/reminders/reminderActionCenter";
-import type { WorkspaceRecommendation } from "@/types/trackitup";
+import type { AiActionPlan, WorkspaceRecommendation } from "@/types/trackitup";
 
 type GeneratedAiActionCenterDraft = {
   request: string;
@@ -151,18 +157,25 @@ export default function ActionCenterScreen() {
     reminderId?: string;
     recurringOccurrenceId?: string;
     source?: string;
+    dictatedRequest?: string;
+    autoGenerate?: string;
   }>();
   const focusedReminderId = pickParam(params.reminderId);
   const focusedRecurringOccurrenceId = pickParam(params.recurringOccurrenceId);
   const openedFromNotification = pickParam(params.source) === "notification";
+  const dictatedRequest = pickParam(params.dictatedRequest);
+  const shouldAutoGenerateFromDictation =
+    pickParam(params.autoGenerate) === "1";
   const scrollViewRef = useRef<ScrollView>(null);
   const hasClearedFocusParamsRef = useRef(false);
+  const handledDictationRequestRef = useRef<string | null>(null);
   const sectionTransition = useState(() => new Animated.Value(1))[0];
   const {
     bulkSnoozeRecurringOccurrences,
     bulkCompleteRecurringOccurrences,
     completeRecurringOccurrence,
     completeReminder,
+    isWorkspaceLocked,
     recommendations,
     skipRecurringOccurrence,
     skipReminder,
@@ -175,6 +188,14 @@ export default function ActionCenterScreen() {
   const [isGeneratingAiDraft, setIsGeneratingAiDraft] = useState(false);
   const [generatedAiDraft, setGeneratedAiDraft] =
     useState<GeneratedAiActionCenterDraft | null>(null);
+  const [pendingAiActionPlan, setPendingAiActionPlan] =
+    useState<AiActionPlan | null>(null);
+  const [pendingAiActionPlanSourceDraft, setPendingAiActionPlanSourceDraft] =
+    useState<GeneratedAiActionCenterDraft | null>(null);
+  const [isExecutingAiActionPlan, setIsExecutingAiActionPlan] = useState(false);
+  const [aiActionPlanResultMessage, setAiActionPlanResultMessage] = useState<
+    string | null
+  >(null);
   const [appliedAiDraft, setAppliedAiDraft] =
     useState<GeneratedAiActionCenterDraft | null>(null);
   const [trackingQualityRequest, setTrackingQualityRequest] = useState("");
@@ -657,8 +678,8 @@ export default function ActionCenterScreen() {
     ],
   );
 
-  async function handleGenerateAiDraft() {
-    const trimmedRequest = aiRequest.trim();
+  async function handleGenerateAiDraft(requestOverride?: string) {
+    const trimmedRequest = (requestOverride ?? aiRequest).trim();
     if (!trimmedRequest) {
       setAiStatusMessage(
         "Describe what kind of queue explanation or next-step guidance you want before generating an AI explainer.",
@@ -728,16 +749,108 @@ export default function ActionCenterScreen() {
     });
   }
 
+  useEffect(() => {
+    if (!dictatedRequest) return;
+    if (handledDictationRequestRef.current === dictatedRequest) return;
+
+    handledDictationRequestRef.current = dictatedRequest;
+    setAiRequest(dictatedRequest);
+    setActiveSection("assist");
+    setAiStatusMessage(
+      "Voice transcript loaded. Review the prompt, then generate or approve the plan.",
+    );
+
+    if (shouldAutoGenerateFromDictation) {
+      void handleGenerateAiDraft(dictatedRequest);
+    }
+  }, [dictatedRequest, shouldAutoGenerateFromDictation]);
+
   function handleApplyAiDraft() {
     if (!generatedAiDraft) return;
-    setAppliedAiDraft(generatedAiDraft);
+    const actionPlan = buildAiActionPlanFromActionCenterDraft({
+      draft: generatedAiDraft.draft,
+      request: generatedAiDraft.request,
+      consentLabel: generatedAiDraft.consentLabel,
+      modelId: generatedAiDraft.modelId,
+      usage: generatedAiDraft.usage,
+      workspace,
+    });
+
+    setPendingAiActionPlan(actionPlan);
+    setPendingAiActionPlanSourceDraft(generatedAiDraft);
+    setAiActionPlanResultMessage(null);
     setGeneratedAiDraft(null);
     setAiStatusMessage(
-      "Applied the AI action-center explainer. Review each suggested move before changing any reminder state.",
+      "Generated a transparent action plan. Approve or deselect each step before execution.",
     );
     void recordAiTelemetryEvent({
       surface: "action-center-explainer",
-      action: "draft-applied",
+      action: "action-plan-created",
+    });
+  }
+
+  function handleToggleAiActionPlanStepApproval(
+    stepId: string,
+    approved: boolean,
+  ) {
+    setPendingAiActionPlan((current) => {
+      if (!current) return current;
+      return setAiActionPlanStepApproved(current, stepId, approved);
+    });
+  }
+
+  function handleRejectAiActionPlan() {
+    setPendingAiActionPlan(null);
+    setPendingAiActionPlanSourceDraft(null);
+    setAiActionPlanResultMessage(null);
+    setAiStatusMessage(
+      "Action plan rejected. No reminder or navigation actions were executed.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "action-center-explainer",
+      action: "action-plan-rejected",
+    });
+  }
+
+  function handleApproveAiActionPlan() {
+    if (!pendingAiActionPlan) return;
+    if (isWorkspaceLocked) {
+      setAiStatusMessage(
+        "Workspace is locked. Unlock first, then approve and execute the action plan.",
+      );
+      return;
+    }
+
+    setIsExecutingAiActionPlan(true);
+    void recordAiTelemetryEvent({
+      surface: "action-center-explainer",
+      action: "action-plan-approved",
+    });
+
+    const executionResult = executeAiActionPlan(
+      pendingAiActionPlan,
+      workspace,
+      {
+        completeReminder,
+        snoozeReminder,
+        openPlanner: () => router.push("/planner" as never),
+        openReminderLogbook,
+      },
+    );
+
+    setIsExecutingAiActionPlan(false);
+    setPendingAiActionPlan(executionResult.updatedPlan);
+    setAppliedAiDraft(pendingAiActionPlanSourceDraft);
+    setPendingAiActionPlanSourceDraft(null);
+    setAiActionPlanResultMessage(
+      `Executed ${executionResult.executedCount} step${executionResult.executedCount === 1 ? "" : "s"}. Skipped ${executionResult.skippedCount}. Failed ${executionResult.failedCount}.`,
+    );
+    setAiStatusMessage(
+      "Action plan executed with full transparency. Review step outcomes before running another plan.",
+    );
+    void recordAiTelemetryEvent({
+      surface: "action-center-explainer",
+      action: "action-plan-executed",
     });
   }
 
@@ -1533,6 +1646,26 @@ export default function ActionCenterScreen() {
                     onEdit={handleDismissAiDraft}
                     onRegenerate={() => void handleGenerateAiDraft()}
                     isBusy={isGeneratingAiDraft}
+                  />
+                ) : null}
+
+                {pendingAiActionPlan ? (
+                  <AiActionPlanReviewCard
+                    palette={palette}
+                    plan={pendingAiActionPlan}
+                    busy={isExecutingAiActionPlan}
+                    onToggleStepApproval={handleToggleAiActionPlanStepApproval}
+                    onReject={handleRejectAiActionPlan}
+                    onApprove={handleApproveAiActionPlan}
+                  />
+                ) : null}
+
+                {aiActionPlanResultMessage ? (
+                  <SectionMessage
+                    palette={palette}
+                    label="Action plan"
+                    title="Latest execution result"
+                    message={aiActionPlanResultMessage}
                   />
                 ) : null}
 

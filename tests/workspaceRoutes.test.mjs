@@ -46,3 +46,20 @@ test("openrouter model picker uses a dedicated router modal and virtualized list
   assert.match(modelPicker, /<FlatList/);
   assert.doesNotMatch(modelPicker, /<Dialog/);
 });
+
+test("live dictation route uses dedicated modal and FAB menu launcher", () => {
+  const rootLayout = readWorkspaceFile("app/_layout.tsx");
+  const liveDictationRoute = readWorkspaceFile("app/live-dictation-action.tsx");
+  const fabSource = readWorkspaceFile("components/ui/RecordEventFab.tsx");
+
+  assert.match(
+    rootLayout,
+    /name="live-dictation-action"[\s\S]*presentation:\s*"modal"/,
+  );
+  assert.match(fabSource, /actions\.map\(\(action\) =>/);
+  assert.match(fabSource, /setIsOpen\(\(current\) => !current\)/);
+  assert.match(fabSource, /router\.push\("\/live-dictation-action"\)/);
+  assert.match(fabSource, /label:\s*"Create space"/);
+  assert.match(liveDictationRoute, /Send \+ generate plan/);
+  assert.match(liveDictationRoute, /dictatedRequest/);
+});
