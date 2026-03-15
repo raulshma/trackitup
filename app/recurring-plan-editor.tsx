@@ -50,7 +50,7 @@ type PlanEditorState = {
   description: string;
   category: string;
   tagsText: string;
-  spaceId: string;
+  spaceIds: string[];
   timezone: string;
   startDate: string;
   status: RecurringPlan["status"];
@@ -152,7 +152,11 @@ function toEditorState(
     description: plan?.description ?? "",
     category: plan?.category ?? "",
     tagsText: (plan?.tags ?? []).join(", "),
-    spaceId: plan?.spaceId ?? "",
+    spaceIds: plan?.spaceIds?.length
+      ? plan.spaceIds
+      : plan?.spaceId
+        ? [plan.spaceId]
+        : [],
     timezone: plan?.timezone ?? defaultTimezone(),
     startDate: new Date().toISOString().slice(0, 16),
     status: options?.duplicateMode ? "active" : (plan?.status ?? "active"),
@@ -280,7 +284,9 @@ export default function RecurringPlanEditorScreen() {
   const [saveErrors, setSaveErrors] = useState<Record<string, string>>({});
 
   const spaces = workspace.spaces;
-  const selectedSpace = spaces.find((space) => space.id === state.spaceId);
+  const selectedSpaces = spaces.filter((space) =>
+    state.spaceIds.includes(space.id),
+  );
 
   function updateState(patch: Partial<PlanEditorState>) {
     setState((current) => ({ ...current, ...patch }));
@@ -297,6 +303,14 @@ export default function RecurringPlanEditorScreen() {
     updateState({ weeklyDays: nextDays.sort((left, right) => left - right) });
   }
 
+  function toggleSpace(spaceId: string) {
+    const hasSpace = state.spaceIds.includes(spaceId);
+    const nextSpaceIds = hasSpace
+      ? state.spaceIds.filter((value) => value !== spaceId)
+      : [...state.spaceIds, spaceId];
+    updateState({ spaceIds: nextSpaceIds });
+  }
+
   function onSave() {
     const startDateIso = parseIsoDateInput(state.startDate);
     if (!startDateIso) {
@@ -310,9 +324,18 @@ export default function RecurringPlanEditorScreen() {
       .map((item) => item.trim())
       .filter(Boolean);
 
+    if (state.spaceIds.length === 0) {
+      setSaveErrors({ spaceId: "Pick at least one space." });
+      setStatusMessage("Select one or more spaces before saving.");
+      return;
+    }
+
+    const primarySpaceId = state.spaceIds[0];
+
     const result = saveRecurringPlan({
       id: state.id,
-      spaceId: state.spaceId,
+      spaceId: primarySpaceId,
+      spaceIds: state.spaceIds,
       title: state.title,
       description: state.description || undefined,
       category: state.category || undefined,
@@ -371,9 +394,12 @@ export default function RecurringPlanEditorScreen() {
         subtitle="Define a reusable schedule with timezone-safe timing, grace windows, and optional proof capture."
         badges={[
           {
-            label: selectedSpace?.name ?? "Pick a space",
+            label:
+              selectedSpaces.length > 0
+                ? `${selectedSpaces.length} space${selectedSpaces.length === 1 ? "" : "s"}`
+                : "Pick spaces",
             backgroundColor:
-              selectedSpace?.themeColor ?? theme.colors.primaryContainer,
+              selectedSpaces[0]?.themeColor ?? theme.colors.primaryContainer,
             textColor: theme.colors.onPrimaryContainer,
           },
           {
@@ -429,13 +455,13 @@ export default function RecurringPlanEditorScreen() {
           style={styles.field}
         />
 
-        <Text style={[styles.fieldLabel, paletteStyles.mutedText]}>Space</Text>
+        <Text style={[styles.fieldLabel, paletteStyles.mutedText]}>Spaces</Text>
         <ChipRow style={styles.choiceRow}>
           {spaces.map((space) => (
             <Chip
               key={space.id}
-              selected={space.id === state.spaceId}
-              onPress={() => updateState({ spaceId: space.id })}
+              selected={state.spaceIds.includes(space.id)}
+              onPress={() => toggleSpace(space.id)}
               style={styles.choiceChip}
             >
               {space.name}

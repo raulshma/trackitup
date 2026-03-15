@@ -7,6 +7,17 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_ASSET_LOG_DAYS = 30;
 const UPCOMING_WARRANTY_DAYS = 30;
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function primarySpaceId(value: { spaceId?: string; spaceIds?: string[] }) {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId;
+}
+
 export type WorkspaceInventoryLifecycleRoute =
   | "inventory"
   | "logbook"
@@ -149,8 +160,9 @@ export function buildWorkspaceInventoryLifecycleSummary(
       return {
         id: asset.id,
         name: asset.name,
-        spaceId: asset.spaceId,
-        spaceName: spacesById.get(asset.spaceId)?.name ?? "Unknown space",
+        spaceId: primarySpaceId(asset) ?? "",
+        spaceName:
+          spacesById.get(primarySpaceId(asset) ?? "")?.name ?? "Unknown space",
         status: asset.status,
         expenseTotal: expenseTotals.get(asset.id) ?? 0,
         purchasePrice: asset.purchasePrice,

@@ -1,14 +1,14 @@
 import type {
-    AiActionCenterExplainerActionKind,
-    AiActionCenterExplainerDraft,
+  AiActionCenterExplainerActionKind,
+  AiActionCenterExplainerDraft,
 } from "@/services/ai/aiActionCenterExplainer";
 import type {
-    AiActionPlan,
-    AiActionPlanExecutionState,
-    AiActionPlanStep,
-    AiTranscriptRecord,
-    Reminder,
-    WorkspaceSnapshot,
+  AiActionPlan,
+  AiActionPlanExecutionState,
+  AiActionPlanStep,
+  AiTranscriptRecord,
+  Reminder,
+  WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 type BuildAiActionPlanFromActionCenterDraftOptions = {
@@ -28,8 +28,19 @@ type ExecuteAiActionPlanBindings = {
   completeReminder: (reminderId: string) => void;
   snoozeReminder: (reminderId: string) => void;
   openPlanner: () => void;
-  openReminderLogbook: (reminderId: string, spaceId: string) => void;
+  openReminderLogbook: (
+    reminderId: string,
+    spaceId: string,
+    spaceIds?: string[],
+  ) => void;
 };
+
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
 
 type ExecuteAiActionPlanResult = {
   updatedPlan: AiActionPlan;
@@ -203,7 +214,12 @@ export function executeAiActionPlan(
         bindings.snoozeReminder(reminder.id);
       } else if (step.actionClass === "log-reminder-proof") {
         if (!reminder) throw new Error("Reminder target no longer exists.");
-        bindings.openReminderLogbook(reminder.id, reminder.spaceId);
+        const spaceIds = normalizeSpaceIds(reminder);
+        bindings.openReminderLogbook(
+          reminder.id,
+          spaceIds[0] ?? reminder.spaceId,
+          spaceIds,
+        );
       } else if (step.actionClass === "navigate-planner") {
         bindings.openPlanner();
       }

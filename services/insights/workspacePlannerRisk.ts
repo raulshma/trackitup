@@ -8,6 +8,24 @@ import {
 
 export type WorkspacePlannerRiskRoute = "planner" | "action-center" | "logbook";
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function primarySpaceId(value: { spaceId?: string; spaceIds?: string[] }) {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId;
+}
+
+function belongsToSpace(
+  value: { spaceId?: string; spaceIds?: string[] },
+  spaceId: string,
+) {
+  return normalizeSpaceIds(value).includes(spaceId);
+}
+
 export type WorkspacePlannerRiskReminder = {
   id: string;
   title: string;
@@ -117,8 +135,10 @@ export function buildWorkspacePlannerRiskSummary(
       return {
         id: reminder.id,
         title: reminder.title,
-        spaceId: reminder.spaceId,
-        spaceName: spacesById.get(reminder.spaceId)?.name ?? "Unknown space",
+        spaceId: primarySpaceId(reminder) ?? "",
+        spaceName:
+          spacesById.get(primarySpaceId(reminder) ?? "")?.name ??
+          "Unknown space",
         status: reminder.status,
         dueAt,
         isSelectedDay,
@@ -154,8 +174,10 @@ export function buildWorkspacePlannerRiskSummary(
           id: item.id,
           reminderId: reminder.id,
           reminderTitle: reminder.title,
-          spaceId: reminder.spaceId,
-          spaceName: spacesById.get(reminder.spaceId)?.name ?? "Unknown space",
+          spaceId: primarySpaceId(reminder) ?? "",
+          spaceName:
+            spacesById.get(primarySpaceId(reminder) ?? "")?.name ??
+            "Unknown space",
           action: item.action,
           at: item.at,
           note: item.note,
@@ -167,7 +189,8 @@ export function buildWorkspacePlannerRiskSummary(
 
   const spaceHotspots = Array.from(
     openReminders.reduce<Map<string, typeof openReminders>>((current, reminder) => {
-      current.set(reminder.spaceId, [...(current.get(reminder.spaceId) ?? []), reminder]);
+      const reminderSpaceId = primarySpaceId(reminder) ?? "";
+      current.set(reminderSpaceId, [...(current.get(reminderSpaceId) ?? []), reminder]);
       return current;
     }, new Map()),
   )

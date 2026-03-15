@@ -1,24 +1,24 @@
 import * as Notifications from "expo-notifications";
 import { useRouter } from "expo-router";
 import {
-    createContext,
-    useCallback,
-    useContext,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
 } from "react";
 import { AppState, Platform, type AppStateStatus } from "react-native";
 
 import { WorkspaceLockScreen } from "@/components/WorkspaceLockScreen";
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
-    getOverviewStats,
-    getQuickActionCards,
-    getSpaceSummaries,
-    getTimelineEntries,
+  getOverviewStats,
+  getQuickActionCards,
+  getSpaceSummaries,
+  getTimelineEntries,
 } from "@/constants/TrackItUpSelectors";
 import { useAppAuth } from "@/providers/AuthProvider";
 import { useWorkspacePrivacyMode } from "@/providers/WorkspacePrivacyModeProvider";
@@ -28,58 +28,65 @@ import { useWorkspaceMutations } from "@/providers/workspace/useWorkspaceMutatio
 import { useWorkspaceSyncActions } from "@/providers/workspace/useWorkspaceSyncActions";
 import { getWorkspaceRecommendations } from "@/services/insights/workspaceRecommendations";
 import {
-    authenticateWorkspaceBiometric,
-    getWorkspaceBiometricAvailability,
-    type WorkspaceBiometricAvailability,
+  authenticateWorkspaceBiometric,
+  getWorkspaceBiometricAvailability,
+  type WorkspaceBiometricAvailability,
 } from "@/services/offline/workspaceBiometric";
 import {
-    loadWorkspaceBiometricLockPreference,
-    loadWorkspaceBiometricReauthTimeoutPreference,
-    persistWorkspaceBiometricLockPreference,
-    persistWorkspaceBiometricReauthTimeoutPreference,
+  loadWorkspaceBiometricLockPreference,
+  loadWorkspaceBiometricReauthTimeoutPreference,
+  persistWorkspaceBiometricLockPreference,
+  persistWorkspaceBiometricReauthTimeoutPreference,
 } from "@/services/offline/workspaceBiometricPreferencePersistence";
 import {
-    DEFAULT_WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT,
-    getWorkspaceBiometricReauthTimeoutLabel,
-    shouldRelockWorkspaceBiometricSession,
-    type WorkspaceBiometricReauthTimeout,
+  DEFAULT_WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT,
+  getWorkspaceBiometricReauthTimeoutLabel,
+  shouldRelockWorkspaceBiometricSession,
+  type WorkspaceBiometricReauthTimeout,
 } from "@/services/offline/workspaceBiometricSessionPolicy";
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import { getWorkspaceOwnerScopeKey } from "@/services/offline/workspaceOwnership";
 import {
-    clearPersistedWorkspace,
-    loadPersistedWorkspace,
-    persistWorkspace,
+  clearPersistedWorkspace,
+  loadPersistedWorkspace,
+  persistWorkspace,
 } from "@/services/offline/workspacePersistence";
 import {
-    createWorkspaceRestorePoint,
-    deleteWorkspaceRestorePoint,
-    exportWorkspaceRestorePointJson,
-    listWorkspaceRestorePoints,
-    restoreWorkspaceFromRestorePoint as restoreWorkspaceFromRestorePointStorage,
-    type CreateWorkspaceRestorePointResult,
-    type DeleteWorkspaceRestorePointResult,
-    type ExportWorkspaceRestorePointResult,
-    type WorkspaceRestorePointReason,
-    type WorkspaceRestorePointSummary,
+  createWorkspaceRestorePoint,
+  deleteWorkspaceRestorePoint,
+  exportWorkspaceRestorePointJson,
+  listWorkspaceRestorePoints,
+  restoreWorkspaceFromRestorePoint as restoreWorkspaceFromRestorePointStorage,
+  type CreateWorkspaceRestorePointResult,
+  type DeleteWorkspaceRestorePointResult,
+  type ExportWorkspaceRestorePointResult,
+  type WorkspaceRestorePointReason,
+  type WorkspaceRestorePointSummary,
 } from "@/services/offline/workspaceRestorePoints";
 import { ensureRecurringOccurrencesWindow } from "@/services/recurring/recurringPlans";
 import {
-    getRecurringNotificationResponseIntent,
-    getReminderNotificationResponseIntent,
+  getRecurringNotificationResponseIntent,
+  getReminderNotificationResponseIntent,
 } from "@/services/reminders/reminderNotificationIntents";
 import {
-    clearScheduledReminderNotifications,
-    getReminderNotificationPermissionState,
-    requestReminderNotificationPermissions,
-    syncWorkspaceReminderNotifications,
-    type ReminderNotificationPermissionState,
-    type ReminderNotificationPermissionStatus,
+  clearScheduledReminderNotifications,
+  getReminderNotificationPermissionState,
+  requestReminderNotificationPermissions,
+  syncWorkspaceReminderNotifications,
+  type ReminderNotificationPermissionState,
+  type ReminderNotificationPermissionStatus,
 } from "@/services/reminders/reminderNotifications";
 import { useWorkspaceStoreState } from "@/stores/useWorkspaceStore";
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -478,11 +485,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
 
         if (occurrence && plan?.proofRequired) {
+          const planSpaceIds = normalizeSpaceIds(plan);
           router.push({
             pathname: "/logbook",
             params: {
               actionId: "quick-log",
-              spaceId: plan.spaceId,
+              spaceId: planSpaceIds[0] ?? plan.spaceId,
+              ...(planSpaceIds.length
+                ? { spaceIds: planSpaceIds.join(",") }
+                : {}),
               recurringOccurrenceId: occurrence.id,
               recurringPlanId: plan.id,
               source: "notification",

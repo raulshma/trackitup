@@ -7,14 +7,20 @@
     "development": {
       "environment": "development",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "development"
+      }
     },
     "preview": {
       "environment": "preview",
       "android": {
         "buildType": "apk"
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "APP_VARIANT": "development"
+      }
     },
     "preview-armeabi-v7a": {
       "extends": "preview",
@@ -46,6 +52,9 @@
       "android": {
         "buildType": "apk",
         "credentialsSource": "remote"
+      },
+      "env": {
+        "APP_VARIANT": "production"
       }
     },
     "production-armeabi-v7a": {

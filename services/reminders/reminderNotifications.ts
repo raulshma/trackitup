@@ -2,20 +2,20 @@ import * as Notifications from "expo-notifications";
 import { Platform } from "react-native";
 
 import {
-    getReminderScheduleTimestamp,
-    isReminderOpen,
+  getReminderScheduleTimestamp,
+  isReminderOpen,
 } from "@/services/insights/workspaceInsights";
 import {
-    RECURRING_NOTIFICATION_COMPLETE_ACTION_ID,
-    RECURRING_NOTIFICATION_SKIP_ACTION_ID,
-    RECURRING_NOTIFICATION_SNOOZE_ACTION_ID,
-    REMINDER_NOTIFICATION_COMPLETE_ACTION_ID,
-    REMINDER_NOTIFICATION_SKIP_ACTION_ID,
-    REMINDER_NOTIFICATION_SNOOZE_ACTION_ID,
-    TRACKITUP_RECURRING_ROUTE,
-    TRACKITUP_RECURRING_SOURCE,
-    TRACKITUP_REMINDER_ROUTE,
-    TRACKITUP_REMINDER_SOURCE,
+  RECURRING_NOTIFICATION_COMPLETE_ACTION_ID,
+  RECURRING_NOTIFICATION_SKIP_ACTION_ID,
+  RECURRING_NOTIFICATION_SNOOZE_ACTION_ID,
+  REMINDER_NOTIFICATION_COMPLETE_ACTION_ID,
+  REMINDER_NOTIFICATION_SKIP_ACTION_ID,
+  REMINDER_NOTIFICATION_SNOOZE_ACTION_ID,
+  TRACKITUP_RECURRING_ROUTE,
+  TRACKITUP_RECURRING_SOURCE,
+  TRACKITUP_REMINDER_ROUTE,
+  TRACKITUP_REMINDER_SOURCE,
 } from "@/services/reminders/reminderNotificationIntents";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
@@ -24,6 +24,17 @@ const TRACKITUP_REMINDER_CATEGORY_ID = "trackitupReminderActions";
 const TRACKITUP_RECURRING_CATEGORY_ID = "trackitupRecurringActions";
 const MAX_SCHEDULED_REMINDERS = 48;
 const MAX_SCHEDULED_RECURRING_BATCHES = 48;
+
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function primarySpaceId(value: { spaceId?: string; spaceIds?: string[] }) {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId;
+}
 
 export type ReminderNotificationPermissionStatus =
   | "unsupported"
@@ -256,6 +267,7 @@ export async function syncWorkspaceReminderNotifications(
             planId: string;
             title: string;
             spaceId: string;
+            spaceIds?: string[];
           }>;
         }
       >
@@ -265,11 +277,13 @@ export async function syncWorkspaceReminderNotifications(
         scheduledAt: item.effectiveDueAt,
         occurrences: [],
       };
+      const planSpaceIds = normalizeSpaceIds(item.plan);
       existing.occurrences.push({
         occurrenceId: item.occurrence.id,
         planId: item.plan.id,
         title: item.plan.title,
-        spaceId: item.plan.spaceId,
+        spaceId: primarySpaceId(item.plan) ?? item.plan.spaceId,
+        spaceIds: planSpaceIds,
       });
       map.set(key, existing);
       return map;
@@ -280,7 +294,9 @@ export async function syncWorkspaceReminderNotifications(
     .slice(0, MAX_SCHEDULED_RECURRING_BATCHES);
 
   for (const { reminder, scheduledAt } of reminders) {
-    const spaceName = spacesById.get(reminder.spaceId)?.name ?? "Tracked space";
+    const reminderSpaceId = primarySpaceId(reminder) ?? reminder.spaceId;
+    const reminderSpaceIds = normalizeSpaceIds(reminder);
+    const spaceName = spacesById.get(reminderSpaceId)?.name ?? "Tracked space";
     const subtitle =
       reminder.ruleLabel ?? reminder.triggerCondition ?? spaceName;
 
@@ -295,7 +311,8 @@ export async function syncWorkspaceReminderNotifications(
           source: TRACKITUP_REMINDER_SOURCE,
           route: TRACKITUP_REMINDER_ROUTE,
           reminderId: reminder.id,
-          spaceId: reminder.spaceId,
+          spaceId: reminderSpaceId,
+          spaceIds: reminderSpaceIds,
         },
       },
       trigger: {
@@ -349,6 +366,7 @@ export async function syncWorkspaceReminderNotifications(
           ),
           planId: first.planId,
           spaceId: first.spaceId,
+          spaceIds: first.spaceIds,
         },
       },
       trigger: {

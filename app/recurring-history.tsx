@@ -1,9 +1,10 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
     Button,
     Chip,
+    SegmentedButtons,
     Surface,
     useTheme,
     type MD3Theme,
@@ -52,6 +53,10 @@ export default function RecurringHistoryScreen() {
   const planId = pickParam(params.planId);
 
   const { workspace } = useWorkspace();
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "completed" | "skipped" | "missed" | "scheduled"
+  >("all");
+  const [sortMode, setSortMode] = useState<"dueAt" | "actionAt">("dueAt");
   const plan = planId
     ? workspace.recurringPlans.find((item) => item.id === planId)
     : undefined;
@@ -65,12 +70,41 @@ export default function RecurringHistoryScreen() {
     );
   }, [planId, workspace]);
 
-  const timeline = useMemo(
+  const timeline = useMemo(() => {
+    const filtered = [...workspace.recurringOccurrences].filter((item) => {
+      if (item.planId !== planId) return false;
+      if (statusFilter === "all") return true;
+      return item.status === statusFilter;
+    });
+
+    if (sortMode === "actionAt") {
+      return filtered.sort((left, right) => {
+        const leftActionAt =
+          left.completedAt ?? left.history?.[0]?.at ?? left.dueAt;
+        const rightActionAt =
+          right.completedAt ?? right.history?.[0]?.at ?? right.dueAt;
+        return rightActionAt.localeCompare(leftActionAt);
+      });
+    }
+
+    return filtered.sort((left, right) =>
+      right.dueAt.localeCompare(left.dueAt),
+    );
+  }, [planId, sortMode, statusFilter, workspace.recurringOccurrences]);
+
+  const activityTimeline = useMemo(
     () =>
-      [...workspace.recurringOccurrences]
-        .filter((item) => item.planId === planId)
-        .sort((left, right) => right.dueAt.localeCompare(left.dueAt)),
-    [planId, workspace.recurringOccurrences],
+      timeline
+        .flatMap((occurrence) =>
+          (occurrence.history ?? []).map((entry) => ({
+            occurrenceId: occurrence.id,
+            dueAt: occurrence.dueAt,
+            ...entry,
+          })),
+        )
+        .sort((left, right) => right.at.localeCompare(left.at))
+        .slice(0, 20),
+    [timeline],
   );
 
   return (
@@ -177,6 +211,38 @@ export default function RecurringHistoryScreen() {
             elevation={1}
           >
             <Text style={styles.sectionTitle}>Timeline</Text>
+            <SegmentedButtons
+              value={statusFilter}
+              onValueChange={(value) =>
+                setStatusFilter(
+                  value as
+                    | "all"
+                    | "completed"
+                    | "skipped"
+                    | "missed"
+                    | "scheduled",
+                )
+              }
+              buttons={[
+                { value: "all", label: "All" },
+                { value: "completed", label: "Completed" },
+                { value: "skipped", label: "Skipped" },
+                { value: "missed", label: "Missed" },
+                { value: "scheduled", label: "Scheduled" },
+              ]}
+              style={styles.segmented}
+            />
+            <SegmentedButtons
+              value={sortMode}
+              onValueChange={(value) =>
+                setSortMode(value as "dueAt" | "actionAt")
+              }
+              buttons={[
+                { value: "dueAt", label: "Sort by due" },
+                { value: "actionAt", label: "Sort by action" },
+              ]}
+              style={styles.segmented}
+            />
             {timeline.map((occurrence) => (
               <View key={occurrence.id} style={styles.listItemCard}>
                 <View style={styles.rowBetween}>
@@ -197,6 +263,46 @@ export default function RecurringHistoryScreen() {
                 ) : null}
               </View>
             ))}
+          </Surface>
+
+          <Surface
+            style={[styles.sectionCard, paletteStyles.cardSurface]}
+            elevation={1}
+          >
+            <Text style={styles.sectionTitle}>Done history activity</Text>
+            {activityTimeline.length === 0 ? (
+              <Text style={[styles.copy, paletteStyles.mutedText]}>
+                No completion activity yet. Completed/skipped/snoozed actions
+                will appear here.
+              </Text>
+            ) : (
+              activityTimeline.map((activity) => (
+                <View key={activity.id} style={styles.listItemCard}>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.listTitle}>
+                      {activity.action} via {activity.actionSource}
+                    </Text>
+                    <Chip compact>{activity.action}</Chip>
+                  </View>
+                  <Text style={[styles.copy, paletteStyles.mutedText]}>
+                    {formatTime(activity.at)}
+                    {typeof activity.completionLatencyMinutes === "number"
+                      ? ` • ${activity.completionLatencyMinutes} min vs due`
+                      : ""}
+                  </Text>
+                  {activity.logId ? (
+                    <Text style={[styles.copy, paletteStyles.mutedText]}>
+                      Proof log: {activity.logId}
+                    </Text>
+                  ) : null}
+                  {activity.note ? (
+                    <Text style={[styles.copy, paletteStyles.mutedText]}>
+                      {activity.note}
+                    </Text>
+                  ) : null}
+                </View>
+              ))
+            )}
           </Surface>
 
           <ActionButtonRow style={styles.actionRow}>
@@ -228,6 +334,7 @@ const styles = StyleSheet.create({
   sectionTitle: { ...uiTypography.titleMd, marginBottom: uiSpace.md },
   copy: uiTypography.body,
   listItem: { marginBottom: uiSpace.md },
+  segmented: { marginBottom: uiSpace.md },
   listItemCard: {
     borderWidth: uiBorder.hairline,
     borderRadius: uiRadius.md,

@@ -123,6 +123,16 @@ export function formatAiServiceError(error: unknown): string {
   return "The AI request failed before TrackItUp received a usable response.";
 }
 
+function supportsAbortSignalTimeout() {
+  const abortSignalConstructor = (
+    globalThis as typeof globalThis & {
+      AbortSignal?: { timeout?: (delay: number) => AbortSignal };
+    }
+  ).AbortSignal;
+
+  return typeof abortSignalConstructor?.timeout === "function";
+}
+
 export async function getAiTextServiceAvailability(): Promise<AiServiceAvailability> {
   const [isStorageAvailable, apiKey] = await Promise.all([
     isAiKeyStorageAvailable(),
@@ -203,13 +213,17 @@ export async function generateOpenRouterText(
   }
 
   try {
+    const timeoutOption = supportsAbortSignalTimeout()
+      ? { timeout: { totalMs: normalizedOptions.timeoutMs } }
+      : undefined;
+
     const result = await generateText({
       model,
       system: normalizedOptions.system,
       prompt: normalizedOptions.prompt,
       temperature: normalizedOptions.temperature,
       maxOutputTokens: normalizedOptions.maxOutputTokens,
-      timeout: normalizedOptions.timeoutMs,
+      ...timeoutOption,
       abortSignal: normalizedOptions.abortSignal,
     });
 
@@ -266,6 +280,10 @@ export async function streamOpenRouterText(
     };
   }
 
+  const timeoutOption = supportsAbortSignalTimeout()
+    ? { timeout: { totalMs: normalizedOptions.timeoutMs } }
+    : undefined;
+
   return {
     status: "success" as const,
     modelId: normalizedOptions.model,
@@ -275,7 +293,7 @@ export async function streamOpenRouterText(
       prompt: normalizedOptions.prompt,
       temperature: normalizedOptions.temperature,
       maxOutputTokens: normalizedOptions.maxOutputTokens,
-      timeout: { totalMs: normalizedOptions.timeoutMs },
+      ...timeoutOption,
       abortSignal: normalizedOptions.abortSignal,
     }),
   };

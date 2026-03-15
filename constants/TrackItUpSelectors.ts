@@ -52,6 +52,24 @@ const quickActionDetails: Record<
   },
 };
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function belongsToSpace(
+  value: { spaceId?: string; spaceIds?: string[] },
+  spaceId: string,
+) {
+  return normalizeSpaceIds(value).includes(spaceId);
+}
+
+function primarySpaceId(value: { spaceId?: string; spaceIds?: string[] }) {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId;
+}
+
 function sortByNewest<T extends { occurredAt: string }>(items: T[]) {
   return [...items].sort((left, right) =>
     right.occurredAt.localeCompare(left.occurredAt),
@@ -194,7 +212,7 @@ export function getSpaceSummaries(
   const latestLogsBySpace = new Map(
     workspace.spaces.map((space) => {
       const latestLog = sortByNewest(
-        workspace.logs.filter((log) => log.spaceId === space.id),
+        workspace.logs.filter((log) => belongsToSpace(log, space.id)),
       )[0];
       return [space.id, latestLog] as const;
     }),
@@ -202,11 +220,12 @@ export function getSpaceSummaries(
 
   return workspace.spaces.map((space) => {
     const pendingTasks = workspace.reminders.filter(
-      (reminder) => reminder.spaceId === space.id && isReminderOpen(reminder),
+      (reminder) =>
+        belongsToSpace(reminder, space.id) && isReminderOpen(reminder),
     ).length;
     const pendingRecurring = workspace.recurringOccurrences.filter(
       (occurrence) =>
-        occurrence.spaceId === space.id &&
+        belongsToSpace(occurrence, space.id) &&
         occurrence.status === "scheduled" &&
         workspace.recurringPlans.some(
           (plan) => plan.id === occurrence.planId && plan.status === "active",
@@ -247,7 +266,8 @@ export function buildTimelineEntriesFromLogs(
   const spacesById = new Map(spaces.map((space) => [space.id, space] as const));
 
   return sortByNewest(logs).map((log) => {
-    const space = spacesById.get(log.spaceId);
+    const resolvedSpaceId = primarySpaceId(log);
+    const space = resolvedSpaceId ? spacesById.get(resolvedSpaceId) : undefined;
 
     return {
       id: log.id,
@@ -256,7 +276,7 @@ export function buildTimelineEntriesFromLogs(
       detail: log.note,
       occurredAt: log.occurredAt,
       kind: log.kind,
-      spaceId: log.spaceId,
+      spaceId: resolvedSpaceId ?? "",
       spaceName: space?.name ?? "Unknown space",
       accent: space?.themeColor ?? "#0f766e",
       timestamp: formatTimelineTimestamp(log.occurredAt, generatedAt),

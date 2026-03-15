@@ -84,11 +84,32 @@ function asMetricValue(value: FormValue): string | number | boolean {
   return "";
 }
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function hasSelectedSpace(
+  value: { spaceId?: string; spaceIds?: string[] },
+  selectedSpaceIds: string[],
+) {
+  if (selectedSpaceIds.length === 0) return true;
+  const entitySpaceIds = normalizeSpaceIds(value);
+  return selectedSpaceIds.some((spaceId) => entitySpaceIds.includes(spaceId));
+}
+
 function getSelectedSpaceId(
   workspace: WorkspaceSnapshot,
   values: FormValueMap,
   context: FormContext,
 ) {
+  const selectedSpaceIds = getSelectedSpaceIds(workspace, values, context);
+  if (selectedSpaceIds.length > 0) {
+    return selectedSpaceIds[0];
+  }
+
   return (
     asString(values.spaceId) ||
     context.entry?.spaceId ||
@@ -96,6 +117,36 @@ function getSelectedSpaceId(
     workspace.spaces[0]?.id ||
     ""
   );
+}
+
+function getSelectedSpaceIds(
+  workspace: WorkspaceSnapshot,
+  values: FormValueMap,
+  context: FormContext,
+) {
+  const fromValues = asStringArray(values.spaceIds);
+  if (fromValues.length > 0) {
+    return Array.from(new Set(fromValues));
+  }
+
+  const fromSingleValue = asString(values.spaceId);
+  if (fromSingleValue) {
+    return [fromSingleValue];
+  }
+
+  const fromEntry = normalizeSpaceIds({
+    spaceId: context.entry?.spaceId,
+    spaceIds: context.entry?.spaceIds,
+  });
+  if (fromEntry.length > 0) {
+    return fromEntry;
+  }
+
+  if (context.action?.spaceId) {
+    return [context.action.spaceId];
+  }
+
+  return workspace.spaces[0]?.id ? [workspace.spaces[0].id] : [];
 }
 
 function getMetricForValues(
@@ -114,8 +165,8 @@ function getMetricForValues(
             metric.id === context.entry?.metricReadings?.[0]?.metricId,
         )
       : undefined) ||
-    workspace.metricDefinitions.find(
-      (metric) => metric.spaceId === selectedSpaceId,
+    workspace.metricDefinitions.find((metric) =>
+      hasSelectedSpace(metric, [selectedSpaceId]),
     )
   );
 }
@@ -125,7 +176,7 @@ function getRoutineForValues(
   values: FormValueMap,
   context: FormContext,
 ) {
-  const selectedSpaceId = getSelectedSpaceId(workspace, values, context);
+  const selectedSpaceIds = getSelectedSpaceIds(workspace, values, context);
   const routineId = asString(values.routineId);
 
   return (
@@ -140,7 +191,9 @@ function getRoutineForValues(
           (routine) => routine.id === context.entry?.routineId,
         )
       : undefined) ||
-    workspace.routines.find((routine) => routine.spaceId === selectedSpaceId)
+    workspace.routines.find((routine) =>
+      hasSelectedSpace(routine, selectedSpaceIds),
+    )
   );
 }
 
@@ -165,7 +218,7 @@ export function getFieldOptions(
 ): FormFieldOption[] {
   if (field.options?.length) return field.options;
 
-  const selectedSpaceId = getSelectedSpaceId(workspace, values, context);
+  const selectedSpaceIds = getSelectedSpaceIds(workspace, values, context);
 
   switch (field.source) {
     case "spaces":
@@ -175,15 +228,11 @@ export function getFieldOptions(
       }));
     case "assets":
       return workspace.assets
-        .filter(
-          (asset) => !selectedSpaceId || asset.spaceId === selectedSpaceId,
-        )
+        .filter((asset) => hasSelectedSpace(asset, selectedSpaceIds))
         .map((asset) => ({ label: asset.name, value: asset.id }));
     case "metrics":
       return workspace.metricDefinitions
-        .filter(
-          (metric) => !selectedSpaceId || metric.spaceId === selectedSpaceId,
-        )
+        .filter((metric) => hasSelectedSpace(metric, selectedSpaceIds))
         .map((metric) => ({
           label: metric.unitLabel
             ? `${metric.name} (${metric.unitLabel})`
@@ -200,21 +249,16 @@ export function getFieldOptions(
       }
 
       return workspace.routines
-        .filter(
-          (routine) => !selectedSpaceId || routine.spaceId === selectedSpaceId,
-        )
+        .filter((routine) => hasSelectedSpace(routine, selectedSpaceIds))
         .map((routine) => ({ label: routine.name, value: routine.id }));
     }
     case "reminders":
       return workspace.reminders
-        .filter(
-          (reminder) =>
-            !selectedSpaceId || reminder.spaceId === selectedSpaceId,
-        )
+        .filter((reminder) => hasSelectedSpace(reminder, selectedSpaceIds))
         .map((reminder) => ({ label: reminder.title, value: reminder.id }));
     case "logs":
       return workspace.logs
-        .filter((log) => !selectedSpaceId || log.spaceId === selectedSpaceId)
+        .filter((log) => hasSelectedSpace(log, selectedSpaceIds))
         .slice(0, 8)
         .map((log) => ({ label: log.title, value: log.id }));
     default:
@@ -253,6 +297,17 @@ function getDefaultValue(
         workspace.spaces[0]?.id ??
         ""
       );
+    case "spaceIds": {
+      const selected = normalizeSpaceIds({
+        spaceId: entry?.spaceId ?? context.action?.spaceId,
+        spaceIds: entry?.spaceIds,
+      });
+      return selected.length > 0
+        ? selected
+        : workspace.spaces[0]?.id
+          ? [workspace.spaces[0].id]
+          : [];
+    }
     case "title":
       return entry?.title ?? "";
     case "occurredAt":
@@ -478,6 +533,7 @@ function getLocationDetails(value: FormValue) {
 
 const systemFieldIds = new Set([
   "spaceId",
+  "spaceIds",
   "title",
   "occurredAt",
   "completedAt",
@@ -531,9 +587,9 @@ function buildBaseLogEntry(
   values: FormValueMap,
   template?: FormTemplate,
 ) {
-  const spaceId =
-    asString(values.spaceId) || action.spaceId || workspace.spaces[0]?.id;
-  if (!spaceId) return undefined;
+  const spaceIds = getSelectedSpaceIds(workspace, values, { action });
+  const spaceId = spaceIds[0];
+  if (!spaceId || spaceIds.length === 0) return undefined;
 
   const occurredAt =
     asString(values.completedAt) ||
@@ -549,6 +605,7 @@ function buildBaseLogEntry(
 
   return {
     spaceId,
+    spaceIds,
     occurredAt,
     note,
     assetIds,
@@ -563,14 +620,16 @@ function buildBaseLogEntry(
 
 function getRoutineMetricReading(
   workspace: WorkspaceSnapshot,
-  spaceId: string,
+  spaceIds: string[],
   routine: ReturnType<typeof getRoutineForValues>,
   step: NonNullable<ReturnType<typeof getRoutineForValues>>["steps"][number],
 ) {
   const metric =
     (step.metricId &&
       workspace.metricDefinitions.find((item) => item.id === step.metricId)) ||
-    workspace.metricDefinitions.find((item) => item.spaceId === spaceId);
+    workspace.metricDefinitions.find((item) =>
+      hasSelectedSpace(item, spaceIds),
+    );
   if (!metric) return undefined;
 
   if (metric.valueType === "boolean") {
@@ -619,7 +678,7 @@ function buildRoutineStepLogEntries(
     );
     const metricReading =
       step.kind === "metric"
-        ? getRoutineMetricReading(workspace, baseEntry.spaceId, routine, step)
+        ? getRoutineMetricReading(workspace, baseEntry.spaceIds, routine, step)
         : undefined;
     const kind =
       step.generatedLogKind ??
@@ -629,6 +688,7 @@ function buildRoutineStepLogEntries(
       id: `${parentLogId}-${step.id}`,
       parentLogId,
       spaceId: baseEntry.spaceId,
+      spaceIds: baseEntry.spaceIds,
       kind,
       title: `${routine.name} • ${step.label}`,
       note:
@@ -661,6 +721,7 @@ export function buildLogEntriesFromActionDraft(
       {
         id: `log-${action.id}-${Date.now()}`,
         spaceId: baseEntry.spaceId,
+        spaceIds: baseEntry.spaceIds,
         kind: "metric-reading" as const,
         title: asString(values.title) || `${metric?.name ?? "Metric"} captured`,
         note:
@@ -702,6 +763,7 @@ export function buildLogEntriesFromActionDraft(
       {
         id: parentId,
         spaceId: baseEntry.spaceId,
+        spaceIds: baseEntry.spaceIds,
         kind: "routine-run" as const,
         title:
           asString(values.title) || `${routine?.name ?? "Routine"} completed`,
@@ -730,6 +792,7 @@ export function buildLogEntriesFromActionDraft(
     {
       id: `log-${action.id}-${Date.now()}`,
       spaceId: baseEntry.spaceId,
+      spaceIds: baseEntry.spaceIds,
       kind: "asset-update" as const,
       title: asString(values.title) || `Quick log for ${action.label}`,
       note: baseEntry.note || "Captured from the dynamic quick-log form.",

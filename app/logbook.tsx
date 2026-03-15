@@ -2,11 +2,11 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Image, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-  Button,
-  Chip,
-  Surface,
-  useTheme,
-  type MD3Theme,
+    Button,
+    Chip,
+    Surface,
+    useTheme,
+    type MD3Theme,
 } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,41 +23,41 @@ import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getReadableTextColor } from "@/constants/Colors";
 import {
-  getLogKindFormTemplate,
-  getQuickActionFormTemplate,
+    getLogKindFormTemplate,
+    getQuickActionFormTemplate,
 } from "@/constants/TrackItUpFormTemplates";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-  uiBorder,
-  uiMotion,
-  uiRadius,
-  uiSpace,
-  uiTypography,
+    uiBorder,
+    uiMotion,
+    uiRadius,
+    uiSpace,
+    uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiLogbookDraftCopy } from "@/services/ai/aiConsentCopy";
 import {
-  buildAiLogbookDraftReviewItems,
-  buildAiLogbookGenerationPrompt,
-  parseAiLogbookDraft,
-  type AiLogbookDraft,
+    buildAiLogbookDraftReviewItems,
+    buildAiLogbookGenerationPrompt,
+    parseAiLogbookDraft,
+    type AiLogbookDraft,
 } from "@/services/ai/aiLogbookDraft";
 import { buildLogbookDraftPrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-  buildInitialFormValues,
-  normalizeFormValues,
-  validateFormValues,
-  type FormValidationErrors,
-  type FormValue,
-  type FormValueMap,
+    buildInitialFormValues,
+    normalizeFormValues,
+    validateFormValues,
+    type FormValidationErrors,
+    type FormValue,
+    type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
 import type {
-  FormFieldDefinition,
-  QuickActionKind,
-  Reminder,
+    FormFieldDefinition,
+    QuickActionKind,
+    Reminder,
 } from "@/types/trackitup";
 
 type GeneratedAiLogbookDraft = {
@@ -81,9 +81,16 @@ type PendingRecurringPromptMatch = {
 };
 
 function buildReminderDraftPatch(reminder: Reminder) {
+  const spaceIds = reminder.spaceIds?.length
+    ? reminder.spaceIds
+    : reminder.spaceId
+      ? [reminder.spaceId]
+      : [];
+
   return {
     reminderId: reminder.id,
-    spaceId: reminder.spaceId,
+    spaceId: spaceIds[0] ?? reminder.spaceId,
+    spaceIds,
     title: `${reminder.title} completed`,
     note: reminder.description
       ? `Proof captured for reminder completion. ${reminder.description}`
@@ -96,14 +103,22 @@ function buildRecurringDraftPatch(
   plan: {
     id: string;
     spaceId: string;
+    spaceIds?: string[];
     title: string;
     description?: string;
   },
 ) {
+  const spaceIds = plan.spaceIds?.length
+    ? plan.spaceIds
+    : plan.spaceId
+      ? [plan.spaceId]
+      : [];
+
   return {
     recurringOccurrenceId: occurrenceId,
     recurringPlanId: plan.id,
-    spaceId: plan.spaceId,
+    spaceId: spaceIds[0] ?? plan.spaceId,
+    spaceIds,
     title: `${plan.title} completed`,
     note: plan.description
       ? `Proof captured for recurring routine completion. ${plan.description}`
@@ -152,6 +167,19 @@ const logbookFooterMinHeight = 96;
 
 function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function parseSpaceIdsParam(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value.join(",") : value;
+  if (!raw) return [];
+  return Array.from(
+    new Set(
+      raw
+        .split(/[;,]/)
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function formatDateTime(timestamp: string) {
@@ -288,6 +316,7 @@ export default function LogbookScreen() {
     recurringPlanId?: string;
     reminderId?: string;
     spaceId?: string;
+    spaceIds?: string;
     templateId?: string;
   }>();
 
@@ -298,6 +327,7 @@ export default function LogbookScreen() {
   const recurringPlanId = pickParam(params.recurringPlanId);
   const initialReminderId = pickParam(params.reminderId);
   const initialSpaceId = pickParam(params.spaceId);
+  const initialSpaceIds = parseSpaceIdsParam(params.spaceIds);
   const templateId = pickParam(params.templateId);
 
   const action = workspace.quickActions.find((item) => item.id === actionId);
@@ -389,9 +419,22 @@ export default function LogbookScreen() {
       {
         ...values,
         ...(!entry &&
-        initialSpaceId &&
-        workspace.spaces.some((space) => space.id === initialSpaceId)
-          ? { spaceId: initialSpaceId }
+        (initialSpaceIds.length > 0 || initialSpaceId) &&
+        workspace.spaces.some((space) =>
+          (initialSpaceIds.length > 0
+            ? initialSpaceIds
+            : [initialSpaceId]
+          ).includes(space.id),
+        )
+          ? {
+              spaceIds:
+                initialSpaceIds.length > 0
+                  ? initialSpaceIds
+                  : initialSpaceId
+                    ? [initialSpaceId]
+                    : [],
+              ...(initialSpaceId ? { spaceId: initialSpaceId } : {}),
+            }
           : {}),
         ...(!entry && initialReminder
           ? buildReminderDraftPatch(initialReminder)
@@ -438,7 +481,13 @@ export default function LogbookScreen() {
   const featuredTemplates = workspace.templates.slice(0, 3);
   const hasSpaces = workspace.spaces.length > 0;
   const selectedSpaceId =
-    typeof formValues.spaceId === "string" ? formValues.spaceId : undefined;
+    typeof formValues.spaceId === "string"
+      ? formValues.spaceId
+      : Array.isArray(formValues.spaceIds)
+        ? formValues.spaceIds.find(
+            (item): item is string => typeof item === "string",
+          )
+        : undefined;
   const selectedSpace = selectedSpaceId
     ? workspace.spaces.find((space) => space.id === selectedSpaceId)
     : linkedSpace;

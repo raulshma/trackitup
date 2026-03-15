@@ -4,12 +4,12 @@
   "version": "0.0.4",
   "scripts": {
     "start": "bun expo start",
-    "android": "bun expo run:android",
-    "android:start": "bun expo start --android",
+    "android": "cross-env APP_VARIANT=development bun expo run:android",
+    "android:start": "cross-env APP_VARIANT=development bun expo start --android",
     "ios": "bun expo run:ios",
     "web": "bun expo start --web",
-    "clean:prebuild": "npx expo prebuild --clean --platform android",
-    "build:apk": "node ./scripts/build-android-apk.mjs",
+    "clean:prebuild": "cross-env APP_VARIANT=development npx expo prebuild --clean --platform android",
+    "build:apk": "cross-env APP_VARIANT=production node ./scripts/build-android-apk.mjs",
     "test": "node --test tests/*.test.mjs",
     "test:workspace-tools": "node --test tests/workspaceTools.test.mjs",
     "typecheck": "tsc --noEmit",
@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "cross-env": "^10.1.0",
     "typescript": "~5.9.2"
   },
   "private": true

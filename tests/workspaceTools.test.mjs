@@ -1052,6 +1052,75 @@ test("action center groups overdue reminders and recent reminder activity", () =
   assert.equal(center.summary.nextBestStepCount, center.nextBestSteps.length);
 });
 
+test("action center next steps include behavior signals and deterministic priority scoring", () => {
+  const snapshot = createSnapshot({
+    generatedAt: "2026-03-14T10:00:00.000Z",
+    reminders: trackItUpWorkspace.reminders.map((reminder, index) => {
+      if (index === 0) {
+        return {
+          ...reminder,
+          dueAt: "2026-03-13T08:00:00.000Z",
+          description:
+            "Capture a proof photo and log a note after finishing this maintenance step.",
+          scheduleRule: { frequency: "weekly", interval: 1 },
+          history: [
+            {
+              id: "action-center-priority-snooze-1",
+              action: "snoozed",
+              at: "2026-03-13T09:00:00.000Z",
+              note: "Deferred to later in the day.",
+            },
+            {
+              id: "action-center-priority-skip-1",
+              action: "skipped",
+              at: "2026-03-12T09:00:00.000Z",
+              note: "Skipped while supplies were missing.",
+            },
+          ],
+        };
+      }
+
+      if (index === 1) {
+        return {
+          ...reminder,
+          dueAt: "2026-03-15T09:00:00.000Z",
+          description:
+            "Quick recurring checkpoint that is usually completed fast.",
+          scheduleRule: { frequency: "daily", interval: 1 },
+          history: [
+            {
+              id: "action-center-priority-complete-1",
+              action: "completed",
+              at: "2026-03-13T06:30:00.000Z",
+              note: "Completed on time.",
+            },
+          ],
+        };
+      }
+
+      return reminder;
+    }),
+  });
+
+  const center = buildReminderActionCenter(snapshot);
+  const [firstStep] = center.nextBestSteps;
+
+  assert.ok(firstStep);
+  assert.equal(typeof firstStep.priorityScore, "number");
+  assert.equal(typeof firstStep.recentDeferralCount, "number");
+  assert.equal(typeof firstStep.recentCompletionCount, "number");
+  assert.equal(typeof firstStep.isRecurringLike, "boolean");
+  assert.ok(firstStep.descriptionSnippet.length > 0);
+  assert.ok(
+    firstStep.priorityScore >= center.nextBestSteps.at(-1).priorityScore,
+  );
+  assert.ok(
+    center.nextBestSteps.some(
+      (item) => item.proofAffinityHint && item.proofAffinityHint.length > 0,
+    ),
+  );
+});
+
 test("visual history derives scoped galleries, proofs, and before-after pairs", () => {
   const snapshot = createSnapshot({
     logs: [
@@ -2115,7 +2184,25 @@ test("action center explainer prompt includes grouped workload and next steps", 
   assert.equal(draft.context.feature, "action-center-explainer");
   assert.ok(draft.context.nextBestSteps.length > 0);
   assert.ok(draft.context.groupedBySpace.length > 0);
+  assert.equal(
+    typeof draft.context.nextBestSteps[0].recentDeferralCount,
+    "number",
+  );
+  assert.equal(
+    typeof draft.context.nextBestSteps[0].recentCompletionCount,
+    "number",
+  );
+  assert.equal(typeof draft.context.nextBestSteps[0].priorityScore, "number");
+  assert.equal(
+    typeof draft.context.nextBestSteps[0].isRecurringLike,
+    "boolean",
+  );
   assert.match(draft.prompt, /grouped workload/i);
+  assert.match(draft.prompt, /ordered by actionability/i);
+  assert.match(
+    draft.prompt,
+    /complete-now, log-proof, snooze, open-planner, review-later/i,
+  );
 });
 
 test("tracking quality prompt uses compact evidence-gap context", () => {

@@ -18,6 +18,35 @@ const seededLogIds = trackItUpSeedIdSets.logs;
 const seededExpenseIds = trackItUpSeedIdSets.expenses;
 const seededTemplateIds = trackItUpSeedIdSets.templates;
 
+function normalizeSpaceMembership(entity: {
+  spaceId?: string;
+  spaceIds?: string[];
+}) {
+  const next = entity.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) {
+    return Array.from(new Set(next));
+  }
+  return entity.spaceId ? [entity.spaceId] : [];
+}
+
+function sanitizeSpaceMembership(
+  entity: { spaceId?: string; spaceIds?: string[] },
+  validSpaceIds: Set<string>,
+) {
+  const filteredSpaceIds = normalizeSpaceMembership(entity).filter((spaceId) =>
+    validSpaceIds.has(spaceId),
+  );
+
+  if (filteredSpaceIds.length === 0) {
+    return null;
+  }
+
+  return {
+    spaceId: filteredSpaceIds[0],
+    spaceIds: filteredSpaceIds,
+  };
+}
+
 function shouldStripLegacySeedData(fallback: WorkspaceSnapshot) {
   return (
     fallback.spaces.length === 0 &&
@@ -54,70 +83,115 @@ function stripLegacySeedData(
   );
   const validSpaceIds = new Set(spaces.map((space) => space.id));
 
-  const assets = snapshot.assets.filter(
-    (asset) =>
-      !seededAssetIds.has(asset.id) && validSpaceIds.has(asset.spaceId),
-  );
+  const assets = snapshot.assets.flatMap((asset) => {
+    if (seededAssetIds.has(asset.id)) return [];
+    const membership = sanitizeSpaceMembership(asset, validSpaceIds);
+    if (!membership) return [];
+
+    return [
+      {
+        ...asset,
+        ...membership,
+      },
+    ];
+  });
   const validAssetIds = new Set(assets.map((asset) => asset.id));
 
-  const metricDefinitions = snapshot.metricDefinitions.filter(
-    (metric) =>
-      !seededMetricIds.has(metric.id) &&
-      validSpaceIds.has(metric.spaceId) &&
-      (!metric.assetId || validAssetIds.has(metric.assetId)),
-  );
+  const metricDefinitions = snapshot.metricDefinitions.flatMap((metric) => {
+    if (seededMetricIds.has(metric.id)) return [];
+    const membership = sanitizeSpaceMembership(metric, validSpaceIds);
+    if (!membership) return [];
+    if (metric.assetId && !validAssetIds.has(metric.assetId)) return [];
+
+    return [
+      {
+        ...metric,
+        ...membership,
+      },
+    ];
+  });
   const validMetricIds = new Set(metricDefinitions.map((metric) => metric.id));
 
-  const routines = snapshot.routines
-    .filter(
-      (routine) =>
-        !seededRoutineIds.has(routine.id) && validSpaceIds.has(routine.spaceId),
-    )
-    .map((routine) => ({
-      ...routine,
-      steps: routine.steps.filter(
-        (step) =>
-          (!step.assetId || validAssetIds.has(step.assetId)) &&
-          (!step.metricId || validMetricIds.has(step.metricId)),
-      ),
-    }));
+  const routines = snapshot.routines.flatMap((routine) => {
+    if (seededRoutineIds.has(routine.id)) return [];
+    const membership = sanitizeSpaceMembership(routine, validSpaceIds);
+    if (!membership) return [];
+
+    return [
+      {
+        ...routine,
+        ...membership,
+        steps: routine.steps.filter(
+          (step) =>
+            (!step.assetId || validAssetIds.has(step.assetId)) &&
+            (!step.metricId || validMetricIds.has(step.metricId)),
+        ),
+      },
+    ];
+  });
   const validRoutineIds = new Set(routines.map((routine) => routine.id));
 
-  const reminders = snapshot.reminders.filter(
-    (reminder) =>
-      !seededReminderIds.has(reminder.id) &&
-      validSpaceIds.has(reminder.spaceId),
-  );
+  const reminders = snapshot.reminders.flatMap((reminder) => {
+    if (seededReminderIds.has(reminder.id)) return [];
+    const membership = sanitizeSpaceMembership(reminder, validSpaceIds);
+    if (!membership) return [];
+
+    return [
+      {
+        ...reminder,
+        ...membership,
+      },
+    ];
+  });
   const validReminderIds = new Set(reminders.map((reminder) => reminder.id));
 
-  const recurringPlans = snapshot.recurringPlans.filter((plan) =>
-    validSpaceIds.has(plan.spaceId),
-  );
+  const recurringPlans = snapshot.recurringPlans.flatMap((plan) => {
+    const membership = sanitizeSpaceMembership(plan, validSpaceIds);
+    if (!membership) return [];
+
+    return [
+      {
+        ...plan,
+        ...membership,
+      },
+    ];
+  });
   const validRecurringPlanIds = new Set(recurringPlans.map((plan) => plan.id));
 
-  const recurringOccurrences = snapshot.recurringOccurrences.filter(
-    (occurrence) =>
-      validRecurringPlanIds.has(occurrence.planId) &&
-      validSpaceIds.has(occurrence.spaceId),
+  const recurringOccurrences = snapshot.recurringOccurrences.flatMap(
+    (occurrence) => {
+      if (!validRecurringPlanIds.has(occurrence.planId)) return [];
+      const membership = sanitizeSpaceMembership(occurrence, validSpaceIds);
+      if (!membership) return [];
+
+      return [
+        {
+          ...occurrence,
+          ...membership,
+        },
+      ];
+    },
   );
   const validRecurringOccurrenceIds = new Set(
     recurringOccurrences.map((occurrence) => occurrence.id),
   );
 
-  const initialLogs = snapshot.logs
-    .filter(
-      (log) => !seededLogIds.has(log.id) && validSpaceIds.has(log.spaceId),
-    )
-    .map((log) => {
-      const nextAssetIds = log.assetIds?.filter((assetId) =>
-        validAssetIds.has(assetId),
-      );
-      const nextMetricReadings = log.metricReadings?.filter((reading) =>
-        validMetricIds.has(reading.metricId),
-      );
+  const initialLogs = snapshot.logs.flatMap((log) => {
+    if (seededLogIds.has(log.id)) return [];
+    const membership = sanitizeSpaceMembership(log, validSpaceIds);
+    if (!membership) return [];
 
-      return {
+    const nextAssetIds = log.assetIds?.filter((assetId) =>
+      validAssetIds.has(assetId),
+    );
+    const nextMetricReadings = log.metricReadings?.filter((reading) =>
+      validMetricIds.has(reading.metricId),
+    );
+
+    return [
+      {
         ...log,
+        ...membership,
         assetIds: nextAssetIds?.length ? nextAssetIds : undefined,
         routineId:
           log.routineId && validRoutineIds.has(log.routineId)
@@ -139,8 +213,9 @@ function stripLegacySeedData(
         metricReadings: nextMetricReadings?.length
           ? nextMetricReadings
           : undefined,
-      };
-    });
+      },
+    ];
+  });
   const validLogIds = new Set(initialLogs.map((log) => log.id));
   const logs = initialLogs.map((log) => ({
     ...log,
@@ -151,13 +226,20 @@ function stripLegacySeedData(
     childLogIds: log.childLogIds?.filter((logId) => validLogIds.has(logId)),
   }));
 
-  const expenses = snapshot.expenses.filter(
-    (expense) =>
-      !seededExpenseIds.has(expense.id) &&
-      validSpaceIds.has(expense.spaceId) &&
-      (!expense.assetId || validAssetIds.has(expense.assetId)) &&
-      (!expense.logId || validLogIds.has(expense.logId)),
-  );
+  const expenses = snapshot.expenses.flatMap((expense) => {
+    if (seededExpenseIds.has(expense.id)) return [];
+    const membership = sanitizeSpaceMembership(expense, validSpaceIds);
+    if (!membership) return [];
+    if (expense.assetId && !validAssetIds.has(expense.assetId)) return [];
+    if (expense.logId && !validLogIds.has(expense.logId)) return [];
+
+    return [
+      {
+        ...expense,
+        ...membership,
+      },
+    ];
+  });
 
   const fallbackQuickActionsById = new Map(
     fallback.quickActions.map((action) => [action.id, action] as const),
@@ -295,29 +377,75 @@ export function normalizeWorkspaceSnapshot(
       ? candidate.spaces
       : safeFallback.spaces,
     assets: Array.isArray(candidate.assets)
-      ? candidate.assets
+      ? candidate.assets.map((asset) => ({
+          ...asset,
+          spaceIds: Array.isArray(asset.spaceIds)
+            ? asset.spaceIds
+            : asset.spaceId
+              ? [asset.spaceId]
+              : [],
+        }))
       : safeFallback.assets,
     metricDefinitions: Array.isArray(candidate.metricDefinitions)
-      ? candidate.metricDefinitions
+      ? candidate.metricDefinitions.map((metric) => ({
+          ...metric,
+          spaceIds: Array.isArray(metric.spaceIds)
+            ? metric.spaceIds
+            : metric.spaceId
+              ? [metric.spaceId]
+              : [],
+        }))
       : safeFallback.metricDefinitions,
     routines: Array.isArray(candidate.routines)
-      ? candidate.routines
+      ? candidate.routines.map((routine) => ({
+          ...routine,
+          spaceIds: Array.isArray(routine.spaceIds)
+            ? routine.spaceIds
+            : routine.spaceId
+              ? [routine.spaceId]
+              : [],
+        }))
       : safeFallback.routines,
     reminders: Array.isArray(candidate.reminders)
       ? candidate.reminders.map((reminder) => ({
           ...reminder,
+          spaceIds: Array.isArray(reminder.spaceIds)
+            ? reminder.spaceIds
+            : reminder.spaceId
+              ? [reminder.spaceId]
+              : [],
           history: Array.isArray(reminder.history) ? reminder.history : [],
         }))
       : safeFallback.reminders,
     recurringPlans: Array.isArray(candidate.recurringPlans)
-      ? candidate.recurringPlans
+      ? candidate.recurringPlans.map((plan) => ({
+          ...plan,
+          spaceIds: Array.isArray(plan.spaceIds)
+            ? plan.spaceIds
+            : plan.spaceId
+              ? [plan.spaceId]
+              : [],
+        }))
       : safeFallback.recurringPlans,
     recurringOccurrences: Array.isArray(candidate.recurringOccurrences)
-      ? candidate.recurringOccurrences
+      ? candidate.recurringOccurrences.map((occurrence) => ({
+          ...occurrence,
+          spaceIds: Array.isArray(occurrence.spaceIds)
+            ? occurrence.spaceIds
+            : occurrence.spaceId
+              ? [occurrence.spaceId]
+              : [],
+          history: Array.isArray(occurrence.history) ? occurrence.history : [],
+        }))
       : safeFallback.recurringOccurrences,
     logs: Array.isArray(candidate.logs)
       ? candidate.logs.map((log) => ({
           ...log,
+          spaceIds: Array.isArray(log.spaceIds)
+            ? log.spaceIds
+            : log.spaceId
+              ? [log.spaceId]
+              : [],
           attachments: Array.isArray(log.attachments)
             ? log.attachments
             : undefined,
@@ -327,7 +455,14 @@ export function normalizeWorkspaceSnapshot(
       ? candidate.quickActions
       : safeFallback.quickActions,
     expenses: Array.isArray(candidate.expenses)
-      ? candidate.expenses
+      ? candidate.expenses.map((expense) => ({
+          ...expense,
+          spaceIds: Array.isArray(expense.spaceIds)
+            ? expense.spaceIds
+            : expense.spaceId
+              ? [expense.spaceId]
+              : [],
+        }))
       : safeFallback.expenses,
     dashboardWidgets: Array.isArray(candidate.dashboardWidgets)
       ? candidate.dashboardWidgets

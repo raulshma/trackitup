@@ -2,52 +2,55 @@ import { useCallback } from "react";
 
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
-  cycleDashboardWidgetSize,
-  moveDashboardWidgets,
-  toggleDashboardWidgetVisibility,
+    cycleDashboardWidgetSize,
+    moveDashboardWidgets,
+    toggleDashboardWidgetVisibility,
 } from "@/services/dashboard/dashboardWidgets";
 import {
-  buildLogEntriesFromActionDraft,
-  type FormValueMap,
+    buildLogEntriesFromActionDraft,
+    type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { parseWorkspaceLogCsv } from "@/services/import/workspaceCsvImport";
-import { clearPersistedWorkspace, persistWorkspace } from "@/services/offline/workspacePersistence";
+import {
+    clearPersistedWorkspace,
+    persistWorkspace,
+} from "@/services/offline/workspacePersistence";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import { enqueueWorkspaceSync } from "@/services/offline/workspaceSync";
 import {
-  bulkCompleteRecurringOccurrences,
-  bulkSnoozeRecurringOccurrences,
-  completeRecurringOccurrence,
-  ensureRecurringOccurrencesWindow,
-  resolveRecurringPromptMatchWithLog,
-  skipRecurringOccurrence,
-  snoozeRecurringOccurrence,
-  summarizeRecurringSmartMatches,
-  upsertRecurringPlan,
-  validateRecurringPlanDraft,
+    bulkCompleteRecurringOccurrences,
+    bulkSnoozeRecurringOccurrences,
+    completeRecurringOccurrence,
+    ensureRecurringOccurrencesWindow,
+    resolveRecurringPromptMatchWithLog,
+    skipRecurringOccurrence,
+    snoozeRecurringOccurrence,
+    summarizeRecurringSmartMatches,
+    upsertRecurringPlan,
+    validateRecurringPlanDraft,
 } from "@/services/recurring/recurringPlans";
 import {
-  applyReminderTriggerRules,
-  getNextReminderDate,
+    applyReminderTriggerRules,
+    getNextReminderDate,
 } from "@/services/reminders/reminderRules";
 import {
-  createWorkspaceSpace,
-  type CreateSpaceDraft,
+    createWorkspaceSpace,
+    type CreateSpaceDraft,
 } from "@/services/spaces/workspaceSpaces";
 import { applyTemplateImportToWorkspace } from "@/services/templates/templateImport";
 import type { WorkspaceUpdater } from "@/stores/useWorkspaceStore";
 import type {
-  RecurringPlan,
-  TemplateCatalogItem,
-  TemplateImportMethod,
-  WorkspaceSnapshot,
+    RecurringPlan,
+    TemplateCatalogItem,
+    TemplateImportMethod,
+    WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 import type {
-  CreateSpaceResult,
-  SaveCustomTemplateResult,
-  SaveLogResult,
-  TemplateImportActionResult,
+    CreateSpaceResult,
+    SaveCustomTemplateResult,
+    SaveLogResult,
+    TemplateImportActionResult,
 } from "./types";
 
 type WorkspaceSetter = (updater: WorkspaceUpdater) => void;
@@ -58,9 +61,16 @@ function buildReminderActivityLog(
   note: string,
   occurredAt: string,
 ) {
+  const spaceIds = reminder.spaceIds?.length
+    ? reminder.spaceIds
+    : reminder.spaceId
+      ? [reminder.spaceId]
+      : [];
+
   return {
     id: `log-${reminder.id}-${Date.now()}`,
-    spaceId: reminder.spaceId,
+    spaceId: spaceIds[0] ?? reminder.spaceId,
+    spaceIds,
     kind: "reminder" as const,
     title,
     note,
@@ -569,6 +579,7 @@ export function useWorkspaceMutations(
           {
             actionAt,
             logId: options?.logId,
+            actionSource: "manual",
           },
         );
         if (completedWorkspace === currentWorkspace) {
@@ -603,6 +614,9 @@ export function useWorkspaceMutations(
           occurrenceId,
           snoozedUntil.toISOString(),
           actionAt,
+          {
+            actionSource: "manual",
+          },
         );
         if (snoozedWorkspace === currentWorkspace) {
           return currentWorkspace;
@@ -626,6 +640,9 @@ export function useWorkspaceMutations(
           occurrenceId,
           reason,
           actionAt,
+          {
+            actionSource: "manual",
+          },
         );
         if (skippedWorkspace === currentWorkspace) {
           return currentWorkspace;

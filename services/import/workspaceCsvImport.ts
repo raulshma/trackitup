@@ -13,7 +13,11 @@ export type WorkspaceLogCsvImportResult = {
 };
 
 function normalizeHeader(value: string) {
-  return value.trim().replace(/^\uFEFF/, "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value
+    .trim()
+    .replace(/^\uFEFF/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 function parseCsvRows(input: string) {
@@ -76,7 +80,9 @@ function parseNumber(value: string) {
 
 function parseTimestamp(value: string) {
   const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? undefined : new Date(timestamp).toISOString();
+  return Number.isNaN(timestamp)
+    ? undefined
+    : new Date(timestamp).toISOString();
 }
 
 export function parseWorkspaceLogCsv(
@@ -87,21 +93,30 @@ export function parseWorkspaceLogCsv(
   if (rows.length < 2) {
     return {
       logs: [],
-      warnings: ["Add a header row and at least one data row before importing."],
+      warnings: [
+        "Add a header row and at least one data row before importing.",
+      ],
     };
   }
 
   const headers = rows[0].map(normalizeHeader);
   const warnings: string[] = [];
-  const spacesById = new Map(workspace.spaces.map((space) => [space.id, space] as const));
+  const spacesById = new Map(
+    workspace.spaces.map((space) => [space.id, space] as const),
+  );
   const spacesByName = new Map(
-    workspace.spaces.map((space) => [space.name.trim().toLowerCase(), space] as const),
+    workspace.spaces.map(
+      (space) => [space.name.trim().toLowerCase(), space] as const,
+    ),
   );
   const assetsById = new Set(workspace.assets.map((asset) => asset.id));
   const getColumnIndex = (...names: string[]) =>
     headers.findIndex((header) => names.includes(header));
 
-  if (getColumnIndex("title") < 0 || getColumnIndex("spaceid", "spacename", "space") < 0) {
+  if (
+    getColumnIndex("title") < 0 ||
+    getColumnIndex("spaceid", "spacename", "space") < 0
+  ) {
     return {
       logs: [],
       warnings: [
@@ -114,7 +129,7 @@ export function parseWorkspaceLogCsv(
     const rowNumber = rowIndex + 2;
     const getValue = (...names: string[]) => {
       const index = getColumnIndex(...names);
-      return index >= 0 ? cells[index]?.trim() ?? "" : "";
+      return index >= 0 ? (cells[index]?.trim() ?? "") : "";
     };
 
     const title = getValue("title");
@@ -124,9 +139,21 @@ export function parseWorkspaceLogCsv(
     }
 
     const rawSpaceId = getValue("spaceid");
+    const rawSpaceIds = splitListCell(getValue("spaceids"));
     const rawSpaceName = getValue("spacename", "space").toLowerCase();
-    const resolvedSpaceId = rawSpaceId || spacesByName.get(rawSpaceName)?.id;
-    if (!resolvedSpaceId || !spacesById.has(resolvedSpaceId)) {
+    const resolvedSpaceIds = Array.from(
+      new Set(
+        [
+          ...rawSpaceIds,
+          rawSpaceId,
+          spacesByName.get(rawSpaceName)?.id ?? "",
+        ].filter(Boolean),
+      ),
+    ).filter((spaceId) => spacesById.has(spaceId));
+
+    const resolvedSpaceId = resolvedSpaceIds[0];
+
+    if (!resolvedSpaceId || resolvedSpaceIds.length === 0) {
       warnings.push(
         `Row ${rowNumber}: skipped because the space could not be resolved from '${rawSpaceId || rawSpaceName || "blank"}'.`,
       );
@@ -138,21 +165,29 @@ export function parseWorkspaceLogCsv(
       ? (rawKind as LogKind)
       : "asset-update";
     const rawOccurredAt = getValue("occurredat", "timestamp", "date");
-    const occurredAt = parseTimestamp(rawOccurredAt) ?? new Date().toISOString();
+    const occurredAt =
+      parseTimestamp(rawOccurredAt) ?? new Date().toISOString();
     if (rawOccurredAt && !parseTimestamp(rawOccurredAt)) {
-      warnings.push(`Row ${rowNumber}: invalid occurredAt '${rawOccurredAt}', using the current time.`);
+      warnings.push(
+        `Row ${rowNumber}: invalid occurredAt '${rawOccurredAt}', using the current time.`,
+      );
     }
 
     const requestedAssetIds = splitListCell(getValue("assetids"));
-    const assetIds = requestedAssetIds.filter((assetId) => assetsById.has(assetId));
+    const assetIds = requestedAssetIds.filter((assetId) =>
+      assetsById.has(assetId),
+    );
     if (requestedAssetIds.length > assetIds.length) {
-      warnings.push(`Row ${rowNumber}: some assetIds were ignored because they do not exist in the workspace.`);
+      warnings.push(
+        `Row ${rowNumber}: some assetIds were ignored because they do not exist in the workspace.`,
+      );
     }
 
     return [
       {
         id: `log-import-${Date.now()}-${rowIndex}`,
         spaceId: resolvedSpaceId,
+        spaceIds: resolvedSpaceIds,
         kind,
         title,
         note: getValue("note") || "Imported from CSV",

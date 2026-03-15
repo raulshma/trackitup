@@ -142,6 +142,13 @@ function pickParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
 type ActionCenterSection = "queue" | "assist" | "review";
 
 export default function ActionCenterScreen() {
@@ -342,20 +349,38 @@ export default function ActionCenterScreen() {
     };
   }
 
-  function openReminderLogbook(reminderId: string, spaceId: string) {
-    router.push(
-      `/logbook?actionId=quick-log&spaceId=${spaceId}&reminderId=${reminderId}` as never,
-    );
+  function openReminderLogbook(
+    reminderId: string,
+    spaceId: string,
+    spaceIds?: string[],
+  ) {
+    router.push({
+      pathname: "/logbook",
+      params: {
+        actionId: "quick-log",
+        reminderId,
+        spaceId,
+        ...(spaceIds?.length ? { spaceIds: spaceIds.join(",") } : {}),
+      },
+    });
   }
 
   function openRecurringOccurrenceLogbook(
     occurrenceId: string,
     planId: string,
     spaceId: string,
+    spaceIds?: string[],
   ) {
-    router.push(
-      `/logbook?actionId=quick-log&spaceId=${spaceId}&recurringOccurrenceId=${occurrenceId}&recurringPlanId=${planId}` as never,
-    );
+    router.push({
+      pathname: "/logbook",
+      params: {
+        actionId: "quick-log",
+        spaceId,
+        recurringOccurrenceId: occurrenceId,
+        recurringPlanId: planId,
+        ...(spaceIds?.length ? { spaceIds: spaceIds.join(",") } : {}),
+      },
+    });
   }
 
   function handleOpenTrackingQualityDestination(
@@ -437,7 +462,11 @@ export default function ActionCenterScreen() {
     }
 
     if (action === "log-proof") {
-      openReminderLogbook(reminder.id, reminder.spaceId);
+      openReminderLogbook(
+        reminder.id,
+        reminder.spaceId,
+        normalizeSpaceIds(reminder),
+      );
       return;
     }
 
@@ -585,11 +614,19 @@ export default function ActionCenterScreen() {
         ? `Capture completion evidence for ${quickActionReminder.title}.`
         : "Jump into the logbook when you need to record proof or context.",
       onPress: () =>
-        router.push(
-          quickActionReminder
-            ? (`/logbook?actionId=quick-log&spaceId=${quickActionReminder.spaceId}&reminderId=${quickActionReminder.id}` as never)
-            : ("/logbook" as never),
-        ),
+        quickActionReminder
+          ? router.push({
+              pathname: "/logbook",
+              params: {
+                actionId: "quick-log",
+                spaceId: quickActionReminder.spaceId,
+                reminderId: quickActionReminder.id,
+                ...(quickActionReminder.spaceIds?.length
+                  ? { spaceIds: quickActionReminder.spaceIds.join(",") }
+                  : {}),
+              },
+            })
+          : router.push("/logbook" as never),
       accentColor: palette.secondary,
     },
     {
@@ -1322,6 +1359,7 @@ export default function ActionCenterScreen() {
                                   occurrence.occurrenceId,
                                   occurrence.planId,
                                   occurrence.spaceId,
+                                  occurrence.spaceIds,
                                 )
                               : completeRecurringOccurrence(
                                   occurrence.occurrenceId,
@@ -1412,6 +1450,55 @@ export default function ActionCenterScreen() {
                   />
                 </ActionButtonRow>
               ) : null}
+
+              <Text style={[styles.sectionCaption, paletteStyles.mutedText]}>
+                Recent recurring activity
+              </Text>
+              {actionCenter.recurringRecentActivity.length === 0 ? (
+                <Text style={[styles.copy, paletteStyles.mutedText]}>
+                  No recurring completion activity yet. Complete, snooze, or
+                  skip routines to build a trackable history.
+                </Text>
+              ) : (
+                actionCenter.recurringRecentActivity.map((activity) => (
+                  <Surface
+                    key={activity.id}
+                    style={[
+                      styles.listCard,
+                      {
+                        backgroundColor: theme.colors.elevation.level1,
+                        borderColor: theme.colors.outlineVariant,
+                      },
+                    ]}
+                    elevation={1}
+                  >
+                    <View style={styles.listHeader}>
+                      <View style={styles.listCopy}>
+                        <Text style={styles.listTitle}>
+                          {activity.planTitle}
+                        </Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {activity.spaceName} • {formatTimestamp(activity.at)}
+                        </Text>
+                        <Text style={[styles.meta, paletteStyles.mutedText]}>
+                          {activity.action} via {activity.actionSource}
+                          {typeof activity.completionLatencyMinutes === "number"
+                            ? ` • ${activity.completionLatencyMinutes} min vs due`
+                            : ""}
+                        </Text>
+                        {activity.note ? (
+                          <Text style={[styles.meta, paletteStyles.mutedText]}>
+                            {activity.note}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Chip compact style={styles.infoChip}>
+                        {activity.action}
+                      </Chip>
+                    </View>
+                  </Surface>
+                ))
+              )}
             </SectionSurface>
 
             <SectionSurface
@@ -1551,8 +1638,10 @@ export default function ActionCenterScreen() {
                           <CardActionPill
                             label="Log proof"
                             onPress={() =>
-                              router.push(
-                                `/logbook?actionId=quick-log&spaceId=${reminder.spaceId}&reminderId=${reminder.id}` as never,
+                              openReminderLogbook(
+                                reminder.id,
+                                reminder.spaceId,
+                                normalizeSpaceIds(reminder),
                               )
                             }
                           />
@@ -1778,6 +1867,7 @@ export default function ActionCenterScreen() {
                                 openReminderLogbook(
                                   reminder.id,
                                   reminder.spaceId,
+                                  normalizeSpaceIds(reminder),
                                 )
                               }
                             />
@@ -2357,6 +2447,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   content: { padding: uiSpace.screen, paddingBottom: uiSpace.screenBottom },
   copy: { ...uiTypography.body },
+  sectionCaption: { ...uiTypography.label, marginTop: uiSpace.md },
   meta: { ...uiTypography.label, marginTop: uiSpace.xxs, lineHeight: 18 },
   listCard: {
     borderRadius: uiRadius.panel,

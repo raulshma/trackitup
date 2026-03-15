@@ -64,6 +64,24 @@ export type VisualHistoryView = {
   monthlyRecaps: VisualHistoryMonthlyRecap[];
 };
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function primarySpaceId(value: { spaceId?: string; spaceIds?: string[] }) {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId;
+}
+
+function belongsToSpace(
+  value: { spaceId?: string; spaceIds?: string[] },
+  spaceId: string,
+) {
+  return normalizeSpaceIds(value).includes(spaceId);
+}
+
 function sortNewestFirst<T extends { capturedAt: string; id: string }>(
   items: T[],
 ) {
@@ -257,11 +275,12 @@ export function buildWorkspaceVisualHistory(
       .filter((log) => {
         if (scope.assetId)
           return log.assetIds?.includes(scope.assetId) ?? false;
-        if (scope.spaceId) return log.spaceId === scope.spaceId;
+        if (scope.spaceId) return belongsToSpace(log, scope.spaceId);
         return true;
       })
       .flatMap((log) => {
-        const space = spacesById.get(log.spaceId);
+        const logSpaceId = primarySpaceId(log) ?? "";
+        const space = spacesById.get(logSpaceId);
         const assetIds = log.assetIds ?? [];
         const assetNames = assetIds
           .map((assetId) => assetsById.get(assetId)?.name)
@@ -278,7 +297,7 @@ export function buildWorkspaceVisualHistory(
             logTitle: log.title,
             logNote: log.note,
             logKind: log.kind,
-            spaceId: log.spaceId,
+            spaceId: logSpaceId,
             spaceName: space?.name ?? "Unknown space",
             spaceColor: space?.themeColor ?? "#0f766e",
             assetIds,

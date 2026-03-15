@@ -1,5 +1,8 @@
 import type {
     LogEntry,
+    RecurringCompletionAction,
+    RecurringCompletionActionSource,
+    RecurringCompletionHistoryEntry,
     RecurringOccurrence,
     RecurringOccurrenceStatus,
     RecurringPlan,
@@ -301,6 +304,68 @@ function normalizeText(value: string) {
     .trim();
 }
 
+function normalizeSpaceIds(value: {
+  spaceId?: string;
+  spaceIds?: string[];
+}): string[] {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function pickPrimarySpaceId(value: {
+  spaceId?: string;
+  spaceIds?: string[];
+}): string {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId ?? "";
+}
+
+function hasSpaceIntersection(
+  left: { spaceId?: string; spaceIds?: string[] },
+  right: { spaceId?: string; spaceIds?: string[] },
+) {
+  const leftSpaces = normalizeSpaceIds(left);
+  const rightSpaces = normalizeSpaceIds(right);
+  if (leftSpaces.length === 0 || rightSpaces.length === 0) return false;
+  const rightSet = new Set(rightSpaces);
+  return leftSpaces.some((spaceId) => rightSet.has(spaceId));
+}
+
+function toLatencyMinutes(dueAt: string, actionAt: string) {
+  const dueMs = Date.parse(dueAt);
+  const actionMs = Date.parse(actionAt);
+  if (Number.isNaN(dueMs) || Number.isNaN(actionMs)) return undefined;
+  return Math.round((actionMs - dueMs) / (60 * 1000));
+}
+
+function appendRecurringHistory(
+  occurrence: RecurringOccurrence,
+  action: RecurringCompletionAction,
+  actionSource: RecurringCompletionActionSource,
+  actionAt: string,
+  options?: {
+    logId?: string;
+    note?: string;
+    latencyReferenceDueAt?: string;
+  },
+): RecurringCompletionHistoryEntry[] {
+  const entry: RecurringCompletionHistoryEntry = {
+    id: `recurring-history-${occurrence.id}-${Date.now()}-${action}`,
+    action,
+    actionSource,
+    at: actionAt,
+    logId: options?.logId,
+    note: options?.note,
+    completionLatencyMinutes: toLatencyMinutes(
+      options?.latencyReferenceDueAt ?? occurrenceEffectiveDueAt(occurrence),
+      actionAt,
+    ),
+  };
+
+  return [entry, ...(occurrence.history ?? [])];
+}
+
 function hasTagOverlap(
   left: string[] | undefined,
   right: string[] | undefined,
@@ -320,6 +385,10 @@ export function validateRecurringPlanDraft(
   draft: Omit<RecurringPlan, "createdAt" | "updatedAt">,
 ) {
   const errors: Record<string, string> = {};
+
+  if (normalizeSpaceIds(draft).length === 0) {
+    errors.spaceId = "Pick at least one space.";
+  }
 
   if (!draft.title?.trim()) {
     errors.title = "Title is required.";
@@ -383,8 +452,16 @@ export function upsertRecurringPlan(
   draft: Omit<RecurringPlan, "createdAt" | "updatedAt">,
   now = workspace.generatedAt,
 ): WorkspaceSnapshot {
+  const normalizedSpaceIds = normalizeSpaceIds(draft);
+  const primarySpaceId = normalizedSpaceIds[0] ?? draft.spaceId;
+  if (!primarySpaceId || normalizedSpaceIds.length === 0) {
+    return workspace;
+  }
+
   const normalized = normalizePlan({
     ...draft,
+    spaceId: primarySpaceId,
+    spaceIds: normalizedSpaceIds,
     createdAt: now,
     updatedAt: now,
   });
@@ -506,7 +583,8 @@ export function ensureRecurringOccurrencesWindow(
         nextOccurrences.push({
           id: `rec-occ-${plan.id}-${normalizeLocalDate(cursor)}-${timeText.replace(":", "")}`,
           planId: plan.id,
-          spaceId: plan.spaceId,
+          spaceId: pickPrimarySpaceId(plan),
+          spaceIds: normalizeSpaceIds(plan),
           dueAt: dueAtIso,
           status: "scheduled",
           createdAt: now,
@@ -562,6 +640,8 @@ export function completeRecurringOccurrence(
   options?: {
     actionAt?: string;
     logId?: string;
+    actionSource?: RecurringCompletionActionSource;
+    note?: string;
   },
 ): WorkspaceSnapshot {
   const actionAt = options?.actionAt ?? workspace.generatedAt;
@@ -590,6 +670,16 @@ export function completeRecurringOccurrence(
             completedAt: actionAt,
             logId: options?.logId ?? item.logId,
             snoozedUntil: undefined,
+            history: appendRecurringHistory(
+              item,
+              "completed",
+              options?.actionSource ?? "manual",
+              actionAt,
+              {
+                logId: options?.logId ?? item.logId,
+                note: options?.note,
+              },
+            ),
             updatedAt: actionAt,
           }
         : item,
@@ -602,6 +692,10 @@ export function snoozeRecurringOccurrence(
   occurrenceId: string,
   snoozedUntil: string,
   actionAt = workspace.generatedAt,
+  options?: {
+    actionSource?: RecurringCompletionActionSource;
+    note?: string;
+  },
 ): WorkspaceSnapshot {
   const exists = workspace.recurringOccurrences.some(
     (item) => item.id === occurrenceId,
@@ -616,6 +710,15 @@ export function snoozeRecurringOccurrence(
         ? {
             ...item,
             snoozedUntil,
+            history: appendRecurringHistory(
+              item,
+              "snoozed",
+              options?.actionSource ?? "manual",
+              actionAt,
+              {
+                note: options?.note,
+              },
+            ),
             updatedAt: actionAt,
           }
         : item,
@@ -628,6 +731,9 @@ export function skipRecurringOccurrence(
   occurrenceId: string,
   reason = "Skipped from action center",
   actionAt = workspace.generatedAt,
+  options?: {
+    actionSource?: RecurringCompletionActionSource;
+  },
 ): WorkspaceSnapshot {
   const exists = workspace.recurringOccurrences.some(
     (item) => item.id === occurrenceId,
@@ -644,6 +750,15 @@ export function skipRecurringOccurrence(
             status: "skipped",
             skipReason: reason,
             snoozedUntil: undefined,
+            history: appendRecurringHistory(
+              item,
+              "skipped",
+              options?.actionSource ?? "manual",
+              actionAt,
+              {
+                note: reason,
+              },
+            ),
             updatedAt: actionAt,
           }
         : item,
@@ -678,6 +793,10 @@ export function bulkCompleteRecurringOccurrences(
         status: "completed",
         completedAt: actionAt,
         snoozedUntil: undefined,
+        history: appendRecurringHistory(item, "completed", "bulk", actionAt, {
+          logId: item.logId,
+          note: "Completed in bulk",
+        }),
         updatedAt: actionAt,
       };
     }),
@@ -704,6 +823,9 @@ export function bulkSnoozeRecurringOccurrences(
       return {
         ...item,
         snoozedUntil,
+        history: appendRecurringHistory(item, "snoozed", "bulk", actionAt, {
+          note: "Snoozed in bulk",
+        }),
         updatedAt: actionAt,
       };
     }),
@@ -732,6 +854,8 @@ export function resolveRecurringPromptMatchWithLog(
   const nextWorkspace = completeRecurringOccurrence(workspace, occurrenceId, {
     actionAt,
     logId,
+    actionSource: "manual",
+    note: "Resolved from smart-match prompt",
   });
 
   return {
@@ -855,7 +979,7 @@ export function findRecurringLogMatchSuggestions(
       .map((occurrence) => {
         const plan = plansById.get(occurrence.planId);
         if (!plan || plan.status !== "active") return null;
-        if (plan.spaceId !== log.spaceId) return null;
+        if (!hasSpaceIntersection(plan, log)) return null;
 
         const effectiveDue = new Date(occurrenceEffectiveDueAt(occurrence));
         const missDeadline = resolveMissDeadline(plan, occurrence);
@@ -942,6 +1066,16 @@ export function applyRecurringLogAutoMatches(
         status: "completed",
         completedAt: now,
         logId: match.logId,
+        history: appendRecurringHistory(
+          occurrence,
+          "completed",
+          "auto-match",
+          now,
+          {
+            logId: match.logId,
+            note: "Completed automatically from recurring smart match",
+          },
+        ),
         updatedAt: now,
       };
     }),

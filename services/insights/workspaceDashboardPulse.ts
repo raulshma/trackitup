@@ -20,6 +20,17 @@ export type WorkspaceDashboardPulseRoute =
   | "inventory"
   | "visual-history";
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function primarySpaceId(value: { spaceId?: string; spaceIds?: string[] }) {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId;
+}
+
 export type WorkspaceDashboardPulseAttentionItem = {
   id: string;
   kind: "metric-alert" | "reminder-alert";
@@ -108,7 +119,8 @@ export function buildWorkspaceDashboardPulse(
         const aboveSafeMax =
           metric.safeMax !== undefined && reading.value > metric.safeMax;
         if (!belowSafeMin && !aboveSafeMax) return [];
-        const spaceName = spacesById.get(log.spaceId)?.name ?? "Unknown space";
+        const logSpaceId = primarySpaceId(log);
+        const spaceName = spacesById.get(logSpaceId ?? "")?.name ?? "Unknown space";
         return [
           {
             id: `metric-alert:${log.id}:${metric.id}`,
@@ -116,7 +128,7 @@ export function buildWorkspaceDashboardPulse(
             title: `${metric.name} is outside the safe zone`,
             detail: `${reading.value}${metric.unitLabel ? ` ${metric.unitLabel}` : ""} in ${spaceName}`,
             route: "planner" as const,
-            spaceId: log.spaceId,
+            spaceId: logSpaceId,
             priority: 3,
             timestamp: log.occurredAt,
           },
@@ -132,7 +144,7 @@ export function buildWorkspaceDashboardPulse(
       title: reminder.title,
       detail: `${reminder.status} • ${reminder.ruleLabel ?? reminder.triggerCondition ?? "Needs follow-up"}`,
       route: "planner" as const,
-      spaceId: reminder.spaceId,
+      spaceId: primarySpaceId(reminder),
       priority: reminder.status === "due" ? 4 : 2,
       timestamp: getReminderScheduleTimestamp(reminder),
     }));

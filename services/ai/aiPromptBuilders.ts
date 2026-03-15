@@ -294,6 +294,15 @@ export type ActionCenterExplainerPromptContext = {
     spaceName: string;
     status: string;
     dueAt: string;
+    descriptionSnippet: string;
+    isRecurringLike: boolean;
+    scheduleHint?: string;
+    latestHistoryAction?: string;
+    latestHistoryAt?: string;
+    recentDeferralCount: number;
+    recentCompletionCount: number;
+    proofAffinityHint?: string;
+    priorityScore: number;
     suggestedAction: string;
     reason: string;
   }>;
@@ -1705,6 +1714,16 @@ export function buildActionCenterExplainerPrompt(options: {
         spaceName: compactText(item.spaceName, 60),
         status: item.status,
         dueAt: item.dueAt,
+        descriptionSnippet: compactText(item.descriptionSnippet, 120),
+        isRecurringLike: item.isRecurringLike,
+        scheduleHint: compactText(item.scheduleHint, 60) || undefined,
+        latestHistoryAction: item.latestHistoryAction,
+        latestHistoryAt: item.latestHistoryAt,
+        recentDeferralCount: item.recentDeferralCount,
+        recentCompletionCount: item.recentCompletionCount,
+        proofAffinityHint:
+          compactText(item.proofAffinityHint, 120) || undefined,
+        priorityScore: item.priorityScore,
         suggestedAction: item.suggestedAction,
         reason: compactText(item.reason, 120),
       })),
@@ -1735,12 +1754,13 @@ export function buildActionCenterExplainerPrompt(options: {
 
   return {
     system:
-      "You are a TrackItUp action-center explainer. Explain the current reminder queue and suggest grounded next moves using only the provided reminder counts, grouped workload, recent reminder activity, and recommendation context.",
+      "You are a TrackItUp action-center explainer. Prioritize immediate, executable reminder moves using only the provided queue pressure, grouped workload, reminder behavior signals, recent activity, and recommendation context.",
     consentLabel: aiActionCenterExplainerCopy.consentLabel,
     prompt: buildPromptBody(
       [
         `User request: ${context.userRequest}`,
-        "Explain what matters most in the current action center, highlight grouped workload pressure, and recommend a short review-only next-step sequence.",
+        "Explain what matters most in the current action center, highlight grouped workload pressure, and recommend a short review-only next-step sequence ordered by actionability.",
+        "Prefer suggestions that map directly to TrackItUp-native actions (complete-now, log-proof, snooze, open-planner, review-later) and account for recent deferrals or completion patterns when provided.",
         "Do not invent reminders, completion state changes, automation, or evidence that is not present in the provided context.",
       ],
       context,

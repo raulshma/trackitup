@@ -1,13 +1,42 @@
 import type { LogEntry, WorkspaceSnapshot } from "../../types/trackitup.ts";
 
 import {
-  getReminderScheduleTimestamp,
-  isReminderOpen,
+    getReminderScheduleTimestamp,
+    isReminderOpen,
 } from "./workspaceInsights.ts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RECENT_LOG_DAYS = 14;
 const METRIC_GAP_DAYS = 30;
+
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function primarySpaceId(value: { spaceId?: string; spaceIds?: string[] }) {
+  return normalizeSpaceIds(value)[0] ?? value.spaceId;
+}
+
+function belongsToSpace(
+  value: { spaceId?: string; spaceIds?: string[] },
+  spaceId: string,
+) {
+  return normalizeSpaceIds(value).includes(spaceId);
+}
+
+function hasSpaceIntersection(
+  left: { spaceId?: string; spaceIds?: string[] },
+  right: { spaceId?: string; spaceIds?: string[] },
+) {
+  const leftSpaces = normalizeSpaceIds(left);
+  const rightSpaces = normalizeSpaceIds(right);
+  if (leftSpaces.length === 0 || rightSpaces.length === 0) return false;
+  const rightSet = new Set(rightSpaces);
+  return leftSpaces.some((spaceId) => rightSet.has(spaceId));
+}
 
 export type WorkspaceTrackingQualityRoute =
   | "action-center"
@@ -86,7 +115,9 @@ function hasProof(log: LogEntry) {
 }
 
 function hasNumericMetric(log: LogEntry) {
-  return (log.metricReadings ?? []).some((reading) => typeof reading.value === "number");
+  return (log.metricReadings ?? []).some(
+    (reading) => typeof reading.value === "number",
+  );
 }
 
 function hasMeaningfulNote(log: LogEntry) {
@@ -96,8 +127,10 @@ function hasMeaningfulNote(log: LogEntry) {
 function getSparseLogSignals(log: LogEntry) {
   if (log.kind === "metric-reading") {
     const signals: string[] = [];
-    if (!hasNumericMetric(log)) signals.push("No numeric metric reading was captured.");
-    if (!hasMeaningfulNote(log)) signals.push("The note is too short to explain the reading.");
+    if (!hasNumericMetric(log))
+      signals.push("No numeric metric reading was captured.");
+    if (!hasMeaningfulNote(log))
+      signals.push("The note is too short to explain the reading.");
     return signals;
   }
 
@@ -116,9 +149,13 @@ export function buildWorkspaceTrackingQualitySummary(
   const now = workspace.generatedAt;
   const recentLogThreshold = addDays(now, -RECENT_LOG_DAYS);
   const metricGapThreshold = addDays(now, -METRIC_GAP_DAYS);
-  const spacesById = new Map(workspace.spaces.map((space) => [space.id, space] as const));
+  const spacesById = new Map(
+    workspace.spaces.map((space) => [space.id, space] as const),
+  );
   const openReminders = workspace.reminders.filter(isReminderOpen);
-  const recentLogs = workspace.logs.filter((log) => log.occurredAt >= recentLogThreshold);
+  const recentLogs = workspace.logs.filter(
+    (log) => log.occurredAt >= recentLogThreshold,
+  );
 
   const reminderGaps = openReminders
     .map<WorkspaceTrackingQualityReminderGap>((reminder) => {
@@ -132,17 +169,23 @@ export function buildWorkspaceTrackingQualitySummary(
       const reasons: string[] = [];
       if (dueAt <= now) reasons.push("This reminder is already overdue.");
       if (recentLinkedLogCount === 0) {
-        reasons.push("No linked proof log was recorded for it in the last 14 days.");
+        reasons.push(
+          "No linked proof log was recorded for it in the last 14 days.",
+        );
       }
       if (deferredCount > 0) {
-        reasons.push("Its history shows recent snoozes or skips instead of recorded completion.");
+        reasons.push(
+          "Its history shows recent snoozes or skips instead of recorded completion.",
+        );
       }
 
       return {
         id: reminder.id,
         title: reminder.title,
-        spaceId: reminder.spaceId,
-        spaceName: spacesById.get(reminder.spaceId)?.name ?? "Unknown space",
+        spaceId: primarySpaceId(reminder) ?? "",
+        spaceName:
+          spacesById.get(primarySpaceId(reminder) ?? "")?.name ??
+          "Unknown space",
         dueAt,
         status: reminder.status,
         recentLinkedLogCount,
@@ -162,8 +205,9 @@ export function buildWorkspaceTrackingQualitySummary(
       return {
         id: log.id,
         title: log.title,
-        spaceId: log.spaceId,
-        spaceName: spacesById.get(log.spaceId)?.name ?? "Unknown space",
+        spaceId: primarySpaceId(log) ?? "",
+        spaceName:
+          spacesById.get(primarySpaceId(log) ?? "")?.name ?? "Unknown space",
         occurredAt: log.occurredAt,
         kind: log.kind,
         signals,
@@ -179,29 +223,35 @@ export function buildWorkspaceTrackingQualitySummary(
         .find((log) =>
           (log.metricReadings ?? []).some(
             (reading) =>
-              reading.metricId === metric.id && typeof reading.value === "number",
+              reading.metricId === metric.id &&
+              typeof reading.value === "number",
           ),
         );
-      const openReminderCount = openReminders.filter(
-        (reminder) => reminder.spaceId === metric.spaceId,
+      const openReminderCount = openReminders.filter((reminder) =>
+        hasSpaceIntersection(reminder, metric),
       ).length;
       const reasons: string[] = [];
       if (!latestMetricLog) {
-        reasons.push("This tracked metric has no recorded numeric reading yet.");
+        reasons.push(
+          "This tracked metric has no recorded numeric reading yet.",
+        );
       } else if (latestMetricLog.occurredAt < metricGapThreshold) {
         reasons.push(
           `Its last recorded reading is older than ${METRIC_GAP_DAYS} days.`,
         );
       }
       if (openReminderCount > 0) {
-        reasons.push("The same space still has open reminder work in the queue.");
+        reasons.push(
+          "The same space still has open reminder work in the queue.",
+        );
       }
 
       return {
         id: metric.id,
         name: metric.name,
-        spaceId: metric.spaceId,
-        spaceName: spacesById.get(metric.spaceId)?.name ?? "Unknown space",
+        spaceId: primarySpaceId(metric) ?? "",
+        spaceName:
+          spacesById.get(primarySpaceId(metric) ?? "")?.name ?? "Unknown space",
         lastRecordedAt: latestMetricLog?.occurredAt,
         openReminderCount,
         reasons,
@@ -212,32 +262,42 @@ export function buildWorkspaceTrackingQualitySummary(
     .sort((left, right) => {
       if (!left.lastRecordedAt && right.lastRecordedAt) return -1;
       if (left.lastRecordedAt && !right.lastRecordedAt) return 1;
-      return (left.lastRecordedAt ?? "").localeCompare(right.lastRecordedAt ?? "");
+      return (left.lastRecordedAt ?? "").localeCompare(
+        right.lastRecordedAt ?? "",
+      );
     });
 
   const spaceGaps = workspace.spaces
     .map<WorkspaceTrackingQualitySpaceGap>((space) => {
-      const spaceLogs = workspace.logs.filter((log) => log.spaceId === space.id);
-      const recentSpaceLogs = recentLogs.filter((log) => log.spaceId === space.id);
-      const openSpaceReminders = openReminders.filter(
-        (reminder) => reminder.spaceId === space.id,
+      const spaceLogs = workspace.logs.filter((log) =>
+        belongsToSpace(log, space.id),
+      );
+      const recentSpaceLogs = recentLogs.filter((log) =>
+        belongsToSpace(log, space.id),
+      );
+      const openSpaceReminders = openReminders.filter((reminder) =>
+        belongsToSpace(reminder, space.id),
       );
       const overdueCount = openSpaceReminders.filter(
         (reminder) => getReminderScheduleTimestamp(reminder) <= now,
       ).length;
       const recentProofCount = recentSpaceLogs.filter(hasProof).length;
       const recentMetricCount = recentSpaceLogs.filter(hasNumericMetric).length;
-      const metricCount = workspace.metricDefinitions.filter(
-        (metric) => metric.spaceId === space.id,
+      const metricCount = workspace.metricDefinitions.filter((metric) =>
+        belongsToSpace(metric, space.id),
       ).length;
-      const latestLogAt = [...spaceLogs]
-        .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))[0]
-        ?.occurredAt;
+      const latestLogAt = [...spaceLogs].sort((left, right) =>
+        right.occurredAt.localeCompare(left.occurredAt),
+      )[0]?.occurredAt;
       const reasons: string[] = [];
-      if (overdueCount > 0) reasons.push(`${overdueCount} reminder(s) are already overdue here.`);
-      if (recentSpaceLogs.length === 0) reasons.push("No logs were recorded here in the last 14 days.");
+      if (overdueCount > 0)
+        reasons.push(`${overdueCount} reminder(s) are already overdue here.`);
+      if (recentSpaceLogs.length === 0)
+        reasons.push("No logs were recorded here in the last 14 days.");
       if (openSpaceReminders.length > 0 && recentProofCount === 0) {
-        reasons.push("Open reminder work has no recent proof attachment in this space.");
+        reasons.push(
+          "Open reminder work has no recent proof attachment in this space.",
+        );
       }
       if (metricCount > 0 && recentMetricCount === 0) {
         reasons.push("Tracked metrics here have no recent readings.");
@@ -265,8 +325,10 @@ export function buildWorkspaceTrackingQualitySummary(
     })
     .filter((item) => item.reasons.length > 0)
     .sort((left, right) => {
-      if (right.overdueCount !== left.overdueCount) return right.overdueCount - left.overdueCount;
-      if (left.recentLogCount !== right.recentLogCount) return left.recentLogCount - right.recentLogCount;
+      if (right.overdueCount !== left.overdueCount)
+        return right.overdueCount - left.overdueCount;
+      if (left.recentLogCount !== right.recentLogCount)
+        return left.recentLogCount - right.recentLogCount;
       return left.name.localeCompare(right.name);
     });
 

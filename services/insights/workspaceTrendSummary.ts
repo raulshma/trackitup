@@ -80,6 +80,20 @@ function formatNumber(value: number, unitLabel?: string) {
   return `${value}${unitLabel ? ` ${unitLabel}` : ""}`;
 }
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
+function belongsToSpace(
+  value: { spaceId?: string; spaceIds?: string[] },
+  spaceId: string,
+) {
+  return normalizeSpaceIds(value).includes(spaceId);
+}
+
 export function buildWorkspaceTrendSummary(
   workspace: WorkspaceSnapshot,
   monthKey: string,
@@ -95,7 +109,9 @@ export function buildWorkspaceTrendSummary(
 
   const summaries = workspace.spaces.map<WorkspaceTrendSpaceSummary>(
     (space) => {
-      const logs = workspace.logs.filter((log) => log.spaceId === space.id);
+      const logs = workspace.logs.filter((log) =>
+        belongsToSpace(log, space.id),
+      );
       const currentLogs = logs.filter((log) =>
         log.occurredAt.startsWith(monthKey),
       );
@@ -129,13 +145,13 @@ export function buildWorkspaceTrendSummary(
       )[0];
       const overdueReminderCount = workspace.reminders.filter(
         (reminder) =>
-          reminder.spaceId === space.id &&
+          belongsToSpace(reminder, space.id) &&
           isReminderOpen(reminder) &&
           getReminderScheduleTimestamp(reminder) <= workspace.generatedAt,
       ).length;
       const dueSoonReminderCount = workspace.reminders.filter(
         (reminder) =>
-          reminder.spaceId === space.id &&
+          belongsToSpace(reminder, space.id) &&
           isReminderOpen(reminder) &&
           getReminderScheduleTimestamp(reminder) > workspace.generatedAt &&
           getReminderScheduleTimestamp(reminder) <= dueSoonThreshold,

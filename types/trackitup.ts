@@ -115,6 +115,7 @@ export type Space = {
 export type Asset = {
   id: string;
   spaceId: string;
+  spaceIds?: string[];
   name: string;
   category: string;
   status: AssetStatus;
@@ -131,6 +132,7 @@ export type Asset = {
 export type MetricDefinition = {
   id: string;
   spaceId: string;
+  spaceIds?: string[];
   assetId?: string;
   name: string;
   valueType: MetricValueType;
@@ -151,6 +153,7 @@ export type RoutineStep = {
 export type Routine = {
   id: string;
   spaceId: string;
+  spaceIds?: string[];
   name: string;
   description: string;
   macroLabel?: string;
@@ -191,6 +194,20 @@ export type RecurringPlanStatus = "active" | "paused" | "archived";
 
 export type RecurringSmartMatchMode = "off" | "prompt" | "auto";
 
+export type RecurringCompletionAction = "completed" | "skipped" | "snoozed";
+
+export type RecurringCompletionActionSource = "manual" | "bulk" | "auto-match";
+
+export type RecurringCompletionHistoryEntry = {
+  id: string;
+  action: RecurringCompletionAction;
+  actionSource: RecurringCompletionActionSource;
+  at: string;
+  logId?: string;
+  note?: string;
+  completionLatencyMinutes?: number;
+};
+
 export type RecurringPlanScheduleRule =
   | {
       type: "daily";
@@ -219,6 +236,7 @@ export type RecurringPlanScheduleRule =
 export type RecurringPlan = {
   id: string;
   spaceId: string;
+  spaceIds?: string[];
   title: string;
   description?: string;
   category?: string;
@@ -244,6 +262,7 @@ export type RecurringOccurrence = {
   id: string;
   planId: string;
   spaceId: string;
+  spaceIds?: string[];
   dueAt: string;
   status: RecurringOccurrenceStatus;
   completedAt?: string;
@@ -251,6 +270,7 @@ export type RecurringOccurrence = {
   logId?: string;
   skipReason?: string;
   meta?: string;
+  history?: RecurringCompletionHistoryEntry[];
   createdAt: string;
   updatedAt: string;
 };
@@ -258,6 +278,7 @@ export type RecurringOccurrence = {
 export type Reminder = {
   id: string;
   spaceId: string;
+  spaceIds?: string[];
   title: string;
   description: string;
   dueAt: string;
@@ -298,6 +319,7 @@ export type CapturedLocation = {
 export type LogEntry = {
   id: string;
   spaceId: string;
+  spaceIds?: string[];
   kind: LogKind;
   title: string;
   note: string;
@@ -330,6 +352,7 @@ export type QuickAction = {
 export type ExpenseEntry = {
   id: string;
   spaceId: string;
+  spaceIds?: string[];
   title: string;
   category: string;
   amount: number;

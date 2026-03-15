@@ -80,7 +80,9 @@ function extractJsonCandidate(text: string) {
   return null;
 }
 
-function isActionKind(value: unknown): value is AiActionCenterExplainerActionKind {
+function isActionKind(
+  value: unknown,
+): value is AiActionCenterExplainerActionKind {
   return (
     value === "complete-now" ||
     value === "log-proof" ||
@@ -99,7 +101,7 @@ function getActionLabel(action: AiActionCenterExplainerActionKind) {
 }
 
 export function buildAiActionCenterExplainerGenerationPrompt(prompt: string) {
-  return `${prompt}\n\nReturn ONLY valid JSON with this shape:\n{\n  "headline": "string",\n  "summary": "string",\n  "groupedInsights": ["string"],\n  "recommendationTakeaways": ["string"],\n  "suggestedActions": [\n    {\n      "reminderId": "string",\n      "title": "string",\n      "action": "complete-now | log-proof | snooze | open-planner | review-later",\n      "reason": "string"\n    }\n  ],\n  "caution": "string"\n}\nRules:\n- Keep every explanation grounded in the provided action-center counts, grouped reminders, recent reminder activity, and recommendations.\n- Do not invent reminders, logs, automation, or state changes that are not present in the provided context.\n- Treat the output as a review-only explanation for the user.`;
+  return `${prompt}\n\nReturn ONLY valid JSON with this shape:\n{\n  "headline": "string",\n  "summary": "string",\n  "groupedInsights": ["string"],\n  "recommendationTakeaways": ["string"],\n  "suggestedActions": [\n    {\n      "reminderId": "string",\n      "title": "string",\n      "action": "complete-now | log-proof | snooze | open-planner | review-later",\n      "reason": "string"\n    }\n  ],\n  "caution": "string"\n}\nRules:\n- Keep every explanation grounded in the provided action-center counts, grouped reminders, next-step metadata, recent reminder activity, and recommendations.\n- Prefer a short, high-confidence sequence of immediately executable next moves before lower-priority review steps.\n- Suggested action reasons must reference only evidence present in the provided context (timing, grouped pressure, deferral/completion patterns, schedule hints, and recommendation details).\n- Do not invent reminders, logs, automation, user preferences, or state changes that are not present in the provided context.\n- Treat the output as a review-only explanation for the user.`;
 }
 
 export function parseAiActionCenterExplainerDraft(
@@ -117,8 +119,12 @@ export function parseAiActionCenterExplainerDraft(
   }
 
   if (!isRecord(parsed)) return null;
-  const reminderTitlesById = new Map(reminders.map((item) => [item.id, item.title] as const));
-  const groupedInsights = (Array.isArray(parsed.groupedInsights) ? parsed.groupedInsights : [])
+  const reminderTitlesById = new Map(
+    reminders.map((item) => [item.id, item.title] as const),
+  );
+  const groupedInsights = (
+    Array.isArray(parsed.groupedInsights) ? parsed.groupedInsights : []
+  )
     .map((item) => compactText(item, MAX_LIST_ITEM_LENGTH))
     .filter((item): item is string => item.length > 0)
     .slice(0, MAX_LIST_ITEMS);
@@ -146,18 +152,23 @@ export function parseAiActionCenterExplainerDraft(
         reason: compactText(item.reason, MAX_REASON_LENGTH),
       };
     })
-    .filter(
-      (item): item is AiActionCenterExplainerDraftAction => Boolean(item?.reason),
+    .filter((item): item is AiActionCenterExplainerDraftAction =>
+      Boolean(item?.reason),
     )
     .filter(
       (item, index, list) =>
-        list.findIndex((candidate) => candidate.reminderId === item.reminderId) ===
-        index,
+        list.findIndex(
+          (candidate) => candidate.reminderId === item.reminderId,
+        ) === index,
     )
     .slice(0, 4);
 
   const summary = compactText(parsed.summary, MAX_SUMMARY_LENGTH) || undefined;
-  if (!summary && groupedInsights.length === 0 && suggestedActions.length === 0) {
+  if (
+    !summary &&
+    groupedInsights.length === 0 &&
+    suggestedActions.length === 0
+  ) {
     return null;
   }
 
@@ -178,7 +189,12 @@ export function buildAiActionCenterExplainerReviewItems(
 ): AiDraftReviewItemInput[] {
   return [
     { key: "headline", label: "Headline", value: draft.headline },
-    { key: "summary", label: "Summary", value: draft.summary, maxTextLength: 420 },
+    {
+      key: "summary",
+      label: "Summary",
+      value: draft.summary,
+      maxTextLength: 420,
+    },
     {
       key: "groupedInsights",
       label: "Grouped workload insights",
@@ -195,7 +211,8 @@ export function buildAiActionCenterExplainerReviewItems(
       key: "suggestedActions",
       label: "Suggested actions",
       value: draft.suggestedActions.map(
-        (action) => `${action.title} — ${getActionLabel(action.action)} • ${action.reason}`,
+        (action) =>
+          `${action.title} — ${getActionLabel(action.action)} • ${action.reason}`,
       ),
       maxLines: 6,
     },

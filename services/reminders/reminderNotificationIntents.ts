@@ -19,6 +19,7 @@ export const RECURRING_NOTIFICATION_SKIP_ACTION_ID = "trackitupRecurringSkip";
 export type ReminderNotificationResponseIntent = {
   reminderId: string;
   spaceId?: string;
+  spaceIds?: string[];
   route?: string;
   kind: "default" | "complete" | "snooze" | "skip";
 };
@@ -27,9 +28,36 @@ export type RecurringNotificationResponseIntent = {
   occurrenceId: string;
   planId?: string;
   spaceId?: string;
+  spaceIds?: string[];
   route?: string;
   kind: "default" | "complete" | "snooze" | "skip";
 };
+
+function normalizeSpaceIdsFromData(value: unknown) {
+  if (Array.isArray(value)) {
+    return Array.from(
+      new Set(
+        value
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  if (typeof value === "string") {
+    return Array.from(
+      new Set(
+        value
+          .split(/[;,]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+  }
+
+  return [];
+}
 
 type ReminderNotificationResponseLike = {
   actionIdentifier: string;
@@ -52,6 +80,9 @@ export function getReminderNotificationResponseIntent(
   const base = {
     reminderId: data.reminderId,
     spaceId: typeof data.spaceId === "string" ? data.spaceId : undefined,
+    ...(normalizeSpaceIdsFromData(data.spaceIds).length > 0
+      ? { spaceIds: normalizeSpaceIdsFromData(data.spaceIds) }
+      : {}),
     route: typeof data.route === "string" ? data.route : undefined,
   };
 
@@ -85,6 +116,9 @@ export function getRecurringNotificationResponseIntent(
     occurrenceId: data.occurrenceId,
     planId: typeof data.planId === "string" ? data.planId : undefined,
     spaceId: typeof data.spaceId === "string" ? data.spaceId : undefined,
+    ...(normalizeSpaceIdsFromData(data.spaceIds).length > 0
+      ? { spaceIds: normalizeSpaceIdsFromData(data.spaceIds) }
+      : {}),
     route: typeof data.route === "string" ? data.route : undefined,
   };
 
