@@ -1,12 +1,13 @@
 import { useRouter } from "expo-router";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ComponentRef } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
-    Button,
-    Chip,
-    Surface,
-    useTheme,
-    type MD3Theme,
+  Button,
+  Chip,
+  Surface,
+  TextInput,
+  useTheme,
+  type MD3Theme,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -16,14 +17,14 @@ import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import {
-    uiBorder,
-    uiRadius,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiRadius,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import {
-    compactAiTranscriptPreview,
-    getAiTranscriptSourceLabel,
+  compactAiTranscriptPreview,
+  getAiTranscriptSourceLabel,
 } from "@/services/ai/aiTextInput";
 import { captureDictationAsync } from "@/services/device/dictation";
 
@@ -32,6 +33,9 @@ export default function LiveDictationActionScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
   const theme = useTheme<MD3Theme>();
+  const transcriptInputRef = useRef<ComponentRef<typeof TextInput> | null>(
+    null,
+  );
   const transcriptRef = useRef("");
   const dictationAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -50,6 +54,19 @@ export default function LiveDictationActionScreen() {
     const count = transcript.trim().length;
     return count === 0 ? "Transcript empty" : `${count} chars`;
   }, [transcript]);
+
+  function focusTranscriptInput() {
+    requestAnimationFrame(() => {
+      transcriptInputRef.current?.focus?.();
+    });
+  }
+
+  function handleTranscriptChange(nextValue: string) {
+    transcriptRef.current = nextValue;
+    setTranscript(nextValue);
+    const compact = compactAiTranscriptPreview(nextValue);
+    setTranscriptPreview(compact || null);
+  }
 
   async function handleStartListening() {
     if (isListening) return;
@@ -74,6 +91,8 @@ export default function LiveDictationActionScreen() {
         transcriptRef.current = result.transcript;
         setTranscript(result.transcript);
         setTranscriptPreview(compactAiTranscriptPreview(result.transcript));
+      } else if (result.mode === "device-keyboard") {
+        focusTranscriptInput();
       }
 
       setSourceLabel(getAiTranscriptSourceLabel(result.mode));
@@ -82,6 +101,7 @@ export default function LiveDictationActionScreen() {
       setStatusMessage(
         "Live speech capture was unavailable. Try device keyboard dictation, then paste here to continue.",
       );
+      focusTranscriptInput();
     } finally {
       dictationAbortControllerRef.current = null;
       setIsListening(false);
@@ -192,6 +212,20 @@ export default function LiveDictationActionScreen() {
           />
         ) : null}
 
+        <TextInput
+          ref={(instance: ComponentRef<typeof TextInput> | null) => {
+            transcriptInputRef.current = instance;
+          }}
+          mode="outlined"
+          label="Transcript"
+          value={transcript}
+          onChangeText={handleTranscriptChange}
+          placeholder="Use keyboard dictation or type your request here..."
+          multiline
+          numberOfLines={5}
+          style={styles.transcriptInput}
+        />
+
         <View style={styles.actionsRow}>
           {isListening ? (
             <Button mode="contained" onPress={handleStopListening}>
@@ -275,6 +309,10 @@ const styles = StyleSheet.create({
   },
   previewText: uiTypography.body,
   meta: uiTypography.bodySmall,
+  transcriptInput: {
+    marginTop: uiSpace.lg,
+    minHeight: 120,
+  },
   actionsRow: {
     flexDirection: "row",
     flexWrap: "wrap",

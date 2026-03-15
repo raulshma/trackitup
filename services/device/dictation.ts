@@ -1,18 +1,38 @@
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang?: string;
-  onend: (() => void) | null;
-  onerror: ((event: { error?: string }) => void) | null;
-  onresult:
-    | ((event: {
-        results: ArrayLike<
-          ArrayLike<{ transcript?: string }> & { isFinal?: boolean }
-        >;
-      }) => void)
-    | null;
-  start: () => void;
+type NativeSpeechRecognitionResult = {
+  transcript?: string;
+};
+
+type NativeSpeechRecognitionEventMap = {
+  result: {
+    results?: ArrayLike<NativeSpeechRecognitionResult>;
+    isFinal?: boolean;
+  };
+  start: undefined;
+  end: undefined;
+  error: {
+    error?: string;
+    message?: string;
+  };
+};
+
+type NativeSpeechRecognitionSubscription = { remove: () => void };
+
+type NativeSpeechRecognitionModuleLike = {
+  requestPermissionsAsync: () => Promise<{
+    granted: boolean;
+    canAskAgain?: boolean;
+    status?: string;
+  }>;
+  start: (options: {
+    lang?: string;
+    interimResults?: boolean;
+    continuous?: boolean;
+  }) => void;
   stop: () => void;
+  addListener: <EventName extends keyof NativeSpeechRecognitionEventMap>(
+    eventName: EventName,
+    listener: (event: NativeSpeechRecognitionEventMap[EventName]) => void,
+  ) => NativeSpeechRecognitionSubscription;
 };
 
 export type DictationCaptureResult = {
@@ -25,6 +45,8 @@ type CaptureDictationOptions = {
   onTranscript?: (transcript: string) => void;
   signal?: AbortSignal;
 };
+
+type DictationRuntime = "web" | "native" | "node";
 
 function getRuntimePlatform() {
   const runtime = globalThis as typeof globalThis & {
@@ -39,85 +61,197 @@ function getRuntimePlatform() {
       : "node";
 }
 
-function getSpeechRecognitionCtor(): (new () => SpeechRecognitionLike) | null {
-  if (getRuntimePlatform() !== "web") {
+function joinNativeTranscript(
+  results: ArrayLike<NativeSpeechRecognitionResult>,
+) {
+  const primary = Array.from(results).find(
+    (result) => typeof result?.transcript === "string" && result.transcript,
+  );
+  return primary?.transcript?.trim() ?? "";
+}
+
+function mergeStreamingTranscript(current: string, next: string) {
+  const currentText = current.trim();
+  const nextText = next.trim();
+
+  if (!nextText) return currentText;
+  if (!currentText) return nextText;
+  if (nextText === currentText) return currentText;
+  if (nextText.startsWith(currentText)) return nextText;
+  if (currentText.startsWith(nextText)) return currentText;
+  if (currentText.endsWith(nextText)) return currentText;
+  if (nextText.endsWith(currentText)) return nextText;
+
+  const currentWords = currentText.split(/\s+/);
+  const nextWords = nextText.split(/\s+/);
+  const overlapLimit = Math.min(currentWords.length, nextWords.length);
+  let overlapCount = 0;
+
+  for (let size = overlapLimit; size > 0; size -= 1) {
+    const currentSuffix = currentWords
+      .slice(currentWords.length - size)
+      .join(" ")
+      .toLowerCase();
+    const nextPrefix = nextWords.slice(0, size).join(" ").toLowerCase();
+    if (currentSuffix === nextPrefix) {
+      overlapCount = size;
+      break;
+    }
+  }
+
+  if (overlapCount === nextWords.length) {
+    return currentText;
+  }
+
+  const nonOverlappingTail = nextWords.slice(overlapCount).join(" ");
+  return appendDictationTranscript(currentText, nonOverlappingTail);
+}
+
+async function getExpoSpeechRecognitionModule() {
+  const runtimePlatform = getRuntimePlatform() as DictationRuntime;
+  if (runtimePlatform === "node") {
     return null;
   }
 
-  const webWindow = globalThis as typeof globalThis & {
-    SpeechRecognition?: new () => SpeechRecognitionLike;
-    webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+  const globalRuntime = globalThis as typeof globalThis & {
+    ExpoSpeechRecognitionModule?: NativeSpeechRecognitionModuleLike;
   };
 
-  return (
-    webWindow.SpeechRecognition ?? webWindow.webkitSpeechRecognition ?? null
-  );
+  if (globalRuntime.ExpoSpeechRecognitionModule) {
+    return globalRuntime.ExpoSpeechRecognitionModule;
+  }
+
+  try {
+    const module = (await import("expo-speech-recognition")) as {
+      ExpoSpeechRecognitionModule?: NativeSpeechRecognitionModuleLike;
+      default?: {
+        ExpoSpeechRecognitionModule?: NativeSpeechRecognitionModuleLike;
+      };
+    };
+    return (
+      module.ExpoSpeechRecognitionModule ??
+      module.default?.ExpoSpeechRecognitionModule ??
+      null
+    );
+  } catch {
+    return null;
+  }
 }
 
-function captureBrowserTranscript(
-  Ctor: new () => SpeechRecognitionLike,
+async function captureExpoTranscript(
+  module: NativeSpeechRecognitionModuleLike,
   options?: CaptureDictationOptions,
 ) {
-  return new Promise<string>((resolve, reject) => {
-    const recognition = new Ctor();
+  const permission = await module.requestPermissionsAsync();
+  if (!permission.granted) {
+    return {
+      mode: "device-keyboard" as const,
+      message:
+        permission.canAskAgain === false
+          ? "Microphone permission is blocked. Enable it in device settings, or use keyboard dictation."
+          : "Microphone permission is required for live dictation. Use keyboard dictation or grant access and try again.",
+    };
+  }
+
+  const transcript = await new Promise<string>((resolve, reject) => {
     let settled = false;
     let latestTranscript = "";
-    const stopOnAbort = () => {
-      recognition.stop();
+    const subscriptions: NativeSpeechRecognitionSubscription[] = [];
+
+    const removeAll = () => {
+      subscriptions.forEach((subscription) => {
+        subscription.remove();
+      });
+      options?.signal?.removeEventListener("abort", stopOnAbort);
     };
 
-    function finish(transcript: string) {
+    const finish = (nextTranscript: string) => {
       if (settled) return;
       settled = true;
-      options?.signal?.removeEventListener("abort", stopOnAbort);
-      resolve(transcript);
-    }
+      removeAll();
+      resolve(nextTranscript);
+    };
 
-    function fail(error: Error) {
+    const fail = (error: Error) => {
       if (settled) return;
       settled = true;
-      options?.signal?.removeEventListener("abort", stopOnAbort);
+      removeAll();
       reject(error);
-    }
-
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-
-    recognition.onresult = (event) => {
-      const transcript = Array.from(event.results)
-        .flatMap((result) => Array.from(result))
-        .map((item) => item.transcript ?? "")
-        .join(" ")
-        .trim();
-
-      latestTranscript = transcript;
-      if (transcript) {
-        options?.onTranscript?.(transcript);
-      }
     };
 
-    recognition.onerror = (event) => {
-      if (options?.signal?.aborted) {
+    const stopOnAbort = () => {
+      try {
+        module.stop();
+      } catch {
         finish(latestTranscript.trim());
-        return;
       }
-
-      fail(new Error(event.error ?? "Speech recognition failed."));
     };
 
-    recognition.onend = () => {
-      finish(latestTranscript.trim());
-    };
+    subscriptions.push(
+      module.addListener("result", (event) => {
+        const nextTranscriptChunk = event?.results
+          ? joinNativeTranscript(event.results)
+          : "";
+        if (!nextTranscriptChunk) return;
+        latestTranscript = mergeStreamingTranscript(
+          latestTranscript,
+          nextTranscriptChunk,
+        );
+        options?.onTranscript?.(latestTranscript);
+      }),
+    );
+    subscriptions.push(
+      module.addListener("error", (event) => {
+        if (options?.signal?.aborted) {
+          finish(latestTranscript.trim());
+          return;
+        }
+
+        fail(
+          new Error(
+            event?.message ?? event?.error ?? "Speech recognition failed.",
+          ),
+        );
+      }),
+    );
+    subscriptions.push(
+      module.addListener("end", () => {
+        finish(latestTranscript.trim());
+      }),
+    );
 
     options?.signal?.addEventListener("abort", stopOnAbort);
 
-    recognition.start();
+    try {
+      module.start({
+        lang: "en-US",
+        interimResults: true,
+        continuous: true,
+      });
+    } catch (error) {
+      fail(
+        error instanceof Error
+          ? error
+          : new Error("Speech recognition failed to start."),
+      );
+      return;
+    }
 
     if (options?.signal?.aborted) {
       stopOnAbort();
     }
   });
+
+  return transcript
+    ? {
+        mode: "speech-recognition" as const,
+        transcript,
+        message: "Dictation captured from the active microphone.",
+      }
+    : {
+        mode: "speech-recognition" as const,
+        message: "No speech was detected. Try again or type manually.",
+      };
 }
 
 export function appendDictationTranscript(
@@ -135,30 +269,24 @@ export function appendDictationTranscript(
 export async function captureDictationAsync(
   options?: CaptureDictationOptions,
 ): Promise<DictationCaptureResult> {
-  const SpeechRecognitionCtor = getSpeechRecognitionCtor();
+  const runtime = getRuntimePlatform() as DictationRuntime;
 
-  if (!SpeechRecognitionCtor) {
+  if (runtime === "node") {
     return {
       mode: "device-keyboard",
       message:
-        getRuntimePlatform() === "web"
-          ? "Browser speech recognition is unavailable here. Use your keyboard's dictation or type manually."
-          : "Field focused. Use your device keyboard dictation or mic key to speak.",
+        "Speech recognition is unavailable in this runtime. Use your keyboard dictation or type manually.",
     };
   }
 
-  const transcript = await captureBrowserTranscript(
-    SpeechRecognitionCtor,
-    options,
-  );
-  return transcript
-    ? {
-        mode: "speech-recognition",
-        transcript,
-        message: "Dictation captured from the active microphone.",
-      }
-    : {
-        mode: "speech-recognition",
-        message: "No speech was detected. Try again or type manually.",
-      };
+  const speechModule = await getExpoSpeechRecognitionModule();
+  if (!speechModule) {
+    return {
+      mode: "device-keyboard",
+      message:
+        "Speech recognition is unavailable on this device. Use your keyboard dictation or type manually.",
+    };
+  }
+
+  return captureExpoTranscript(speechModule, options);
 }

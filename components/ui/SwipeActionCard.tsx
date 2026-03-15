@@ -222,7 +222,12 @@ export function SwipeActionCard({
 
       <Animated.View
         {...panResponder.panHandlers}
-        style={[styles.content, contentStyle, { transform: [{ translateX }] }]}
+        style={[
+          styles.content,
+          { backgroundColor: theme.colors.surface },
+          contentStyle,
+          { transform: [{ translateX }] },
+        ]}
       >
         {children}
       </Animated.View>

@@ -421,7 +421,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     saveCustomTemplate,
     createSpace,
     resetWorkspace,
-  } = useWorkspaceMutations(setWorkspace, ownerScopeKey);
+  } = useWorkspaceMutations(setWorkspace, ownerScopeKey, workspacePrivacyMode);
 
   const handledReminderNotificationResponseRef = useRef<string | null>(null);
 

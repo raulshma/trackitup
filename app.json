@@ -78,7 +78,8 @@
           "logoWidth": 96,
           "background": "#0F172A"
         }
-      ]
+      ],
+      "expo-speech-recognition"
     ],
     "experiments": {
       "reactCompiler": true,

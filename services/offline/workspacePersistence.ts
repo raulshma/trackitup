@@ -1,46 +1,60 @@
 import { Directory, File, Paths } from "expo-file-system";
+import { Platform } from "react-native";
 
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
 import {
-    loadWorkspaceSnapshotFromWatermelon,
-    persistWorkspaceSnapshotToWatermelon,
+  loadWorkspaceSnapshotFromWatermelon,
+  persistWorkspaceSnapshotToWatermelon,
 } from "@/services/offline/watermelon/workspaceCodec";
 import {
-    getWorkspaceDatabase,
-    isWatermelonPersistenceAvailable,
+  getWorkspaceDatabase,
+  isWatermelonPersistenceAvailable,
 } from "@/services/offline/watermelon/workspaceDatabase";
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import {
-    clearEncryptedWorkspace,
-    getEncryptedWorkspaceDefaultPersistenceMode,
-    loadEncryptedWorkspace,
-    persistEncryptedWorkspace,
+  clearEncryptedWorkspace,
+  getEncryptedWorkspaceDefaultPersistenceMode,
+  loadEncryptedWorkspace,
+  persistEncryptedWorkspace,
 } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import {
-    ANONYMOUS_WORKSPACE_SCOPE_KEY,
-    buildWorkspaceSnapshotFilename,
-    buildWorkspaceStorageKey,
-    isAnonymousWorkspaceOwnerScopeKey,
-    LEGACY_WORKSPACE_SNAPSHOT_FILENAME,
-    LEGACY_WORKSPACE_STORAGE_KEY,
-    SNAPSHOT_DIRECTORY,
+  ANONYMOUS_WORKSPACE_SCOPE_KEY,
+  buildWorkspaceSnapshotFilename,
+  buildWorkspaceStorageKey,
+  isAnonymousWorkspaceOwnerScopeKey,
+  LEGACY_WORKSPACE_SNAPSHOT_FILENAME,
+  LEGACY_WORKSPACE_STORAGE_KEY,
+  SNAPSHOT_DIRECTORY,
 } from "@/services/offline/workspaceOwnership";
 import {
-    choosePersistenceMode,
-    normalizeWorkspaceSnapshot,
+  choosePersistenceMode,
+  normalizeWorkspaceSnapshot,
 } from "@/services/offline/workspacePersistenceStrategy";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 
 type StorageLike = {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+};
+
+type WebStorageLike = {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
 };
 
+type NativeAsyncStorageLike = {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+};
+
 let persistenceQueue = Promise.resolve();
+let nativeStoragePromise: Promise<NativeAsyncStorageLike | null> | null = null;
 
 export function cloneWorkspaceSnapshot(
   snapshot: WorkspaceSnapshot,
@@ -52,11 +66,68 @@ export function cloneWorkspaceSnapshot(
   return JSON.parse(JSON.stringify(snapshot)) as WorkspaceSnapshot;
 }
 
-function getStorage(): StorageLike | null {
+function hasNativeStorageRuntime() {
+  return Platform.OS !== "web";
+}
+
+function getWebStorage(): WebStorageLike | null {
+  if (hasNativeStorageRuntime()) {
+    return null;
+  }
+
   const maybeStorage = (
-    globalThis as typeof globalThis & { localStorage?: StorageLike }
+    globalThis as typeof globalThis & { localStorage?: WebStorageLike }
   ).localStorage;
   return maybeStorage ?? null;
+}
+
+async function resolveNativeStorage(): Promise<NativeAsyncStorageLike | null> {
+  if (!hasNativeStorageRuntime()) return null;
+  if (!nativeStoragePromise) {
+    nativeStoragePromise = (async () => {
+      try {
+        const asyncStorageModule =
+          await import("@react-native-async-storage/async-storage");
+        const candidate = (asyncStorageModule as { default?: unknown })
+          .default as NativeAsyncStorageLike | undefined;
+
+        if (
+          candidate &&
+          typeof candidate.getItem === "function" &&
+          typeof candidate.setItem === "function" &&
+          typeof candidate.removeItem === "function"
+        ) {
+          return candidate;
+        }
+      } catch {
+        return null;
+      }
+
+      return null;
+    })();
+  }
+
+  return nativeStoragePromise;
+}
+
+async function getStorage(): Promise<StorageLike | null> {
+  const nativeStorage = await resolveNativeStorage();
+  if (nativeStorage) {
+    return nativeStorage;
+  }
+
+  const webStorage = getWebStorage();
+  if (!webStorage) return null;
+
+  return {
+    getItem: async (key) => webStorage.getItem(key),
+    setItem: async (key, value) => {
+      webStorage.setItem(key, value);
+    },
+    removeItem: async (key) => {
+      webStorage.removeItem(key);
+    },
+  };
 }
 
 type LegacyPersistenceOptions = {
@@ -117,22 +188,22 @@ function readFileSnapshot(
   }
 }
 
-function readStorageSnapshot(
+async function readStorageSnapshot(
   storage: StorageLike,
   storageKey: string,
   defaultWorkspace: WorkspaceSnapshot,
 ) {
-  const rawValue = storage.getItem(storageKey);
+  const rawValue = await storage.getItem(storageKey);
   if (!rawValue) return null;
 
   return parsePersistedSnapshot(rawValue, defaultWorkspace);
 }
 
-function loadLegacyPersistedWorkspaceIfPresent(
+async function loadLegacyPersistedWorkspaceIfPresent(
   defaultWorkspace: WorkspaceSnapshot,
   ownerScopeKey: string,
 ) {
-  const storage = getStorage();
+  const storage = await getStorage();
   if (!storage) {
     return (
       readFileSnapshot(defaultWorkspace, ownerScopeKey) ??
@@ -146,13 +217,13 @@ function loadLegacyPersistedWorkspaceIfPresent(
 
   try {
     return (
-      readStorageSnapshot(
+      (await readStorageSnapshot(
         storage,
         buildWorkspaceStorageKey(ownerScopeKey),
         defaultWorkspace,
-      ) ??
+      )) ??
       (isAnonymousWorkspaceOwnerScopeKey(ownerScopeKey)
-        ? readStorageSnapshot(
+        ? await readStorageSnapshot(
             storage,
             LEGACY_WORKSPACE_STORAGE_KEY,
             defaultWorkspace,
@@ -164,13 +235,13 @@ function loadLegacyPersistedWorkspaceIfPresent(
   }
 }
 
-function persistLegacyWorkspace(
+async function persistLegacyWorkspace(
   snapshot: WorkspaceSnapshot,
   ownerScopeKey: string,
 ) {
-  const storage = getStorage();
+  const storage = await getStorage();
   if (storage) {
-    storage.setItem(
+    await storage.setItem(
       buildWorkspaceStorageKey(ownerScopeKey),
       JSON.stringify(snapshot),
     );
@@ -196,16 +267,18 @@ function persistLegacyWorkspace(
   }
 }
 
-function clearLegacyWorkspace(
+async function clearLegacyWorkspace(
   ownerScopeKey: string,
   options?: LegacyPersistenceOptions,
 ) {
-  const storage = getStorage();
-  storage?.removeItem(
-    options?.useLegacyName
-      ? LEGACY_WORKSPACE_STORAGE_KEY
-      : buildWorkspaceStorageKey(ownerScopeKey),
-  );
+  const storage = await getStorage();
+  if (storage) {
+    await storage.removeItem(
+      options?.useLegacyName
+        ? LEGACY_WORKSPACE_STORAGE_KEY
+        : buildWorkspaceStorageKey(ownerScopeKey),
+    );
+  }
 
   if (!hasDocumentDirectory()) return;
 
@@ -267,16 +340,16 @@ async function clearPlaintextPersistedWorkspace(ownerScopeKey: string) {
     await clearWatermelonWorkspace(ownerScopeKey, { useLegacyName: true });
   }
 
-  clearLegacyWorkspace(ownerScopeKey);
+  await clearLegacyWorkspace(ownerScopeKey);
   if (isAnonymousWorkspaceOwnerScopeKey(ownerScopeKey)) {
-    clearLegacyWorkspace(ownerScopeKey, { useLegacyName: true });
+    await clearLegacyWorkspace(ownerScopeKey, { useLegacyName: true });
   }
 }
 
 function getCompatibilityPersistenceMode(): PersistenceMode {
   return choosePersistenceMode({
     hasWatermelon: isWatermelonPersistenceAvailable(),
-    hasLocalStorage: Boolean(getStorage()),
+    hasLocalStorage: Boolean(getWebStorage()) || hasNativeStorageRuntime(),
     hasFileSystem: hasDocumentDirectory(),
   });
 }
@@ -290,9 +363,9 @@ async function persistPlaintextWorkspace(
       const database = await getWorkspaceDatabase(ownerScopeKey);
       if (database) {
         await persistWorkspaceSnapshotToWatermelon(database, snapshot);
-        clearLegacyWorkspace(ownerScopeKey);
+        await clearLegacyWorkspace(ownerScopeKey);
         if (isAnonymousWorkspaceOwnerScopeKey(ownerScopeKey)) {
-          clearLegacyWorkspace(ownerScopeKey, { useLegacyName: true });
+          await clearLegacyWorkspace(ownerScopeKey, { useLegacyName: true });
         }
 
         return {
@@ -304,11 +377,11 @@ async function persistPlaintextWorkspace(
     }
   }
 
-  persistLegacyWorkspace(snapshot, ownerScopeKey);
+  await persistLegacyWorkspace(snapshot, ownerScopeKey);
   return {
     persistenceMode: choosePersistenceMode({
       hasWatermelon: false,
-      hasLocalStorage: Boolean(getStorage()),
+      hasLocalStorage: Boolean(getWebStorage()) || hasNativeStorageRuntime(),
       hasFileSystem: hasDocumentDirectory(),
     }),
   };
@@ -346,7 +419,7 @@ async function loadPlaintextPersistedWorkspaceIfPresent(
     }
   }
 
-  const legacyWorkspace = loadLegacyPersistedWorkspaceIfPresent(
+  const legacyWorkspace = await loadLegacyPersistedWorkspaceIfPresent(
     defaultWorkspace,
     ownerScopeKey,
   );
@@ -356,7 +429,7 @@ async function loadPlaintextPersistedWorkspaceIfPresent(
     workspace: legacyWorkspace,
     persistenceMode: choosePersistenceMode({
       hasWatermelon: false,
-      hasLocalStorage: Boolean(getStorage()),
+      hasLocalStorage: Boolean(getWebStorage()) || hasNativeStorageRuntime(),
       hasFileSystem: hasDocumentDirectory(),
     }),
   };
@@ -418,6 +491,25 @@ export async function loadPersistedWorkspace(
     ownerScopeKey,
     cloneWorkspaceSnapshot,
   );
+  if (encryptedWorkspace.status === "unavailable") {
+    const plaintextWorkspace = await loadPlaintextPersistedWorkspaceIfPresent(
+      defaultWorkspace,
+      ownerScopeKey,
+    );
+    if (plaintextWorkspace) {
+      return {
+        ...plaintextWorkspace,
+        localProtectionStatus: "standard",
+      };
+    }
+
+    return {
+      workspace: cloneWorkspaceSnapshot(defaultWorkspace),
+      persistenceMode: getCompatibilityPersistenceMode(),
+      localProtectionStatus: "standard",
+    };
+  }
+
   if (encryptedWorkspace.status === "loaded") {
     await clearPlaintextPersistedWorkspace(ownerScopeKey);
     return {
@@ -428,6 +520,17 @@ export async function loadPersistedWorkspace(
   }
 
   if (encryptedWorkspace.status === "blocked") {
+    const plaintextWorkspace = await loadPlaintextPersistedWorkspaceIfPresent(
+      defaultWorkspace,
+      ownerScopeKey,
+    );
+    if (plaintextWorkspace) {
+      return {
+        ...plaintextWorkspace,
+        localProtectionStatus: "standard",
+      };
+    }
+
     return {
       workspace: cloneWorkspaceSnapshot(defaultWorkspace),
       persistenceMode: "memory",
@@ -456,18 +559,16 @@ export async function loadPersistedWorkspace(
 
     if (encryptedPersistResult.status === "blocked") {
       return {
-        workspace: cloneWorkspaceSnapshot(defaultWorkspace),
-        persistenceMode: "memory",
-        localProtectionStatus: "blocked",
-        blockedProtectionReason: "decrypt-failed",
+        ...plaintextWorkspace,
+        localProtectionStatus: "standard",
       };
     }
 
     if (encryptedPersistResult.status === "unavailable") {
       return {
         workspace: plaintextWorkspace.workspace,
-        persistenceMode: "memory",
-        localProtectionStatus: "protected",
+        persistenceMode: plaintextWorkspace.persistenceMode,
+        localProtectionStatus: "standard",
       };
     }
 
@@ -509,10 +610,12 @@ export async function persistWorkspace(
     }
 
     if (encryptedPersistResult.status === "blocked") {
+      await persistPlaintextWorkspace(snapshot, ownerScopeKey);
       return;
     }
 
     if (encryptedPersistResult.status === "unavailable") {
+      await persistPlaintextWorkspace(snapshot, ownerScopeKey);
       return;
     }
   });

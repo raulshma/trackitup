@@ -2,11 +2,11 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Image, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-    Button,
-    Chip,
-    Surface,
-    useTheme,
-    type MD3Theme,
+  Button,
+  Chip,
+  Surface,
+  useTheme,
+  type MD3Theme,
 } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,41 +23,41 @@ import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getReadableTextColor } from "@/constants/Colors";
 import {
-    getLogKindFormTemplate,
-    getQuickActionFormTemplate,
+  getLogKindFormTemplate,
+  getQuickActionFormTemplate,
 } from "@/constants/TrackItUpFormTemplates";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    uiBorder,
-    uiMotion,
-    uiRadius,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiMotion,
+  uiRadius,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiLogbookDraftCopy } from "@/services/ai/aiConsentCopy";
 import {
-    buildAiLogbookDraftReviewItems,
-    buildAiLogbookGenerationPrompt,
-    parseAiLogbookDraft,
-    type AiLogbookDraft,
+  buildAiLogbookDraftReviewItems,
+  buildAiLogbookGenerationPrompt,
+  parseAiLogbookDraft,
+  type AiLogbookDraft,
 } from "@/services/ai/aiLogbookDraft";
 import { buildLogbookDraftPrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-    buildInitialFormValues,
-    normalizeFormValues,
-    validateFormValues,
-    type FormValidationErrors,
-    type FormValue,
-    type FormValueMap,
+  buildInitialFormValues,
+  normalizeFormValues,
+  validateFormValues,
+  type FormValidationErrors,
+  type FormValue,
+  type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
 import type {
-    FormFieldDefinition,
-    QuickActionKind,
-    Reminder,
+  FormFieldDefinition,
+  QuickActionKind,
+  Reminder,
 } from "@/types/trackitup";
 
 type GeneratedAiLogbookDraft = {
@@ -1777,24 +1777,7 @@ export default function LogbookScreen() {
                   key={quickAction.id}
                   delay={uiMotion.stagger * (index + 1)}
                 >
-                  <SwipeActionCard
-                    rightActions={[
-                      {
-                        label: hasSpaces ? "Start" : "Space",
-                        accentColor: palette.tint,
-                        onPress: () =>
-                          hasSpaces
-                            ? router.push({
-                                pathname: "/logbook",
-                                params: { actionId: quickAction.id },
-                              })
-                            : router.push({
-                                pathname: "/space-create",
-                                params: { actionId: quickAction.id },
-                              }),
-                      },
-                    ]}
-                  >
+                  <SwipeActionCard contentStyle={styles.getStartedCardContent}>
                     <View style={styles.linkedLogRow}>
                       <View style={styles.linkedLogCopy}>
                         <Text style={styles.listTitle}>
@@ -2159,6 +2142,10 @@ const styles = StyleSheet.create({
     marginBottom: uiSpace.lg,
   },
   linkedLogCopy: { flex: 1 },
+  getStartedCardContent: {
+    paddingHorizontal: uiSpace.lg,
+    paddingTop: uiSpace.sm,
+  },
   listItem: { marginBottom: uiSpace.lg },
   listItemCard: {
     paddingTop: uiSpace.xs,

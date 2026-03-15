@@ -2,51 +2,52 @@ import { useCallback } from "react";
 
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
-    cycleDashboardWidgetSize,
-    moveDashboardWidgets,
-    toggleDashboardWidgetVisibility,
+  cycleDashboardWidgetSize,
+  moveDashboardWidgets,
+  toggleDashboardWidgetVisibility,
 } from "@/services/dashboard/dashboardWidgets";
 import {
-    buildLogEntriesFromActionDraft,
-    type FormValueMap,
+  buildLogEntriesFromActionDraft,
+  type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { parseWorkspaceLogCsv } from "@/services/import/workspaceCsvImport";
-import { clearPersistedWorkspace } from "@/services/offline/workspacePersistence";
+import { clearPersistedWorkspace, persistWorkspace } from "@/services/offline/workspacePersistence";
+import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import { enqueueWorkspaceSync } from "@/services/offline/workspaceSync";
 import {
-    bulkCompleteRecurringOccurrences,
-    bulkSnoozeRecurringOccurrences,
-    completeRecurringOccurrence,
-    ensureRecurringOccurrencesWindow,
-    resolveRecurringPromptMatchWithLog,
-    skipRecurringOccurrence,
-    snoozeRecurringOccurrence,
-    summarizeRecurringSmartMatches,
-    upsertRecurringPlan,
-    validateRecurringPlanDraft,
+  bulkCompleteRecurringOccurrences,
+  bulkSnoozeRecurringOccurrences,
+  completeRecurringOccurrence,
+  ensureRecurringOccurrencesWindow,
+  resolveRecurringPromptMatchWithLog,
+  skipRecurringOccurrence,
+  snoozeRecurringOccurrence,
+  summarizeRecurringSmartMatches,
+  upsertRecurringPlan,
+  validateRecurringPlanDraft,
 } from "@/services/recurring/recurringPlans";
 import {
-    applyReminderTriggerRules,
-    getNextReminderDate,
+  applyReminderTriggerRules,
+  getNextReminderDate,
 } from "@/services/reminders/reminderRules";
 import {
-    createWorkspaceSpace,
-    type CreateSpaceDraft,
+  createWorkspaceSpace,
+  type CreateSpaceDraft,
 } from "@/services/spaces/workspaceSpaces";
 import { applyTemplateImportToWorkspace } from "@/services/templates/templateImport";
 import type { WorkspaceUpdater } from "@/stores/useWorkspaceStore";
 import type {
-    RecurringPlan,
-    TemplateCatalogItem,
-    TemplateImportMethod,
-    WorkspaceSnapshot,
+  RecurringPlan,
+  TemplateCatalogItem,
+  TemplateImportMethod,
+  WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 import type {
-    CreateSpaceResult,
-    SaveCustomTemplateResult,
-    SaveLogResult,
-    TemplateImportActionResult,
+  CreateSpaceResult,
+  SaveCustomTemplateResult,
+  SaveLogResult,
+  TemplateImportActionResult,
 } from "./types";
 
 type WorkspaceSetter = (updater: WorkspaceUpdater) => void;
@@ -173,6 +174,7 @@ function applyLogsAndTriggeredReminders(
 export function useWorkspaceMutations(
   setWorkspace: WorkspaceSetter,
   ownerScopeKey: string,
+  privacyMode: WorkspacePrivacyMode,
 ) {
   const saveLogForAction = useCallback(
     (actionId: string, values: FormValueMap) => {
@@ -856,6 +858,7 @@ export function useWorkspaceMutations(
         status: "invalid",
         message: "Name the space before saving it.",
       };
+      let nextWorkspaceForPersistence: WorkspaceSnapshot | null = null;
 
       setWorkspace((currentWorkspace) => {
         const nextState = createWorkspaceSpace(currentWorkspace, draft);
@@ -869,15 +872,25 @@ export function useWorkspaceMutations(
           return currentWorkspace;
         }
 
-        return enqueueWorkspaceSync(nextState.workspace, {
+        const syncedWorkspace = enqueueWorkspaceSync(nextState.workspace, {
           kind: "space-created",
           summary: `Created space ${nextState.space.name}`,
         });
+        nextWorkspaceForPersistence = syncedWorkspace;
+        return syncedWorkspace;
       });
+
+      if (nextWorkspaceForPersistence) {
+        void persistWorkspace(
+          nextWorkspaceForPersistence,
+          ownerScopeKey,
+          privacyMode,
+        );
+      }
 
       return result;
     },
-    [setWorkspace],
+    [ownerScopeKey, privacyMode, setWorkspace],
   );
 
   const resetWorkspace = useCallback(() => {

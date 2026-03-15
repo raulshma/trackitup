@@ -2,14 +2,14 @@ import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Linking, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-  ActivityIndicator,
-  Button,
-  Chip,
-  Dialog,
-  IconButton,
-  Portal,
-  SegmentedButtons,
-  TextInput,
+    ActivityIndicator,
+    Button,
+    Chip,
+    Dialog,
+    IconButton,
+    Portal,
+    SegmentedButtons,
+    TextInput,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -17,8 +17,8 @@ import { AccentColorPicker } from "@/components/ui/AccentColorPicker";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
 import {
-  FeatureSectionSwitcher,
-  type FeatureSectionItem,
+    FeatureSectionSwitcher,
+    type FeatureSectionItem,
 } from "@/components/ui/FeatureSectionSwitcher";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -34,35 +34,35 @@ import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { aiAccountSettingsCopy } from "@/services/ai/aiConsentCopy";
 import {
-  AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
-  createEmptyAiTelemetrySummary,
-  formatAiTelemetryLastEventLabel,
-  loadAiTelemetrySummary,
-  recordAiTelemetryEvent,
+    AI_TELEMETRY_WORKFLOW_SURFACE_CHIPS,
+    createEmptyAiTelemetrySummary,
+    formatAiTelemetryLastEventLabel,
+    loadAiTelemetrySummary,
+    recordAiTelemetryEvent,
 } from "@/services/ai/aiTelemetry";
 import { getWorkspaceBiometricDescription } from "@/services/offline/workspaceBiometric";
 import {
-  getWorkspaceBiometricReauthTimeoutDescription,
-  getWorkspaceBiometricReauthTimeoutLabel,
-  WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
-  type WorkspaceBiometricReauthTimeout,
+    getWorkspaceBiometricReauthTimeoutDescription,
+    getWorkspaceBiometricReauthTimeoutLabel,
+    WORKSPACE_BIOMETRIC_REAUTH_TIMEOUT_OPTIONS,
+    type WorkspaceBiometricReauthTimeout,
 } from "@/services/offline/workspaceBiometricSessionPolicy";
 import {
-  getWorkspaceLocalProtectionDescription,
-  getWorkspaceLocalProtectionLabel,
+    getWorkspaceLocalProtectionDescription,
+    getWorkspaceLocalProtectionLabel,
 } from "@/services/offline/workspaceLocalProtection";
 import {
-  getWorkspacePrivacyModeDescription,
-  getWorkspacePrivacyModeLabel,
-  WORKSPACE_PRIVACY_MODE_OPTIONS,
-  type WorkspacePrivacyMode,
+    getWorkspacePrivacyModeDescription,
+    getWorkspacePrivacyModeLabel,
+    WORKSPACE_PRIVACY_MODE_OPTIONS,
+    type WorkspacePrivacyMode,
 } from "@/services/offline/workspacePrivacyMode";
 import {
-  DEFAULT_THEME_ACCENT_COLOR,
-  getThemeAccentLabel,
-  normalizeThemeAccentColor,
-  THEME_PREFERENCE_OPTIONS,
-  type ThemePreference,
+    DEFAULT_THEME_ACCENT_COLOR,
+    getThemeAccentLabel,
+    normalizeThemeAccentColor,
+    THEME_PREFERENCE_OPTIONS,
+    type ThemePreference,
 } from "@/services/theme/themePreferences";
 
 const themeOptionLabels: Record<ThemePreference, string> = {
@@ -761,6 +761,13 @@ export default function AccountScreen() {
               Protected mode keeps anonymous use and each signed-in account in
               separate local scopes when secure local storage is supported.
             </Text>
+            <Button
+              mode="outlined"
+              onPress={() => router.push("/workspace-diagnostics")}
+              style={styles.button}
+            >
+              Open diagnostics
+            </Button>
             {isProtectionBlocked ? (
               <Text style={[styles.meta, paletteStyles.mutedText]}>
                 Privacy mode changes stay disabled until the blocked protected

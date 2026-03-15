@@ -1,4 +1,11 @@
-import { useEffect, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import { AppState } from "react-native";
 
 import { getTimelineEntries } from "@/constants/TrackItUpSelectors";
 import { getWorkspaceDatabase } from "@/services/offline/watermelon/workspaceDatabase";
@@ -6,15 +13,15 @@ import { loadLogReadModelFromWatermelon } from "@/services/offline/watermelon/wo
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import {
-    cloneWorkspaceSnapshot,
-    loadPersistedWorkspace,
-    persistWorkspace,
-    waitForWorkspacePersistence,
+  cloneWorkspaceSnapshot,
+  loadPersistedWorkspace,
+  persistWorkspace,
+  waitForWorkspacePersistence,
 } from "@/services/offline/workspacePersistence";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import type {
-    PersistenceMode,
-    WorkspaceUpdater,
+  PersistenceMode,
+  WorkspaceUpdater,
 } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
@@ -62,6 +69,12 @@ export function useWorkspaceHydration({
   snapshotTimelineEntries,
   workspace,
 }: UseWorkspaceHydrationArgs) {
+  const latestWorkspaceRef = useRef(workspace);
+
+  useEffect(() => {
+    latestWorkspaceRef.current = workspace;
+  }, [workspace]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -108,10 +121,41 @@ export function useWorkspaceHydration({
     setWorkspace,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isHydrated || !canHydrate) return;
     void persistWorkspace(workspace, ownerScopeKey, privacyMode);
   }, [canHydrate, isHydrated, ownerScopeKey, privacyMode, workspace]);
+
+  useEffect(() => {
+    if (!isHydrated || !canHydrate) return;
+
+    let flushInFlight = false;
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "background" && nextState !== "inactive") {
+        return;
+      }
+
+      if (flushInFlight) return;
+      flushInFlight = true;
+
+      void (async () => {
+        try {
+          await persistWorkspace(
+            latestWorkspaceRef.current,
+            ownerScopeKey,
+            privacyMode,
+          );
+          await waitForWorkspacePersistence();
+        } finally {
+          flushInFlight = false;
+        }
+      })();
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [canHydrate, isHydrated, ownerScopeKey, privacyMode]);
 
   useEffect(() => {
     setLogEntries(snapshotLogEntries);

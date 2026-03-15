@@ -1,25 +1,38 @@
 import { Directory, File, Paths } from "expo-file-system";
+import { Platform } from "react-native";
 
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type { WorkspaceSnapshot } from "@/types/trackitup";
 
 import {
-    decryptWorkspaceSnapshot,
-    deleteWorkspaceEncryptionKey,
-    encryptWorkspaceSnapshot,
-    isWorkspaceEncryptionAvailable,
+  decryptWorkspaceSnapshot,
+  deleteWorkspaceEncryptionKey,
+  encryptWorkspaceSnapshot,
+  isWorkspaceEncryptionAvailable,
 } from "@/services/offline/workspaceEncryption";
 import {
-    buildEncryptedWorkspaceSnapshotFilename,
-    buildEncryptedWorkspaceStorageKey,
-    SNAPSHOT_DIRECTORY,
+  buildEncryptedWorkspaceSnapshotFilename,
+  buildEncryptedWorkspaceStorageKey,
+  SNAPSHOT_DIRECTORY,
 } from "@/services/offline/workspaceOwnership";
 import { choosePersistenceMode } from "@/services/offline/workspacePersistenceStrategy";
 
 type StorageLike = {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
+};
+
+type WebStorageLike = {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
+};
+
+type NativeAsyncStorageLike = {
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+  removeItem(key: string): Promise<void>;
 };
 
 type CloneWorkspaceSnapshot = (
@@ -56,12 +69,70 @@ type PersistEncryptedWorkspaceResult =
   | { status: "blocked" };
 
 const blockedEncryptedWorkspaceScopes = new Set<string>();
+let nativeStoragePromise: Promise<NativeAsyncStorageLike | null> | null = null;
 
-function getStorage(): StorageLike | null {
+function hasNativeStorageRuntime() {
+  return Platform.OS !== "web";
+}
+
+function getWebStorage(): WebStorageLike | null {
+  if (hasNativeStorageRuntime()) {
+    return null;
+  }
+
   const maybeStorage = (
-    globalThis as typeof globalThis & { localStorage?: StorageLike }
+    globalThis as typeof globalThis & { localStorage?: WebStorageLike }
   ).localStorage;
   return maybeStorage ?? null;
+}
+
+async function resolveNativeStorage(): Promise<NativeAsyncStorageLike | null> {
+  if (!hasNativeStorageRuntime()) return null;
+  if (!nativeStoragePromise) {
+    nativeStoragePromise = (async () => {
+      try {
+        const asyncStorageModule =
+          await import("@react-native-async-storage/async-storage");
+        const candidate = (asyncStorageModule as { default?: unknown })
+          .default as NativeAsyncStorageLike | undefined;
+
+        if (
+          candidate &&
+          typeof candidate.getItem === "function" &&
+          typeof candidate.setItem === "function" &&
+          typeof candidate.removeItem === "function"
+        ) {
+          return candidate;
+        }
+      } catch {
+        return null;
+      }
+
+      return null;
+    })();
+  }
+
+  return nativeStoragePromise;
+}
+
+async function getStorage(): Promise<StorageLike | null> {
+  const nativeStorage = await resolveNativeStorage();
+  if (nativeStorage) {
+    return nativeStorage;
+  }
+
+  const webStorage = getWebStorage();
+  if (!webStorage) return null;
+
+  return {
+    getItem: async (key) => webStorage.getItem(key),
+    setItem: async (key, value) => {
+      webStorage.setItem(key, value);
+    },
+    removeItem: async (key) => {
+      webStorage.removeItem(key);
+    },
+  };
 }
 
 function hasDocumentDirectory() {
@@ -83,13 +154,13 @@ function getEncryptedSnapshotFile(scopeKey: string) {
 function getEncryptedPersistenceMode(): PersistenceMode {
   return choosePersistenceMode({
     hasWatermelon: false,
-    hasLocalStorage: Boolean(getStorage()),
+    hasLocalStorage: Boolean(getWebStorage()) || hasNativeStorageRuntime(),
     hasFileSystem: hasDocumentDirectory(),
   });
 }
 
-function readEncryptedWorkspaceEnvelope(scopeKey: string) {
-  const storage = getStorage();
+async function readEncryptedWorkspaceEnvelope(scopeKey: string) {
+  const storage = await getStorage();
   if (storage) {
     return storage.getItem(buildEncryptedWorkspaceStorageKey(scopeKey));
   }
@@ -105,13 +176,16 @@ function readEncryptedWorkspaceEnvelope(scopeKey: string) {
   }
 }
 
-function writeEncryptedWorkspaceEnvelope(
+async function writeEncryptedWorkspaceEnvelope(
   scopeKey: string,
   rawEnvelope: string,
 ) {
-  const storage = getStorage();
+  const storage = await getStorage();
   if (storage) {
-    storage.setItem(buildEncryptedWorkspaceStorageKey(scopeKey), rawEnvelope);
+    await storage.setItem(
+      buildEncryptedWorkspaceStorageKey(scopeKey),
+      rawEnvelope,
+    );
     return true;
   }
 
@@ -135,9 +209,11 @@ function writeEncryptedWorkspaceEnvelope(
   }
 }
 
-function deleteEncryptedWorkspaceEnvelope(scopeKey: string) {
-  const storage = getStorage();
-  storage?.removeItem(buildEncryptedWorkspaceStorageKey(scopeKey));
+async function deleteEncryptedWorkspaceEnvelope(scopeKey: string) {
+  const storage = await getStorage();
+  if (storage) {
+    await storage.removeItem(buildEncryptedWorkspaceStorageKey(scopeKey));
+  }
 
   if (!hasDocumentDirectory()) return;
 
@@ -156,7 +232,7 @@ export async function loadEncryptedWorkspace(
   ownerScopeKey: string,
   cloneWorkspaceSnapshot: CloneWorkspaceSnapshot,
 ): Promise<LoadEncryptedWorkspaceResult> {
-  const rawEnvelope = readEncryptedWorkspaceEnvelope(ownerScopeKey);
+  const rawEnvelope = await readEncryptedWorkspaceEnvelope(ownerScopeKey);
   if (!rawEnvelope) {
     return (await isWorkspaceEncryptionAvailable())
       ? { status: "missing" }
@@ -169,6 +245,11 @@ export async function loadEncryptedWorkspace(
     cloneWorkspaceSnapshot,
     ownerScopeKey,
   );
+
+  if (decryptedWorkspace.status === "unavailable") {
+    blockedEncryptedWorkspaceScopes.delete(ownerScopeKey);
+    return { status: "unavailable" };
+  }
 
   if (decryptedWorkspace.status === "loaded") {
     blockedEncryptedWorkspaceScopes.delete(ownerScopeKey);
@@ -206,10 +287,10 @@ export async function persistEncryptedWorkspace(
   }
 
   if (
-    !writeEncryptedWorkspaceEnvelope(
+    !(await writeEncryptedWorkspaceEnvelope(
       ownerScopeKey,
       JSON.stringify(encryptedEnvelope),
-    )
+    ))
   ) {
     return { status: "unavailable" };
   }
@@ -224,7 +305,7 @@ export async function persistEncryptedWorkspace(
 
 export async function clearEncryptedWorkspace(ownerScopeKey: string) {
   blockedEncryptedWorkspaceScopes.delete(ownerScopeKey);
-  deleteEncryptedWorkspaceEnvelope(ownerScopeKey);
+  await deleteEncryptedWorkspaceEnvelope(ownerScopeKey);
   await deleteWorkspaceEncryptionKey(ownerScopeKey);
 }
 

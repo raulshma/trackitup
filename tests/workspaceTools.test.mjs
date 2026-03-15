@@ -508,50 +508,55 @@ test("dictation transcript helper appends speech cleanly", () => {
   );
 });
 
-test("browser dictation streams live transcript updates without auto-stopping on final text", async () => {
+test("web dictation streams live transcript updates without auto-stopping on final text", async () => {
   const originalDocument = globalThis.document;
-  const originalSpeechRecognition = globalThis.SpeechRecognition;
-  const originalWebkitSpeechRecognition = globalThis.webkitSpeechRecognition;
+  const originalNativeModule = globalThis.ExpoSpeechRecognitionModule;
   const transcriptUpdates = [];
-  let observedInterimResults = null;
-  let observedContinuous = null;
-  let stopCalled = false;
-
-  function createRecognitionResult(transcript, isFinal = false) {
-    const alternatives = [{ transcript }];
-    alternatives.isFinal = isFinal;
-    return alternatives;
-  }
-
-  class MockSpeechRecognition {
-    continuous = false;
-    interimResults = false;
-    lang = undefined;
-    onend = null;
-    onerror = null;
-    onresult = null;
-
-    start() {
-      observedInterimResults = this.interimResults;
-      observedContinuous = this.continuous;
-      this.onresult?.({
-        results: [createRecognitionResult("reef maintenance", false)],
-      });
-      this.onresult?.({
-        results: [createRecognitionResult("reef maintenance note", true)],
-      });
-      this.onend?.();
-    }
-
-    stop() {
-      stopCalled = true;
-      this.onend?.();
-    }
-  }
+  const listeners = {
+    result: [],
+    error: [],
+    end: [],
+  };
+  let observedStartOptions = null;
 
   globalThis.document = {};
-  globalThis.SpeechRecognition = MockSpeechRecognition;
-  Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
+  globalThis.ExpoSpeechRecognitionModule = {
+    requestPermissionsAsync: async () => ({ granted: true }),
+    addListener: (eventName, listener) => {
+      listeners[eventName].push(listener);
+      return {
+        remove: () => {
+          const index = listeners[eventName].indexOf(listener);
+          if (index >= 0) {
+            listeners[eventName].splice(index, 1);
+          }
+        },
+      };
+    },
+    start: (options) => {
+      observedStartOptions = options;
+      listeners.result.forEach((listener) => {
+        listener({
+          results: [{ transcript: "reef maintenance" }],
+          isFinal: false,
+        });
+      });
+      listeners.result.forEach((listener) => {
+        listener({
+          results: [{ transcript: "reef maintenance note" }],
+          isFinal: true,
+        });
+      });
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+    stop: () => {
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+  };
 
   try {
     const result = await captureDictationAsync({
@@ -560,9 +565,8 @@ test("browser dictation streams live transcript updates without auto-stopping on
       },
     });
 
-    assert.equal(observedInterimResults, true);
-    assert.equal(observedContinuous, true);
-    assert.equal(stopCalled, false);
+    assert.equal(observedStartOptions?.interimResults, true);
+    assert.equal(observedStartOptions?.continuous, true);
     assert.deepEqual(transcriptUpdates, [
       "reef maintenance",
       "reef maintenance note",
@@ -576,57 +580,53 @@ test("browser dictation streams live transcript updates without auto-stopping on
       globalThis.document = originalDocument;
     }
 
-    if (originalSpeechRecognition === undefined) {
-      Reflect.deleteProperty(globalThis, "SpeechRecognition");
+    if (originalNativeModule === undefined) {
+      Reflect.deleteProperty(globalThis, "ExpoSpeechRecognitionModule");
     } else {
-      globalThis.SpeechRecognition = originalSpeechRecognition;
-    }
-
-    if (originalWebkitSpeechRecognition === undefined) {
-      Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
-    } else {
-      globalThis.webkitSpeechRecognition = originalWebkitSpeechRecognition;
+      globalThis.ExpoSpeechRecognitionModule = originalNativeModule;
     }
   }
 });
 
-test("browser dictation supports explicit stop requests via abort signal", async () => {
+test("web dictation supports explicit stop requests via abort signal", async () => {
   const originalDocument = globalThis.document;
-  const originalSpeechRecognition = globalThis.SpeechRecognition;
-  const originalWebkitSpeechRecognition = globalThis.webkitSpeechRecognition;
+  const originalNativeModule = globalThis.ExpoSpeechRecognitionModule;
+  const listeners = {
+    result: [],
+    error: [],
+    end: [],
+  };
   let stopCalled = false;
 
-  function createRecognitionResult(transcript, isFinal = false) {
-    const alternatives = [{ transcript }];
-    alternatives.isFinal = isFinal;
-    return alternatives;
-  }
-
-  class MockSpeechRecognition {
-    continuous = false;
-    interimResults = false;
-    lang = undefined;
-    onend = null;
-    onerror = null;
-    onresult = null;
-
-    start() {
-      this.onresult?.({
-        results: [
-          createRecognitionResult("reef maintenance in progress", false),
-        ],
-      });
-    }
-
-    stop() {
-      stopCalled = true;
-      this.onend?.();
-    }
-  }
-
   globalThis.document = {};
-  globalThis.SpeechRecognition = MockSpeechRecognition;
-  Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
+  globalThis.ExpoSpeechRecognitionModule = {
+    requestPermissionsAsync: async () => ({ granted: true }),
+    addListener: (eventName, listener) => {
+      listeners[eventName].push(listener);
+      return {
+        remove: () => {
+          const index = listeners[eventName].indexOf(listener);
+          if (index >= 0) {
+            listeners[eventName].splice(index, 1);
+          }
+        },
+      };
+    },
+    start: () => {
+      listeners.result.forEach((listener) => {
+        listener({
+          results: [{ transcript: "reef maintenance in progress" }],
+          isFinal: false,
+        });
+      });
+    },
+    stop: () => {
+      stopCalled = true;
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+  };
 
   try {
     const abortController = new AbortController();
@@ -647,16 +647,328 @@ test("browser dictation supports explicit stop requests via abort signal", async
       globalThis.document = originalDocument;
     }
 
-    if (originalSpeechRecognition === undefined) {
-      Reflect.deleteProperty(globalThis, "SpeechRecognition");
+    if (originalNativeModule === undefined) {
+      Reflect.deleteProperty(globalThis, "ExpoSpeechRecognitionModule");
     } else {
-      globalThis.SpeechRecognition = originalSpeechRecognition;
+      globalThis.ExpoSpeechRecognitionModule = originalNativeModule;
+    }
+  }
+});
+
+test("web dictation ignores secondary alternatives to avoid duplicate phrases", async () => {
+  const originalDocument = globalThis.document;
+  const originalNativeModule = globalThis.ExpoSpeechRecognitionModule;
+  const transcriptUpdates = [];
+  const listeners = {
+    result: [],
+    error: [],
+    end: [],
+  };
+
+  globalThis.document = {};
+  globalThis.ExpoSpeechRecognitionModule = {
+    requestPermissionsAsync: async () => ({ granted: true }),
+    addListener: (eventName, listener) => {
+      listeners[eventName].push(listener);
+      return {
+        remove: () => {
+          const index = listeners[eventName].indexOf(listener);
+          if (index >= 0) {
+            listeners[eventName].splice(index, 1);
+          }
+        },
+      };
+    },
+    start: () => {
+      listeners.result.forEach((listener) => {
+        listener({
+          results: [
+            {
+              transcript: "check filter and pump",
+            },
+            {
+              transcript: "check filter pump",
+            },
+          ],
+          isFinal: true,
+        });
+      });
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+    stop: () => {
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+  };
+
+  try {
+    const result = await captureDictationAsync({
+      onTranscript: (transcript) => {
+        transcriptUpdates.push(transcript);
+      },
+    });
+
+    assert.deepEqual(transcriptUpdates, ["check filter and pump"]);
+    assert.equal(result.mode, "speech-recognition");
+    assert.equal(result.transcript, "check filter and pump");
+  } finally {
+    if (originalDocument === undefined) {
+      Reflect.deleteProperty(globalThis, "document");
+    } else {
+      globalThis.document = originalDocument;
     }
 
-    if (originalWebkitSpeechRecognition === undefined) {
-      Reflect.deleteProperty(globalThis, "webkitSpeechRecognition");
+    if (originalNativeModule === undefined) {
+      Reflect.deleteProperty(globalThis, "ExpoSpeechRecognitionModule");
     } else {
-      globalThis.webkitSpeechRecognition = originalWebkitSpeechRecognition;
+      globalThis.ExpoSpeechRecognitionModule = originalNativeModule;
+    }
+  }
+});
+
+test("native dictation uses Expo speech recognition events and streams transcript updates", async () => {
+  const originalDocument = globalThis.document;
+  const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "navigator",
+  );
+  const originalNativeModule = globalThis.ExpoSpeechRecognitionModule;
+  const transcriptUpdates = [];
+  const listeners = {
+    result: [],
+    error: [],
+    end: [],
+  };
+  let observedStartOptions = null;
+  let stopCalled = false;
+
+  const mockNativeModule = {
+    requestPermissionsAsync: async () => ({ granted: true }),
+    addListener: (eventName, listener) => {
+      listeners[eventName].push(listener);
+      return {
+        remove: () => {
+          const index = listeners[eventName].indexOf(listener);
+          if (index >= 0) {
+            listeners[eventName].splice(index, 1);
+          }
+        },
+      };
+    },
+    start: (options) => {
+      observedStartOptions = options;
+      listeners.result.forEach((listener) => {
+        listener({ results: [{ transcript: "reef" }], isFinal: false });
+      });
+      listeners.result.forEach((listener) => {
+        listener({
+          results: [{ transcript: "reef maintenance" }],
+          isFinal: true,
+        });
+      });
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+    stop: () => {
+      stopCalled = true;
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+  };
+
+  Reflect.deleteProperty(globalThis, "document");
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: { product: "ReactNative" },
+    writable: true,
+  });
+  globalThis.ExpoSpeechRecognitionModule = mockNativeModule;
+
+  try {
+    const result = await captureDictationAsync({
+      onTranscript: (nextTranscript) => {
+        transcriptUpdates.push(nextTranscript);
+      },
+    });
+
+    assert.equal(observedStartOptions?.lang, "en-US");
+    assert.equal(observedStartOptions?.interimResults, true);
+    assert.equal(observedStartOptions?.continuous, true);
+    assert.equal(stopCalled, false);
+    assert.deepEqual(transcriptUpdates, ["reef", "reef maintenance"]);
+    assert.equal(result.mode, "speech-recognition");
+    assert.equal(result.transcript, "reef maintenance");
+  } finally {
+    if (originalDocument === undefined) {
+      Reflect.deleteProperty(globalThis, "document");
+    } else {
+      globalThis.document = originalDocument;
+    }
+
+    if (!originalNavigatorDescriptor) {
+      Reflect.deleteProperty(globalThis, "navigator");
+    } else {
+      Object.defineProperty(
+        globalThis,
+        "navigator",
+        originalNavigatorDescriptor,
+      );
+    }
+
+    if (originalNativeModule === undefined) {
+      Reflect.deleteProperty(globalThis, "ExpoSpeechRecognitionModule");
+    } else {
+      globalThis.ExpoSpeechRecognitionModule = originalNativeModule;
+    }
+  }
+});
+
+test("native dictation falls back when microphone permission is denied", async () => {
+  const originalDocument = globalThis.document;
+  const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "navigator",
+  );
+  const originalNativeModule = globalThis.ExpoSpeechRecognitionModule;
+
+  Reflect.deleteProperty(globalThis, "document");
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: { product: "ReactNative" },
+    writable: true,
+  });
+  globalThis.ExpoSpeechRecognitionModule = {
+    requestPermissionsAsync: async () => ({
+      granted: false,
+      canAskAgain: false,
+    }),
+    addListener: () => ({ remove: () => {} }),
+    start: () => {},
+    stop: () => {},
+  };
+
+  try {
+    const result = await captureDictationAsync();
+
+    assert.equal(result.mode, "device-keyboard");
+    assert.match(result.message, /permission is blocked/i);
+  } finally {
+    if (originalDocument === undefined) {
+      Reflect.deleteProperty(globalThis, "document");
+    } else {
+      globalThis.document = originalDocument;
+    }
+
+    if (!originalNavigatorDescriptor) {
+      Reflect.deleteProperty(globalThis, "navigator");
+    } else {
+      Object.defineProperty(
+        globalThis,
+        "navigator",
+        originalNavigatorDescriptor,
+      );
+    }
+
+    if (originalNativeModule === undefined) {
+      Reflect.deleteProperty(globalThis, "ExpoSpeechRecognitionModule");
+    } else {
+      globalThis.ExpoSpeechRecognitionModule = originalNativeModule;
+    }
+  }
+});
+
+test("native dictation appends across pauses without repeating overlap", async () => {
+  const originalDocument = globalThis.document;
+  const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    "navigator",
+  );
+  const originalNativeModule = globalThis.ExpoSpeechRecognitionModule;
+  const listeners = {
+    result: [],
+    error: [],
+    end: [],
+  };
+
+  const mockNativeModule = {
+    requestPermissionsAsync: async () => ({ granted: true }),
+    addListener: (eventName, listener) => {
+      listeners[eventName].push(listener);
+      return {
+        remove: () => {
+          const index = listeners[eventName].indexOf(listener);
+          if (index >= 0) {
+            listeners[eventName].splice(index, 1);
+          }
+        },
+      };
+    },
+    start: () => {
+      listeners.result.forEach((listener) => {
+        listener({ results: [{ transcript: "check filter" }], isFinal: true });
+      });
+      listeners.result.forEach((listener) => {
+        listener({
+          results: [{ transcript: "check filter and pump" }],
+          isFinal: true,
+        });
+      });
+      listeners.result.forEach((listener) => {
+        listener({
+          results: [{ transcript: "and test water" }],
+          isFinal: true,
+        });
+      });
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+    stop: () => {
+      listeners.end.forEach((listener) => {
+        listener();
+      });
+    },
+  };
+
+  Reflect.deleteProperty(globalThis, "document");
+  Object.defineProperty(globalThis, "navigator", {
+    configurable: true,
+    value: { product: "ReactNative" },
+    writable: true,
+  });
+  globalThis.ExpoSpeechRecognitionModule = mockNativeModule;
+
+  try {
+    const result = await captureDictationAsync();
+
+    assert.equal(result.mode, "speech-recognition");
+    assert.equal(result.transcript, "check filter and pump and test water");
+  } finally {
+    if (originalDocument === undefined) {
+      Reflect.deleteProperty(globalThis, "document");
+    } else {
+      globalThis.document = originalDocument;
+    }
+
+    if (!originalNavigatorDescriptor) {
+      Reflect.deleteProperty(globalThis, "navigator");
+    } else {
+      Object.defineProperty(
+        globalThis,
+        "navigator",
+        originalNavigatorDescriptor,
+      );
+    }
+
+    if (originalNativeModule === undefined) {
+      Reflect.deleteProperty(globalThis, "ExpoSpeechRecognitionModule");
+    } else {
+      globalThis.ExpoSpeechRecognitionModule = originalNativeModule;
     }
   }
 });
