@@ -32,7 +32,7 @@ const androidPackage =
 const config: ExpoConfig = {
   name: "trackitup",
   slug: "trackitup",
-  version: "0.0.4",
+  version: "0.0.5",
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: "trackitup",
