@@ -2,11 +2,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-    Checkbox,
-    Chip,
-    Surface,
-    useTheme,
-    type MD3Theme,
+  Checkbox,
+  Chip,
+  Surface,
+  useTheme,
+  type MD3Theme,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -19,8 +19,8 @@ import { ChipRow } from "@/components/ui/ChipRow";
 import { CollapsibleSectionCard } from "@/components/ui/CollapsibleSectionCard";
 import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import {
-    FeatureSectionSwitcher,
-    type FeatureSectionItem,
+  FeatureSectionSwitcher,
+  type FeatureSectionItem,
 } from "@/components/ui/FeatureSectionSwitcher";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -30,58 +30,63 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    uiBorder,
-    uiRadius,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiRadius,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
-    buildAiActionCenterExplainerGenerationPrompt,
-    buildAiActionCenterExplainerReviewItems,
-    parseAiActionCenterExplainerDraft,
-    type AiActionCenterExplainerActionKind,
-    type AiActionCenterExplainerDraft,
+  buildAiActionCenterExplainerGenerationPrompt,
+  buildAiActionCenterExplainerReviewItems,
+  parseAiActionCenterExplainerDraft,
+  type AiActionCenterExplainerActionKind,
+  type AiActionCenterExplainerDraft,
+  type AiActionCenterExplainerDraftAction,
 } from "@/services/ai/aiActionCenterExplainer";
 import {
-    buildAiActionPlanFromActionCenterDraft,
-    executeAiActionPlan,
-    setAiActionPlanStepApproved,
+  buildAiActionPlanFromActionCenterDraft,
+  executeAiActionPlan,
+  setAiActionPlanStepApproved,
 } from "@/services/ai/aiActionPlan";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import {
-    aiActionCenterExplainerCopy,
-    aiTrackingQualityCopy,
-    aiWorkspaceQaCopy,
+  aiActionCenterExplainerCopy,
+  aiTrackingQualityCopy,
+  aiWorkspaceQaCopy,
 } from "@/services/ai/aiConsentCopy";
 import {
-    buildActionCenterExplainerPrompt,
-    buildTrackingQualityPrompt,
-    buildWorkspaceQaPrompt,
+  buildActionCenterExplainerPrompt,
+  buildTrackingQualityPrompt,
+  buildWorkspaceQaPrompt,
 } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-    buildAiTrackingQualityGenerationPrompt,
-    buildAiTrackingQualityReviewItems,
-    formatAiTrackingQualityDestinationLabel,
-    formatAiTrackingQualitySourceLabel,
-    parseAiTrackingQualityDraft,
-    type AiTrackingQualityDraft,
-    type AiTrackingQualitySource,
+  buildAiTrackingQualityGenerationPrompt,
+  buildAiTrackingQualityReviewItems,
+  formatAiTrackingQualityDestinationLabel,
+  formatAiTrackingQualitySourceLabel,
+  parseAiTrackingQualityDraft,
+  type AiTrackingQualityDraft,
+  type AiTrackingQualitySource,
 } from "@/services/ai/aiTrackingQuality";
 import {
-    buildAiWorkspaceQaGenerationPrompt,
-    buildAiWorkspaceQaReviewItems,
-    formatAiWorkspaceQaDestinationLabel,
-    formatAiWorkspaceQaSourceLabel,
-    parseAiWorkspaceQaDraft,
-    type AiWorkspaceQaDraft,
-    type AiWorkspaceQaSource,
+  buildAiWorkspaceQaGenerationPrompt,
+  buildAiWorkspaceQaReviewItems,
+  formatAiWorkspaceQaDestinationLabel,
+  formatAiWorkspaceQaSourceLabel,
+  parseAiWorkspaceQaDraft,
+  type AiWorkspaceQaDraft,
+  type AiWorkspaceQaSource,
 } from "@/services/ai/aiWorkspaceQa";
 import { getReminderScheduleTimestamp } from "@/services/insights/workspaceInsights";
 import { buildWorkspaceTrackingQualitySummary } from "@/services/insights/workspaceTrackingQuality";
 import { buildReminderActionCenter } from "@/services/reminders/reminderActionCenter";
-import type { AiActionPlan, WorkspaceRecommendation } from "@/types/trackitup";
+import type {
+  AiActionPlan,
+  RecurringPlanScheduleRule,
+  WorkspaceRecommendation,
+} from "@/types/trackitup";
 
 type GeneratedAiActionCenterDraft = {
   request: string;
@@ -152,6 +157,36 @@ function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
   return [];
 }
 
+function compactText(value: string, maxLength: number) {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function buildDefaultRecurringTime(now = new Date()) {
+  const hour = String(now.getHours()).padStart(2, "0");
+  const minute = String(now.getMinutes()).padStart(2, "0");
+  return `${hour}:${minute}`;
+}
+
+function parseIsoDateTime(value: string | undefined) {
+  if (!value) return undefined;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return undefined;
+  return new Date(timestamp).toISOString();
+}
+
+function isValidWeekday(value: unknown): value is 0 | 1 | 2 | 3 | 4 | 5 | 6 {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 0 &&
+    value <= 6
+  );
+}
+
+type ActionFormValues = AiActionCenterExplainerDraftAction["formValues"];
+
 type ActionCenterSection = "queue" | "assist" | "review";
 
 export default function ActionCenterScreen() {
@@ -191,6 +226,8 @@ export default function ActionCenterScreen() {
     skipReminder,
     snoozeRecurringOccurrence,
     snoozeReminder,
+    saveLogForAction,
+    saveRecurringPlan,
     workspace,
   } = useWorkspace();
   const [aiRequest, setAiRequest] = useState("");
@@ -913,16 +950,190 @@ export default function ActionCenterScreen() {
         snoozeReminder,
         completeRecurringOccurrence,
         openPlanner: () => router.push("/planner" as never),
-        openQuickLog: () =>
-          router.push({
-            pathname: "/logbook",
-            params: { actionId: "quick-log" },
-          }),
-        openRecurringPlanEditor: () =>
-          router.push({
-            pathname: "/recurring-plan-editor",
-            params: { from: "action-center" },
-          }),
+        createLog: ({
+          title,
+          reason,
+          reminder,
+          formValues,
+        }: {
+          title: string;
+          reason: string;
+          reminder?: (typeof workspace.reminders)[number];
+          formValues?: ActionFormValues;
+        }) => {
+          const fallbackSpaceId = workspace.spaces[0]?.id;
+          const reminderSpaceIds = reminder ? normalizeSpaceIds(reminder) : [];
+          const targetSpaceId =
+            formValues?.spaceId ??
+            reminderSpaceIds[0] ??
+            reminder?.spaceId ??
+            fallbackSpaceId;
+          if (!targetSpaceId) {
+            throw new Error("No space is available to save the quick log.");
+          }
+
+          const occurredAt =
+            parseIsoDateTime(formValues?.occurredAt) ??
+            new Date().toISOString();
+          const tagValues = formValues?.tags?.filter(Boolean) ?? undefined;
+          const assetIds = formValues?.assetIds?.filter(Boolean) ?? undefined;
+
+          const saved = saveLogForAction("quick-log", {
+            spaceId: targetSpaceId,
+            title: compactText(title || "Action center quick log", 120),
+            note: compactText(
+              formValues?.note ||
+                reason ||
+                "Logged from AI action plan execution.",
+              280,
+            ),
+            occurredAt,
+            ...(tagValues?.length ? { tags: tagValues } : {}),
+            ...(assetIds?.length ? { assetIds } : {}),
+            ...(formValues?.reminderId
+              ? { reminderId: formValues.reminderId }
+              : reminder?.id
+                ? { reminderId: reminder.id }
+                : {}),
+          });
+
+          if (saved.createdCount <= 0) {
+            throw new Error("Quick log could not be created from this step.");
+          }
+        },
+        createRecurringPlan: ({
+          title,
+          reason,
+          reminder,
+          formValues,
+        }: {
+          title: string;
+          reason: string;
+          reminder?: (typeof workspace.reminders)[number];
+          formValues?: ActionFormValues;
+        }) => {
+          const fallbackSpaceId = workspace.spaces[0]?.id;
+          const reminderSpaceIds = reminder ? normalizeSpaceIds(reminder) : [];
+          const targetSpaceId =
+            formValues?.spaceId ??
+            reminderSpaceIds[0] ??
+            reminder?.spaceId ??
+            fallbackSpaceId;
+
+          if (!targetSpaceId) {
+            throw new Error(
+              "No space is available to create a recurring plan from this step.",
+            );
+          }
+
+          const now = new Date();
+          const startDate =
+            parseIsoDateTime(formValues?.startDate) ?? now.toISOString();
+          const timezone =
+            formValues?.timezone ||
+            Intl.DateTimeFormat().resolvedOptions().timeZone ||
+            "UTC";
+          const scheduleTimes =
+            formValues?.scheduleTimes?.filter((time: string) =>
+              /^\d{1,2}:\d{2}$/.test(time),
+            ) ?? [];
+
+          const scheduleRule: RecurringPlanScheduleRule =
+            formValues?.scheduleType === "every-n-days"
+              ? {
+                  type: "every-n-days" as const,
+                  interval:
+                    typeof formValues.interval === "number" &&
+                    formValues.interval > 0
+                      ? Math.floor(formValues.interval)
+                      : 1,
+                  times:
+                    scheduleTimes.length > 0
+                      ? scheduleTimes
+                      : [buildDefaultRecurringTime(now)],
+                }
+              : formValues?.scheduleType === "weekly"
+                ? {
+                    type: "weekly" as const,
+                    daysOfWeek:
+                      (formValues.daysOfWeek ?? []).filter(isValidWeekday)
+                        .length > 0
+                        ? Array.from(
+                            new Set(
+                              (formValues.daysOfWeek ?? []).filter(
+                                isValidWeekday,
+                              ),
+                            ),
+                          )
+                        : [now.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6],
+                    times:
+                      scheduleTimes.length > 0
+                        ? scheduleTimes
+                        : [buildDefaultRecurringTime(now)],
+                  }
+                : formValues?.scheduleType === "monthly"
+                  ? {
+                      type: "monthly" as const,
+                      ...(typeof formValues.dayOfMonth === "number"
+                        ? {
+                            dayOfMonth: Math.max(
+                              1,
+                              Math.min(31, Math.floor(formValues.dayOfMonth)),
+                            ),
+                          }
+                        : formValues?.nthWeekday
+                          ? {
+                              nthWeekday: {
+                                weekday: formValues.nthWeekday.weekday,
+                                weekOfMonth: formValues.nthWeekday.weekOfMonth,
+                              },
+                            }
+                          : { dayOfMonth: now.getDate() }),
+                      times:
+                        scheduleTimes.length > 0
+                          ? scheduleTimes
+                          : [buildDefaultRecurringTime(now)],
+                    }
+                  : {
+                      type: "daily" as const,
+                      times:
+                        scheduleTimes.length > 0
+                          ? scheduleTimes
+                          : [buildDefaultRecurringTime(now)],
+                    };
+
+          const recurringDraft = {
+            id: `plan-ai-${Date.now()}`,
+            title: compactText(title || "AI recurring plan", 100),
+            description: compactText(
+              formValues?.note ||
+                reason ||
+                "Created from AI action plan execution.",
+              220,
+            ),
+            spaceId: targetSpaceId,
+            spaceIds: [targetSpaceId],
+            category: "Action center",
+            tags:
+              formValues?.tags && formValues.tags.length > 0
+                ? [...formValues.tags]
+                : ["ai", "action-center"],
+            scheduleRule,
+            startDate,
+            timezone,
+            proofRequired: formValues?.proofRequired ?? false,
+            smartMatchMode: "prompt" as const,
+            status: "active" as const,
+            gracePeriodMinutes: 120,
+          };
+
+          const result = saveRecurringPlan(recurringDraft);
+          if (result.status !== "saved") {
+            throw new Error(
+              result.message || "Recurring plan could not be created.",
+            );
+          }
+        },
         openReminderLogbook,
       },
     );

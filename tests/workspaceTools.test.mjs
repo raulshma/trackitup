@@ -2755,6 +2755,11 @@ test("ai action center explainer parser extracts grounded queue guidance", () =>
             title: "Capture a quick progress note",
             reason:
               "A lightweight log can capture current state before the next queue pass.",
+            formValues: {
+              occurredAt: "2026-03-09T20:30:00.000Z",
+              note: "Captured from transcript with explicit timestamp.",
+              tags: ["ai", "transcript"],
+            },
           },
           {
             reminderId: "missing-reminder",
@@ -2779,6 +2784,11 @@ test("ai action center explainer parser extracts grounded queue guidance", () =>
   assert.equal(parsed?.suggestedActions.length, 2);
   assert.equal(parsed?.groupedInsights.length, 2);
   assert.match(parsed?.summary ?? "", /Most urgency sits/i);
+  assert.equal(
+    parsed?.suggestedActions.find((item) => item.action === "create-log")
+      ?.formValues?.occurredAt,
+    "2026-03-09T20:30:00.000Z",
+  );
 
   const reviewItems = buildAiActionCenterExplainerReviewItems(
     parsed ?? {
@@ -2825,11 +2835,23 @@ test("ai action plan helpers build transparent steps and execute approved action
         title: "Create a quick log",
         action: "create-log",
         reason: "Capture a brief status note now.",
+        formValues: {
+          occurredAt: "2026-03-10T08:31:00.000Z",
+          note: "Follow-up chemistry check complete.",
+          tags: ["reef", "ai"],
+        },
       },
       {
         title: "Create recurring plan",
         action: "create-recurring-plan",
         reason: "Set up a recurring cadence for this workflow.",
+        formValues: {
+          startDate: "2026-03-11T09:00:00.000Z",
+          timezone: "UTC",
+          scheduleType: "weekly",
+          scheduleTimes: ["09:00"],
+          daysOfWeek: [1, 3],
+        },
       },
       {
         recurringOccurrenceId: recurringOccurrence?.id,
@@ -2865,7 +2887,10 @@ test("ai action plan helpers build transparent steps and execute approved action
 
   const completedReminderIds = [];
   const completedRecurringIds = [];
+  const createdArtifacts = [];
   const openedRoutes = [];
+  const createLogPayloads = [];
+  const createRecurringPayloads = [];
   const result = executeAiActionPlan(
     partiallyApprovedPlan,
     trackItUpWorkspace,
@@ -2874,8 +2899,14 @@ test("ai action plan helpers build transparent steps and execute approved action
       snoozeReminder: () => {},
       completeRecurringOccurrence: (id) => completedRecurringIds.push(id),
       openPlanner: () => openedRoutes.push("planner"),
-      openQuickLog: () => openedRoutes.push("quick-log"),
-      openRecurringPlanEditor: () => openedRoutes.push("recurring-plan"),
+      createLog: (payload) => {
+        createdArtifacts.push("quick-log");
+        createLogPayloads.push(payload);
+      },
+      createRecurringPlan: (payload) => {
+        createdArtifacts.push("recurring-plan");
+        createRecurringPayloads.push(payload);
+      },
       openReminderLogbook: () => openedRoutes.push("logbook"),
     },
   );
@@ -2885,7 +2916,15 @@ test("ai action plan helpers build transparent steps and execute approved action
   assert.equal(result.failedCount, 0);
   assert.deepEqual(completedReminderIds, [reminder.id]);
   assert.deepEqual(completedRecurringIds, [recurringOccurrence?.id]);
-  assert.deepEqual(openedRoutes, ["quick-log", "recurring-plan"]);
+  assert.deepEqual(createdArtifacts, ["quick-log", "recurring-plan"]);
+  assert.equal(createLogPayloads[0]?.title, "Create a quick log");
+  assert.equal(
+    createLogPayloads[0]?.formValues?.occurredAt,
+    "2026-03-10T08:31:00.000Z",
+  );
+  assert.equal(createRecurringPayloads[0]?.title, "Create recurring plan");
+  assert.equal(createRecurringPayloads[0]?.formValues?.scheduleType, "weekly");
+  assert.deepEqual(openedRoutes, []);
   assert.equal(result.updatedPlan.status, "executed");
 });
 

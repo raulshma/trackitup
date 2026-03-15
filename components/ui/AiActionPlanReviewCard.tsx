@@ -33,6 +33,66 @@ type AiActionPlanReviewCardProps = {
   onApprove: () => void;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseSeedFormValues(executionNote?: string) {
+  if (!executionNote?.startsWith("seed:")) return undefined;
+  try {
+    const parsed = JSON.parse(executionNote.slice("seed:".length));
+    if (!isRecord(parsed) || !isRecord(parsed.formValues)) return undefined;
+    return parsed.formValues;
+  } catch {
+    return undefined;
+  }
+}
+
+function formatFormValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === "string" ? item : JSON.stringify(item)))
+      .join(", ");
+  }
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return value;
+  if (isRecord(value)) return JSON.stringify(value);
+  return "";
+}
+
+function buildFormValueLines(executionNote?: string) {
+  const formValues = parseSeedFormValues(executionNote);
+  if (!formValues) return [];
+
+  const orderedKeys = [
+    "occurredAt",
+    "startDate",
+    "timezone",
+    "spaceId",
+    "reminderId",
+    "note",
+    "tags",
+    "assetIds",
+    "scheduleType",
+    "scheduleTimes",
+    "interval",
+    "daysOfWeek",
+    "dayOfMonth",
+    "nthWeekday",
+    "proofRequired",
+  ];
+
+  return orderedKeys
+    .filter((key) => formValues[key] !== undefined)
+    .map((key) => {
+      const formattedValue = formatFormValue(formValues[key]);
+      if (!formattedValue) return null;
+      return `${key}: ${formattedValue}`;
+    })
+    .filter((line): line is string => Boolean(line));
+}
+
 function formatTokenUsageLabel(usage: AiActionPlan["transcript"]["usage"]) {
   if (!usage) return null;
   const inTokens = usage.inputTokens;
@@ -118,48 +178,70 @@ export function AiActionPlanReviewCard({
 
       <Text style={styles.sectionTitle}>Exact action list</Text>
       <View style={styles.stepList}>
-        {plan.steps.map((step) => (
-          <Surface
-            key={step.id}
-            style={[
-              styles.stepCard,
-              {
-                backgroundColor: theme.colors.elevation.level1,
-                borderColor: theme.colors.outlineVariant,
-              },
-            ]}
-            elevation={0}
-          >
-            <View style={styles.stepHeader}>
-              <View style={styles.stepHeaderCopy}>
-                <Text style={styles.stepTitle}>
-                  {step.stepNumber}. {step.title}
-                </Text>
-                <Text style={[styles.meta, { color: palette.muted }]}>
-                  {step.reason}
-                </Text>
-                {step.targetLabel ? (
-                  <Text style={[styles.meta, { color: palette.muted }]}>
-                    Target: {step.targetLabel}
-                  </Text>
-                ) : null}
-              </View>
-              <Checkbox
-                status={step.approved ? "checked" : "unchecked"}
-                onPress={() => onToggleStepApproval(step.id, !step.approved)}
-                disabled={busy}
-              />
-            </View>
-            <ChipRow>
-              <Chip compact style={styles.chip}>
-                {step.actionClass}
-              </Chip>
-              <Chip compact style={styles.chip}>
-                Risk: {step.riskLevel}
-              </Chip>
-            </ChipRow>
-          </Surface>
-        ))}
+        {plan.steps.map((step) =>
+          (() => {
+            const formValueLines = buildFormValueLines(step.executionNote);
+            return (
+              <Surface
+                key={step.id}
+                style={[
+                  styles.stepCard,
+                  {
+                    backgroundColor: theme.colors.elevation.level1,
+                    borderColor: theme.colors.outlineVariant,
+                  },
+                ]}
+                elevation={0}
+              >
+                <View style={styles.stepHeader}>
+                  <View style={styles.stepHeaderCopy}>
+                    <Text style={styles.stepTitle}>
+                      {step.stepNumber}. {step.title}
+                    </Text>
+                    <Text style={[styles.meta, { color: palette.muted }]}>
+                      {step.reason}
+                    </Text>
+                    {step.targetLabel ? (
+                      <Text style={[styles.meta, { color: palette.muted }]}>
+                        Target: {step.targetLabel}
+                      </Text>
+                    ) : null}
+                    {formValueLines.length > 0 ? (
+                      <View style={styles.formValueList}>
+                        <Text style={[styles.meta, { color: palette.muted }]}>
+                          Transcript form values
+                        </Text>
+                        {formValueLines.map((line) => (
+                          <Text
+                            key={line}
+                            style={[styles.meta, { color: palette.muted }]}
+                          >
+                            • {line}
+                          </Text>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                  <Checkbox
+                    status={step.approved ? "checked" : "unchecked"}
+                    onPress={() =>
+                      onToggleStepApproval(step.id, !step.approved)
+                    }
+                    disabled={busy}
+                  />
+                </View>
+                <ChipRow>
+                  <Chip compact style={styles.chip}>
+                    {step.actionClass}
+                  </Chip>
+                  <Chip compact style={styles.chip}>
+                    Risk: {step.riskLevel}
+                  </Chip>
+                </ChipRow>
+              </Surface>
+            );
+          })(),
+        )}
       </View>
 
       {requiresDestructiveConfirmation ? (
@@ -224,6 +306,7 @@ const styles = StyleSheet.create({
   stepHeaderCopy: { flex: 1, gap: uiSpace.xs },
   stepTitle: uiTypography.titleMd,
   meta: uiTypography.bodySmall,
+  formValueList: { marginTop: uiSpace.xs, gap: 2 },
   destructiveBox: { marginTop: uiSpace.lg, gap: uiSpace.sm },
   actionRow: { marginTop: uiSpace.lg },
 });

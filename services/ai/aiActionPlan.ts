@@ -1,6 +1,7 @@
 import type {
     AiActionCenterExplainerActionKind,
     AiActionCenterExplainerDraft,
+    AiActionCenterExplainerDraftAction,
 } from "@/services/ai/aiActionCenterExplainer";
 import type {
     AiActionPlan,
@@ -30,8 +31,18 @@ type ExecuteAiActionPlanBindings = {
   snoozeReminder: (reminderId: string) => void;
   completeRecurringOccurrence: (occurrenceId: string) => void;
   openPlanner: () => void;
-  openQuickLog: () => void;
-  openRecurringPlanEditor: () => void;
+  createLog: (options: {
+    title: string;
+    reason: string;
+    reminder?: Reminder;
+    formValues?: AiActionCenterExplainerDraftAction["formValues"];
+  }) => void;
+  createRecurringPlan: (options: {
+    title: string;
+    reason: string;
+    reminder?: Reminder;
+    formValues?: AiActionCenterExplainerDraftAction["formValues"];
+  }) => void;
   openReminderLogbook: (
     reminderId: string,
     spaceId: string,
@@ -145,6 +156,27 @@ function parseStepActionKind(
   step: AiActionPlanStep,
 ): AiActionCenterExplainerActionKind {
   const rawNote = step.executionNote ?? "";
+  if (rawNote.startsWith("seed:")) {
+    try {
+      const parsed = JSON.parse(rawNote.slice("seed:".length));
+      const kind = parsed?.kind;
+      if (
+        kind === "complete-now" ||
+        kind === "log-proof" ||
+        kind === "snooze" ||
+        kind === "open-planner" ||
+        kind === "create-log" ||
+        kind === "create-recurring-plan" ||
+        kind === "complete-recurring-now" ||
+        kind === "review-later"
+      ) {
+        return kind;
+      }
+    } catch {
+      // Fall through to legacy parsing.
+    }
+  }
+
   if (rawNote.startsWith("kind:")) {
     const kind = rawNote.slice("kind:".length);
     if (
@@ -166,6 +198,20 @@ function parseStepActionKind(
   if (step.actionClass === "log-reminder-proof") return "log-proof";
   if (step.actionClass === "navigate-planner") return "open-planner";
   return "review-later";
+}
+
+function parseStepFormValues(
+  step: AiActionPlanStep,
+): AiActionCenterExplainerDraftAction["formValues"] | undefined {
+  const rawNote = step.executionNote ?? "";
+  if (!rawNote.startsWith("seed:")) return undefined;
+
+  try {
+    const parsed = JSON.parse(rawNote.slice("seed:".length));
+    return parsed?.formValues;
+  } catch {
+    return undefined;
+  }
 }
 
 export function buildAiActionPlanFromActionCenterDraft(
@@ -208,7 +254,10 @@ export function buildAiActionPlanFromActionCenterDraft(
       targetId: action.recurringOccurrenceId ?? action.reminderId,
       targetLabel: reminder?.title ?? action.title,
       executionState: "pending",
-      executionNote: `kind:${action.action}`,
+      executionNote: `seed:${JSON.stringify({
+        kind: action.action,
+        formValues: action.formValues,
+      })}`,
     } satisfies AiActionPlanStep;
   });
 
@@ -262,6 +311,7 @@ export function executeAiActionPlan(
     }
 
     const action = parseStepActionKind(step);
+    const formValues = parseStepFormValues(step);
     const reminder = findReminderById(workspace.reminders, step.targetId);
     const recurringOccurrence = findRecurringOccurrenceById(
       workspace.recurringOccurrences,
@@ -286,9 +336,19 @@ export function executeAiActionPlan(
       } else if (action === "open-planner") {
         bindings.openPlanner();
       } else if (action === "create-log") {
-        bindings.openQuickLog();
+        bindings.createLog({
+          title: step.title,
+          reason: step.reason,
+          reminder,
+          formValues,
+        });
       } else if (action === "create-recurring-plan") {
-        bindings.openRecurringPlanEditor();
+        bindings.createRecurringPlan({
+          title: step.title,
+          reason: step.reason,
+          reminder,
+          formValues,
+        });
       } else if (action === "complete-recurring-now") {
         if (!recurringOccurrence) {
           throw new Error("Recurring occurrence target no longer exists.");

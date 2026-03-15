@@ -17,6 +17,26 @@ export type AiActionCenterExplainerDraftAction = {
   title: string;
   action: AiActionCenterExplainerActionKind;
   reason: string;
+  formValues?: {
+    spaceId?: string;
+    occurredAt?: string;
+    startDate?: string;
+    timezone?: string;
+    note?: string;
+    tags?: string[];
+    assetIds?: string[];
+    reminderId?: string;
+    scheduleType?: "daily" | "every-n-days" | "weekly" | "monthly";
+    scheduleTimes?: string[];
+    interval?: number;
+    daysOfWeek?: Array<0 | 1 | 2 | 3 | 4 | 5 | 6>;
+    dayOfMonth?: number;
+    nthWeekday?: {
+      weekday: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+      weekOfMonth: 1 | 2 | 3 | 4 | 5 | -1;
+    };
+    proofRequired?: boolean;
+  };
 };
 
 export type AiActionCenterExplainerDraft = {
@@ -27,6 +47,10 @@ export type AiActionCenterExplainerDraft = {
   suggestedActions: AiActionCenterExplainerDraftAction[];
   caution?: string;
 };
+
+type ActionFormValues = NonNullable<
+  AiActionCenterExplainerDraftAction["formValues"]
+>;
 
 const MAX_HEADLINE_LENGTH = 90;
 const MAX_SUMMARY_LENGTH = 460;
@@ -111,8 +135,140 @@ function getActionLabel(action: AiActionCenterExplainerActionKind) {
   return "Review later";
 }
 
+function normalizeStringArray(value: unknown, maxItems = 6, maxLength = 40) {
+  if (!Array.isArray(value)) return undefined;
+  const next = value
+    .map((item) => compactText(item, maxLength))
+    .filter((item): item is string => item.length > 0)
+    .slice(0, maxItems);
+  return next.length > 0 ? next : undefined;
+}
+
+function normalizeIsoDateTime(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const candidate = value.trim();
+  if (!candidate) return undefined;
+  const timestamp = Date.parse(candidate);
+  if (!Number.isFinite(timestamp)) return undefined;
+  return new Date(timestamp).toISOString();
+}
+
+function normalizeTimezone(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const candidate = value.trim();
+  if (!candidate) return undefined;
+  return compactText(candidate, 80);
+}
+
+function normalizeScheduleTimes(value: unknown) {
+  const times = normalizeStringArray(value, 6, 5);
+  if (!times) return undefined;
+  const valid = times.filter((time) => /^\d{1,2}:\d{2}$/.test(time));
+  return valid.length > 0 ? valid : undefined;
+}
+
+function normalizeFormValues(value: unknown) {
+  const normalizeScheduleType = (
+    candidate: unknown,
+  ): ActionFormValues["scheduleType"] => {
+    if (
+      candidate === "daily" ||
+      candidate === "every-n-days" ||
+      candidate === "weekly" ||
+      candidate === "monthly"
+    ) {
+      return candidate;
+    }
+    return undefined;
+  };
+
+  if (!isRecord(value)) return undefined;
+
+  const scheduleType = normalizeScheduleType(value.scheduleType);
+
+  const daysOfWeek = Array.isArray(value.daysOfWeek)
+    ? value.daysOfWeek
+        .map((item) => (typeof item === "number" ? Math.floor(item) : NaN))
+        .filter(
+          (item): item is 0 | 1 | 2 | 3 | 4 | 5 | 6 =>
+            Number.isInteger(item) && item >= 0 && item <= 6,
+        )
+    : undefined;
+
+  const nthWeekday = isRecord(value.nthWeekday)
+    ? {
+        weekday:
+          typeof value.nthWeekday.weekday === "number" &&
+          Number.isInteger(value.nthWeekday.weekday) &&
+          value.nthWeekday.weekday >= 0 &&
+          value.nthWeekday.weekday <= 6
+            ? (value.nthWeekday.weekday as 0 | 1 | 2 | 3 | 4 | 5 | 6)
+            : undefined,
+        weekOfMonth:
+          typeof value.nthWeekday.weekOfMonth === "number" &&
+          Number.isInteger(value.nthWeekday.weekOfMonth) &&
+          [1, 2, 3, 4, 5, -1].includes(value.nthWeekday.weekOfMonth)
+            ? (value.nthWeekday.weekOfMonth as 1 | 2 | 3 | 4 | 5 | -1)
+            : undefined,
+      }
+    : undefined;
+
+  const normalized: AiActionCenterExplainerDraftAction["formValues"] = {
+    spaceId:
+      typeof value.spaceId === "string"
+        ? compactText(value.spaceId, 80)
+        : undefined,
+    occurredAt: normalizeIsoDateTime(value.occurredAt),
+    startDate: normalizeIsoDateTime(value.startDate),
+    timezone: normalizeTimezone(value.timezone),
+    note: compactText(value.note, 240) || undefined,
+    tags: normalizeStringArray(value.tags, 8, 24),
+    assetIds: normalizeStringArray(value.assetIds, 8, 80),
+    reminderId:
+      typeof value.reminderId === "string"
+        ? compactText(value.reminderId, 80)
+        : undefined,
+    scheduleType,
+    scheduleTimes: normalizeScheduleTimes(value.scheduleTimes),
+    interval:
+      typeof value.interval === "number" &&
+      Number.isFinite(value.interval) &&
+      value.interval > 0
+        ? Math.max(1, Math.floor(value.interval))
+        : undefined,
+    daysOfWeek:
+      daysOfWeek && daysOfWeek.length > 0
+        ? Array.from(new Set(daysOfWeek))
+        : undefined,
+    dayOfMonth:
+      typeof value.dayOfMonth === "number" &&
+      Number.isFinite(value.dayOfMonth) &&
+      value.dayOfMonth >= 1 &&
+      value.dayOfMonth <= 31
+        ? Math.floor(value.dayOfMonth)
+        : undefined,
+    nthWeekday:
+      nthWeekday?.weekday !== undefined && nthWeekday?.weekOfMonth !== undefined
+        ? {
+            weekday: nthWeekday.weekday,
+            weekOfMonth: nthWeekday.weekOfMonth,
+          }
+        : undefined,
+    proofRequired:
+      typeof value.proofRequired === "boolean"
+        ? value.proofRequired
+        : undefined,
+  };
+
+  if (!Object.values(normalized).some((item) => item !== undefined)) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
 export function buildAiActionCenterExplainerGenerationPrompt(prompt: string) {
-  return `${prompt}\n\nReturn ONLY valid JSON with this shape:\n{\n  "headline": "string",\n  "summary": "string",\n  "groupedInsights": ["string"],\n  "recommendationTakeaways": ["string"],\n  "suggestedActions": [\n    {\n      "reminderId": "string (optional)",\n      "recurringOccurrenceId": "string (optional)",\n      "recurringPlanId": "string (optional)",\n      "title": "string",\n      "action": "complete-now | log-proof | snooze | open-planner | create-log | create-recurring-plan | complete-recurring-now | review-later",\n      "reason": "string"\n    }\n  ],\n  "caution": "string"\n}\nRules:\n- Keep every explanation grounded in the provided action-center counts, grouped reminders, next-step metadata, recurring queue context, recent reminder activity, and recommendations.\n- Prefer a short, high-confidence sequence of immediately executable next moves before lower-priority review steps.\n- Use reminder actions ('complete-now', 'log-proof', 'snooze') only when a valid reminderId is present.\n- Use recurring completion ('complete-recurring-now') only when a valid recurringOccurrenceId is present.\n- 'create-log' and 'create-recurring-plan' are navigation-first actions for starting those flows; do not claim they already happened.\n- Suggested action reasons must reference only evidence present in the provided context (timing, grouped pressure, deferral/completion patterns, schedule hints, and recommendation details).\n- Do not invent reminders, recurring occurrences, logs, automation, user preferences, or state changes that are not present in the provided context.\n- Treat the output as a review-only explanation for the user.`;
+  return `${prompt}\n\nReturn ONLY valid JSON with this shape:\n{\n  "headline": "string",\n  "summary": "string",\n  "groupedInsights": ["string"],\n  "recommendationTakeaways": ["string"],\n  "suggestedActions": [\n    {\n      "reminderId": "string (optional)",\n      "recurringOccurrenceId": "string (optional)",\n      "recurringPlanId": "string (optional)",\n      "title": "string",\n      "action": "complete-now | log-proof | snooze | open-planner | create-log | create-recurring-plan | complete-recurring-now | review-later",\n      "reason": "string",\n      "formValues": {\n        "occurredAt": "ISO datetime (optional)",\n        "startDate": "ISO datetime (optional)",\n        "timezone": "IANA timezone (optional)",\n        "note": "string (optional)",\n        "tags": ["string"],\n        "assetIds": ["string"],\n        "spaceId": "string (optional)",\n        "reminderId": "string (optional)",\n        "scheduleType": "daily | every-n-days | weekly | monthly",\n        "scheduleTimes": ["HH:mm"],\n        "interval": "number (for every-n-days)",\n        "daysOfWeek": [0,1,2,3,4,5,6],\n        "dayOfMonth": "number",\n        "nthWeekday": {"weekday":0,"weekOfMonth":1},\n        "proofRequired": "boolean"\n      }\n    }\n  ],\n  "caution": "string"\n}\nRules:\n- Keep every explanation grounded in the provided action-center counts, grouped reminders, next-step metadata, recurring queue context, recent reminder activity, and recommendations.\n- Prefer a short, high-confidence sequence of immediately executable next moves before lower-priority review steps.\n- Use reminder actions ('complete-now', 'log-proof', 'snooze') only when a valid reminderId is present.\n- Use recurring completion ('complete-recurring-now') only when a valid recurringOccurrenceId is present.\n- For 'create-log' and 'create-recurring-plan', include formValues when transcript provides date/time or other concrete form fields.\n- Suggested action reasons must reference only evidence present in the provided context (timing, grouped pressure, deferral/completion patterns, schedule hints, and recommendation details).\n- Do not invent reminders, recurring occurrences, logs, automation, user preferences, or state changes that are not present in the provided context.\n- Treat the output as a review-only explanation for the user.`;
 }
 
 export function parseAiActionCenterExplainerDraft(
@@ -213,6 +369,8 @@ export function parseAiActionCenterExplainerDraft(
       const reason = compactText(item.reason, MAX_REASON_LENGTH);
       if (!reason) return [];
 
+      const formValues = normalizeFormValues(item.formValues);
+
       return [
         {
           ...(reminderId ? { reminderId } : {}),
@@ -225,6 +383,7 @@ export function parseAiActionCenterExplainerDraft(
           title: resolvedTitle || "TrackItUp action",
           action: item.action,
           reason,
+          ...(formValues ? { formValues } : {}),
         },
       ];
     })
