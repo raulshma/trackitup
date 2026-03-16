@@ -3,6 +3,9 @@ name: TrackItUp APK Build Local
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   metadata:
     name: Resolve release metadata

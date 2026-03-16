@@ -3,6 +3,9 @@ name: TrackItUp APK Build & Release
 on:
   workflow_dispatch: # Allows manual trigger from GitHub Actions tab
 
+permissions:
+  contents: write
+
 jobs:
   metadata:
     name: Resolve release metadata
