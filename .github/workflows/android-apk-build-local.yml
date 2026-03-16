@@ -90,7 +90,7 @@ jobs:
         run: |
           VERSION="${{ needs.metadata.outputs.version }}"
           OUTPUT_PATH="${{ github.workspace }}/TrackItUp-v${VERSION}-android-${{ matrix.abi }}.apk"
-          eas build --platform android --profile ${{ matrix.profile }} --local --output "$OUTPUT_PATH"
+          eas build --platform android --profile ${{ matrix.profile }} --local --non-interactive --output "$OUTPUT_PATH"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

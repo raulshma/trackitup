@@ -15,7 +15,8 @@
     "preview": {
       "environment": "preview",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "credentialsSource": "remote"
       },
       "distribution": "internal",
       "env": {
