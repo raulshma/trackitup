@@ -6,6 +6,7 @@ const {
   bulkSnoozeRecurringOccurrences,
   buildRecurringPlanAnalytics,
   ensureRecurringOccurrencesWindow,
+  findCurrentRecurringOccurrenceForPlan,
   resolveRecurringPromptMatchWithLog,
   summarizeRecurringSmartMatches,
   upsertRecurringPlan,
@@ -420,4 +421,70 @@ test("monthly recurring draft requires day-of-month or nth-weekday rule", () => 
   });
 
   assert.equal(validMonthlyPatternErrors.schedule, undefined);
+});
+
+test("findCurrentRecurringOccurrenceForPlan picks due/overdue scheduled occurrence first", () => {
+  const workspace = clone(trackItUpWorkspace);
+  workspace.generatedAt = "2026-03-10T10:00:00.000Z";
+  workspace.recurringOccurrences = [
+    {
+      id: "occ-plan-a-future",
+      planId: "plan-a",
+      spaceId: "reef",
+      dueAt: "2026-03-10T12:00:00.000Z",
+      status: "scheduled",
+      createdAt: "2026-03-10T00:00:00.000Z",
+      updatedAt: "2026-03-10T00:00:00.000Z",
+    },
+    {
+      id: "occ-plan-a-overdue",
+      planId: "plan-a",
+      spaceId: "reef",
+      dueAt: "2026-03-10T09:00:00.000Z",
+      status: "scheduled",
+      createdAt: "2026-03-10T00:00:00.000Z",
+      updatedAt: "2026-03-10T00:00:00.000Z",
+    },
+    {
+      id: "occ-plan-a-completed",
+      planId: "plan-a",
+      spaceId: "reef",
+      dueAt: "2026-03-10T08:00:00.000Z",
+      status: "completed",
+      completedAt: "2026-03-10T08:03:00.000Z",
+      createdAt: "2026-03-10T00:00:00.000Z",
+      updatedAt: "2026-03-10T08:03:00.000Z",
+    },
+  ];
+
+  const current = findCurrentRecurringOccurrenceForPlan(workspace, "plan-a");
+  assert.equal(current?.id, "occ-plan-a-overdue");
+});
+
+test("findCurrentRecurringOccurrenceForPlan falls back to soonest upcoming when nothing is due", () => {
+  const workspace = clone(trackItUpWorkspace);
+  workspace.generatedAt = "2026-03-10T06:00:00.000Z";
+  workspace.recurringOccurrences = [
+    {
+      id: "occ-plan-b-later",
+      planId: "plan-b",
+      spaceId: "reef",
+      dueAt: "2026-03-10T12:00:00.000Z",
+      status: "scheduled",
+      createdAt: "2026-03-10T00:00:00.000Z",
+      updatedAt: "2026-03-10T00:00:00.000Z",
+    },
+    {
+      id: "occ-plan-b-next",
+      planId: "plan-b",
+      spaceId: "reef",
+      dueAt: "2026-03-10T08:00:00.000Z",
+      status: "scheduled",
+      createdAt: "2026-03-10T00:00:00.000Z",
+      updatedAt: "2026-03-10T00:00:00.000Z",
+    },
+  ];
+
+  const current = findCurrentRecurringOccurrenceForPlan(workspace, "plan-b");
+  assert.equal(current?.id, "occ-plan-b-next");
 });

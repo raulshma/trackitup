@@ -66,6 +66,7 @@ import {
     getReminderScheduleTimestamp,
 } from "@/services/insights/workspaceInsights";
 import { buildWorkspacePlannerRiskSummary } from "@/services/insights/workspacePlannerRisk";
+import { findCurrentRecurringOccurrenceForPlan } from "@/services/recurring/recurringPlans";
 
 const weekdayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -106,6 +107,13 @@ function formatDue(timestamp: string) {
   });
 }
 
+function normalizeSpaceIds(value: { spaceId?: string; spaceIds?: string[] }) {
+  const next = value.spaceIds?.filter(Boolean) ?? [];
+  if (next.length > 0) return Array.from(new Set(next));
+  if (value.spaceId) return [value.spaceId];
+  return [];
+}
+
 function getPlannerSuggestedActionLabel(
   action: AiPlannerCopilotDraft["suggestedActions"][number]["action"],
 ) {
@@ -140,6 +148,7 @@ export default function PlannerScreen() {
   const router = useRouter();
   const sectionTransition = useState(() => new Animated.Value(1))[0];
   const {
+    completeRecurringOccurrence,
     completeReminder,
     isHydrated,
     recommendations,
@@ -242,6 +251,25 @@ export default function PlannerScreen() {
       spacesById,
     }));
   }, [workspace.reminders, workspace.spaces]);
+  const currentRecurringOccurrenceByPlanId = useMemo(() => {
+    const map = new Map<
+      string,
+      (typeof workspace.recurringOccurrences)[number]
+    >();
+
+    for (const plan of workspace.recurringPlans) {
+      const currentOccurrence = findCurrentRecurringOccurrenceForPlan(
+        workspace,
+        plan.id,
+        workspace.generatedAt,
+      );
+      if (currentOccurrence) {
+        map.set(plan.id, currentOccurrence);
+      }
+    }
+
+    return map;
+  }, [workspace]);
   const plannerHighlights = [
     `${workspace.reminders.length} reminders tracked`,
     `${workspace.recurringPlans.filter((plan) => plan.status === "active").length} active routines`,
@@ -542,6 +570,24 @@ export default function PlannerScreen() {
 
   function openPlannerRiskSource(source: AiPlannerRiskSource) {
     openPlannerRiskDestination(source.route, source);
+  }
+
+  function openRecurringOccurrenceLogbook(
+    occurrenceId: string,
+    planId: string,
+    spaceId: string,
+    spaceIds?: string[],
+  ) {
+    router.push({
+      pathname: "/logbook",
+      params: {
+        actionId: "quick-log",
+        spaceId,
+        recurringOccurrenceId: occurrenceId,
+        recurringPlanId: planId,
+        ...(spaceIds?.length ? { spaceIds: spaceIds.join(",") } : {}),
+      },
+    });
   }
 
   async function handleGenerateRiskBrief() {
@@ -1237,6 +1283,9 @@ export default function PlannerScreen() {
                   const space = workspace.spaces.find(
                     (item) => item.id === plan.spaceId,
                   );
+                  const currentOccurrence =
+                    currentRecurringOccurrenceByPlanId.get(plan.id);
+                  const planSpaceIds = normalizeSpaceIds(plan);
 
                   return (
                     <MotionView
@@ -1272,7 +1321,36 @@ export default function PlannerScreen() {
                           {plan.scheduleRule.type} • {plan.timezone}
                           {plan.proofRequired ? " • proof required" : ""}
                         </Text>
+                        <Text style={[styles.copy, paletteStyles.mutedText]}>
+                          {currentOccurrence
+                            ? `Current occurrence due ${formatDue(currentOccurrence.snoozedUntil ?? currentOccurrence.dueAt)}`
+                            : "No current occurrence in the active schedule window"}
+                        </Text>
                         <ActionButtonRow style={styles.buttonRow}>
+                          <Button
+                            mode="contained"
+                            onPress={() => {
+                              if (!currentOccurrence) return;
+
+                              if (plan.proofRequired) {
+                                openRecurringOccurrenceLogbook(
+                                  currentOccurrence.id,
+                                  plan.id,
+                                  planSpaceIds[0] ?? plan.spaceId,
+                                  planSpaceIds,
+                                );
+                                return;
+                              }
+
+                              completeRecurringOccurrence(currentOccurrence.id);
+                            }}
+                            style={styles.button}
+                            disabled={!currentOccurrence}
+                          >
+                            {plan.proofRequired
+                              ? "Log current proof"
+                              : "Mark current done"}
+                          </Button>
                           <Button
                             mode="outlined"
                             onPress={() =>

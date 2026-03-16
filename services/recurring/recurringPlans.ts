@@ -269,6 +269,30 @@ function occurrenceEffectiveDueAt(occurrence: RecurringOccurrence) {
   return occurrence.snoozedUntil ?? occurrence.dueAt;
 }
 
+export function findCurrentRecurringOccurrenceForPlan(
+  workspace: WorkspaceSnapshot,
+  planId: string,
+  now = workspace.generatedAt,
+): RecurringOccurrence | undefined {
+  const scheduled = workspace.recurringOccurrences
+    .filter(
+      (occurrence) =>
+        occurrence.planId === planId && occurrence.status === "scheduled",
+    )
+    .sort((left, right) =>
+      occurrenceEffectiveDueAt(left).localeCompare(
+        occurrenceEffectiveDueAt(right),
+      ),
+    );
+
+  if (scheduled.length === 0) return undefined;
+
+  const dueOrOverdue = scheduled.find(
+    (occurrence) => occurrenceEffectiveDueAt(occurrence) <= now,
+  );
+  return dueOrOverdue ?? scheduled[0];
+}
+
 function resolveMissDeadline(
   plan: RecurringPlan,
   occurrence: RecurringOccurrence,
