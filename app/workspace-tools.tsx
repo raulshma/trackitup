@@ -4,21 +4,21 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useMemo, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-    Button,
-    Chip,
-    Dialog,
-    Portal,
-    SegmentedButtons,
-    Surface,
-    TextInput,
+  Button,
+  Chip,
+  Dialog,
+  Portal,
+  SegmentedButtons,
+  Surface,
+  TextInput,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
 import { ActionButtonRow } from "@/components/ui/ActionButtonRow";
 import { ChipRow } from "@/components/ui/ChipRow";
 import {
-    FeatureSectionSwitcher,
-    type FeatureSectionItem,
+  FeatureSectionSwitcher,
+  type FeatureSectionItem,
 } from "@/components/ui/FeatureSectionSwitcher";
 import { PageQuickActions } from "@/components/ui/PageQuickActions";
 import { ScreenHero } from "@/components/ui/ScreenHero";
@@ -28,29 +28,29 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    uiBorder,
-    uiRadius,
-    uiSize,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiRadius,
+  uiSize,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useThemePreference } from "@/providers/ThemePreferenceProvider";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import {
-    getCameraPermissionStatusAsync,
-    getLastKnownLocationPreviewAsync,
-    getLocationPermissionStatusAsync,
-    requestCameraPermissionAsync,
-    requestLocationPermissionAsync,
+  getCameraPermissionStatusAsync,
+  getLastKnownLocationPreviewAsync,
+  getLocationPermissionStatusAsync,
+  requestCameraPermissionAsync,
+  requestLocationPermissionAsync,
 } from "@/services/device/deviceCapabilities";
 import {
-    exportWorkspaceJsonAsync,
-    exportWorkspaceLogsCsvAsync,
-    exportWorkspaceSummaryPdfAsync,
+  exportWorkspaceJsonAsync,
+  exportWorkspaceLogsCsvAsync,
+  exportWorkspaceSummaryPdfAsync,
 } from "@/services/export/workspaceExport";
 import type {
-    CreateWorkspaceRestorePointResult,
-    WorkspaceRestorePointSummary,
+  CreateWorkspaceRestorePointResult,
+  WorkspaceRestorePointSummary,
 } from "@/services/offline/workspaceRestorePoints";
 import type { ThemePreference } from "@/services/theme/themePreferences";
 
@@ -692,6 +692,17 @@ export default function WorkspaceToolsScreen() {
                 Current snapshot: {workspace.spaces.length} spaces •{" "}
                 {workspace.logs.length} logs • {workspace.assets.length} assets
               </Text>
+
+              <ActionButtonRow style={styles.toolButtonRow}>
+                <Button
+                  mode="contained-tonal"
+                  onPress={() => router.push("/workspace-database" as never)}
+                  style={styles.toolButton}
+                  disabled={isWorking}
+                >
+                  Open database viewer
+                </Button>
+              </ActionButtonRow>
 
               <ActionButtonRow style={styles.toolButtonRow}>
                 <Button
