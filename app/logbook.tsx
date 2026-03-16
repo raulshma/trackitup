@@ -2,11 +2,14 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Image, Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-    Button,
-    Chip,
-    Surface,
-    useTheme,
-    type MD3Theme,
+  Button,
+  Chip,
+  Dialog,
+  Portal,
+  Surface,
+  TextInput,
+  useTheme,
+  type MD3Theme,
 } from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -23,41 +26,41 @@ import { SwipeActionCard } from "@/components/ui/SwipeActionCard";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors, { getReadableTextColor } from "@/constants/Colors";
 import {
-    getLogKindFormTemplate,
-    getQuickActionFormTemplate,
+  getLogKindFormTemplate,
+  getQuickActionFormTemplate,
 } from "@/constants/TrackItUpFormTemplates";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    uiBorder,
-    uiMotion,
-    uiRadius,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiMotion,
+  uiRadius,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
 import { aiLogbookDraftCopy } from "@/services/ai/aiConsentCopy";
 import {
-    buildAiLogbookDraftReviewItems,
-    buildAiLogbookGenerationPrompt,
-    parseAiLogbookDraft,
-    type AiLogbookDraft,
+  buildAiLogbookDraftReviewItems,
+  buildAiLogbookGenerationPrompt,
+  parseAiLogbookDraft,
+  type AiLogbookDraft,
 } from "@/services/ai/aiLogbookDraft";
 import { buildLogbookDraftPrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
 import {
-    buildInitialFormValues,
-    normalizeFormValues,
-    validateFormValues,
-    type FormValidationErrors,
-    type FormValue,
-    type FormValueMap,
+  buildInitialFormValues,
+  normalizeFormValues,
+  validateFormValues,
+  type FormValidationErrors,
+  type FormValue,
+  type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { getLinkedLogEntries } from "@/services/logs/logRelationships";
 import type {
-    FormFieldDefinition,
-    QuickActionKind,
-    Reminder,
+  FormFieldDefinition,
+  QuickActionKind,
+  Reminder,
 } from "@/types/trackitup";
 
 type GeneratedAiLogbookDraft = {
@@ -285,6 +288,7 @@ export default function LogbookScreen() {
   );
   const router = useRouter();
   const {
+    archiveLog,
     completeRecurringOccurrence,
     createRestorePoint,
     isHydrated,
@@ -294,6 +298,7 @@ export default function LogbookScreen() {
     resolveRecurringPromptMatch,
     saveLogForAction,
     saveLogForTemplate,
+    updateLog,
     workspace,
   } = useWorkspace();
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
@@ -306,6 +311,12 @@ export default function LogbookScreen() {
   const [pendingPromptLogId, setPendingPromptLogId] = useState<string | null>(
     null,
   );
+  const [isEditLogDialogVisible, setIsEditLogDialogVisible] = useState(false);
+  const [isArchiveLogDialogVisible, setIsArchiveLogDialogVisible] =
+    useState(false);
+  const [editableLogTitle, setEditableLogTitle] = useState("");
+  const [editableLogNote, setEditableLogNote] = useState("");
+  const [editableLogTags, setEditableLogTags] = useState("");
   const [formValues, setFormValues] = useState<FormValueMap>({});
   const [formErrors, setFormErrors] = useState<FormValidationErrors>({});
   const params = useLocalSearchParams<{
@@ -471,6 +482,18 @@ export default function LogbookScreen() {
       `Space created — ready to record in ${createdSpaceName}.`,
     );
   }, [createdSpaceName, entry]);
+
+  useEffect(() => {
+    if (!entry) {
+      setIsEditLogDialogVisible(false);
+      setIsArchiveLogDialogVisible(false);
+      return;
+    }
+
+    setEditableLogTitle(entry.title);
+    setEditableLogNote(entry.note);
+    setEditableLogTags((entry.tags ?? []).join(", "));
+  }, [entry]);
 
   const screenTitle = entry
     ? "Log detail"
@@ -842,6 +865,47 @@ export default function LogbookScreen() {
 
   function handleCancelEntry() {
     router.replace({ pathname: "/logbook" });
+  }
+
+  function handleOpenEditLogDialog() {
+    if (!entry) return;
+
+    setEditableLogTitle(entry.title);
+    setEditableLogNote(entry.note);
+    setEditableLogTags((entry.tags ?? []).join(", "));
+    setIsEditLogDialogVisible(true);
+  }
+
+  function handleSaveLogEdits() {
+    if (!entry) return;
+
+    const parsedTags = editableLogTags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    const result = updateLog(entry.id, {
+      title: editableLogTitle,
+      note: editableLogNote,
+      tags: parsedTags,
+    });
+    setFeedbackMessage(result.message);
+
+    if (result.status === "updated") {
+      setIsEditLogDialogVisible(false);
+    }
+  }
+
+  function handleArchiveLogEntry() {
+    if (!entry) return;
+
+    const result = archiveLog(entry.id);
+    setFeedbackMessage(result.message);
+    setIsArchiveLogDialogVisible(false);
+
+    if (result.status === "archived") {
+      router.replace({ pathname: "/logbook" });
+    }
   }
 
   if (!isHydrated) {
@@ -1279,6 +1343,17 @@ export default function LogbookScreen() {
                   ))}
                 </View>
               ) : null}
+              <ActionButtonRow style={styles.actionButtonRow}>
+                <Button mode="outlined" onPress={handleOpenEditLogDialog}>
+                  Edit entry
+                </Button>
+                <Button
+                  mode="outlined"
+                  onPress={() => setIsArchiveLogDialogVisible(true)}
+                >
+                  Archive entry
+                </Button>
+              </ActionButtonRow>
             </Surface>
 
             {relatedMetrics.length > 0 ? (
@@ -2068,6 +2143,65 @@ export default function LogbookScreen() {
           </View>
         </Surface>
       ) : null}
+
+      <Portal>
+        <Dialog
+          visible={isEditLogDialogVisible}
+          onDismiss={() => setIsEditLogDialogVisible(false)}
+        >
+          <Dialog.Title>Edit log entry</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              mode="outlined"
+              label="Title"
+              value={editableLogTitle}
+              onChangeText={setEditableLogTitle}
+              style={styles.dialogInput}
+            />
+            <TextInput
+              mode="outlined"
+              label="Note"
+              value={editableLogNote}
+              onChangeText={setEditableLogNote}
+              multiline
+              style={styles.dialogInput}
+            />
+            <TextInput
+              mode="outlined"
+              label="Tags"
+              value={editableLogTags}
+              onChangeText={setEditableLogTags}
+              placeholder="comma, separated, tags"
+              style={styles.dialogInput}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setIsEditLogDialogVisible(false)}>
+              Cancel
+            </Button>
+            <Button onPress={handleSaveLogEdits}>Save</Button>
+          </Dialog.Actions>
+        </Dialog>
+
+        <Dialog
+          visible={isArchiveLogDialogVisible}
+          onDismiss={() => setIsArchiveLogDialogVisible(false)}
+        >
+          <Dialog.Title>Archive this log entry?</Dialog.Title>
+          <Dialog.Content>
+            <Text style={[styles.dialogCopy, paletteStyles.mutedText]}>
+              This removes the entry from active log views and timelines while
+              keeping it in local history.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setIsArchiveLogDialogVisible(false)}>
+              Cancel
+            </Button>
+            <Button onPress={handleArchiveLogEntry}>Archive</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -2227,4 +2361,6 @@ const styles = StyleSheet.create({
   },
   footerButton: { alignSelf: "flex-start" },
   footerButtonContent: { minHeight: 40 },
+  dialogInput: { marginBottom: uiSpace.md },
+  dialogCopy: uiTypography.body,
 });

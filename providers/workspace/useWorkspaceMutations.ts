@@ -2,55 +2,67 @@ import { useCallback } from "react";
 
 import { createEmptyWorkspaceSnapshot } from "@/constants/TrackItUpDefaults";
 import {
-    cycleDashboardWidgetSize,
-    moveDashboardWidgets,
-    toggleDashboardWidgetVisibility,
+  cycleDashboardWidgetSize,
+  moveDashboardWidgets,
+  toggleDashboardWidgetVisibility,
 } from "@/services/dashboard/dashboardWidgets";
 import {
-    buildLogEntriesFromActionDraft,
-    type FormValueMap,
+  buildLogEntriesFromActionDraft,
+  type FormValueMap,
 } from "@/services/forms/workspaceForm";
 import { parseWorkspaceLogCsv } from "@/services/import/workspaceCsvImport";
 import {
-    clearPersistedWorkspace,
-    persistWorkspace,
+  archiveWorkspaceLog,
+  updateWorkspaceLog,
+  type UpdateWorkspaceLogDraft,
+} from "@/services/logs/workspaceLogs";
+import {
+  clearPersistedWorkspace,
+  persistWorkspace,
 } from "@/services/offline/workspacePersistence";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import { enqueueWorkspaceSync } from "@/services/offline/workspaceSync";
 import {
-    bulkCompleteRecurringOccurrences,
-    bulkSnoozeRecurringOccurrences,
-    completeRecurringOccurrence,
-    ensureRecurringOccurrencesWindow,
-    resolveRecurringPromptMatchWithLog,
-    skipRecurringOccurrence,
-    snoozeRecurringOccurrence,
-    summarizeRecurringSmartMatches,
-    upsertRecurringPlan,
-    validateRecurringPlanDraft,
+  bulkCompleteRecurringOccurrences,
+  bulkSnoozeRecurringOccurrences,
+  completeRecurringOccurrence,
+  ensureRecurringOccurrencesWindow,
+  resolveRecurringPromptMatchWithLog,
+  skipRecurringOccurrence,
+  snoozeRecurringOccurrence,
+  summarizeRecurringSmartMatches,
+  upsertRecurringPlan,
+  validateRecurringPlanDraft,
 } from "@/services/recurring/recurringPlans";
 import {
-    applyReminderTriggerRules,
-    getNextReminderDate,
+  applyReminderTriggerRules,
+  getNextReminderDate,
 } from "@/services/reminders/reminderRules";
 import {
-    createWorkspaceSpace,
-    type CreateSpaceDraft,
+  archiveWorkspaceSpace,
+  createWorkspaceSpace,
+  updateWorkspaceSpace,
+  type CreateSpaceDraft,
+  type UpdateSpaceDraft,
 } from "@/services/spaces/workspaceSpaces";
 import { applyTemplateImportToWorkspace } from "@/services/templates/templateImport";
 import type { WorkspaceUpdater } from "@/stores/useWorkspaceStore";
 import type {
-    RecurringPlan,
-    TemplateCatalogItem,
-    TemplateImportMethod,
-    WorkspaceSnapshot,
+  RecurringPlan,
+  TemplateCatalogItem,
+  TemplateImportMethod,
+  WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 import type {
-    CreateSpaceResult,
-    SaveCustomTemplateResult,
-    SaveLogResult,
-    TemplateImportActionResult,
+  ArchiveLogResult,
+  ArchiveSpaceResult,
+  CreateSpaceResult,
+  SaveCustomTemplateResult,
+  SaveLogResult,
+  TemplateImportActionResult,
+  UpdateLogResult,
+  UpdateSpaceResult,
 } from "./types";
 
 type WorkspaceSetter = (updater: WorkspaceUpdater) => void;
@@ -289,6 +301,88 @@ export function useWorkspaceMutations(
       return result;
     },
     [setWorkspace],
+  );
+
+  const updateLog = useCallback(
+    (logId: string, draft: UpdateWorkspaceLogDraft) => {
+      let result: UpdateLogResult = {
+        status: "not-found",
+        message: "We could not find that log entry in this workspace.",
+      };
+      let nextWorkspaceForPersistence: WorkspaceSnapshot | null = null;
+
+      setWorkspace((currentWorkspace) => {
+        const nextState = updateWorkspaceLog(currentWorkspace, logId, draft);
+        result = {
+          status: nextState.status,
+          message: nextState.message,
+          logId: nextState.log?.id,
+        };
+
+        if (nextState.status !== "updated" || !nextState.log) {
+          return currentWorkspace;
+        }
+
+        const syncedWorkspace = enqueueWorkspaceSync(nextState.workspace, {
+          kind: "log-updated",
+          summary: `Updated log ${nextState.log.title}`,
+        });
+        nextWorkspaceForPersistence = syncedWorkspace;
+        return syncedWorkspace;
+      });
+
+      if (nextWorkspaceForPersistence) {
+        void persistWorkspace(
+          nextWorkspaceForPersistence,
+          ownerScopeKey,
+          privacyMode,
+        );
+      }
+
+      return result;
+    },
+    [ownerScopeKey, privacyMode, setWorkspace],
+  );
+
+  const archiveLog = useCallback(
+    (logId: string) => {
+      let result: ArchiveLogResult = {
+        status: "not-found",
+        message: "We could not find that log entry in this workspace.",
+      };
+      let nextWorkspaceForPersistence: WorkspaceSnapshot | null = null;
+
+      setWorkspace((currentWorkspace) => {
+        const nextState = archiveWorkspaceLog(currentWorkspace, logId);
+        result = {
+          status: nextState.status,
+          message: nextState.message,
+          logId: nextState.log?.id,
+        };
+
+        if (nextState.status !== "archived" || !nextState.log) {
+          return currentWorkspace;
+        }
+
+        const syncedWorkspace = enqueueWorkspaceSync(nextState.workspace, {
+          kind: "log-archived",
+          summary: `Archived log ${nextState.log.title}`,
+        });
+        nextWorkspaceForPersistence = syncedWorkspace;
+        return syncedWorkspace;
+      });
+
+      if (nextWorkspaceForPersistence) {
+        void persistWorkspace(
+          nextWorkspaceForPersistence,
+          ownerScopeKey,
+          privacyMode,
+        );
+      }
+
+      return result;
+    },
+    [ownerScopeKey, privacyMode, setWorkspace],
   );
 
   const moveDashboardWidget = useCallback(
@@ -910,6 +1004,92 @@ export function useWorkspaceMutations(
     [ownerScopeKey, privacyMode, setWorkspace],
   );
 
+  const updateSpace = useCallback(
+    (spaceId: string, draft: UpdateSpaceDraft) => {
+      let result: UpdateSpaceResult = {
+        status: "not-found",
+        message: "We could not find that space in this workspace.",
+      };
+      let nextWorkspaceForPersistence: WorkspaceSnapshot | null = null;
+
+      setWorkspace((currentWorkspace) => {
+        const nextState = updateWorkspaceSpace(
+          currentWorkspace,
+          spaceId,
+          draft,
+        );
+        result = {
+          status: nextState.status,
+          message: nextState.message,
+          spaceId: nextState.space?.id,
+        };
+
+        if (nextState.status !== "updated" || !nextState.space) {
+          return currentWorkspace;
+        }
+
+        const syncedWorkspace = enqueueWorkspaceSync(nextState.workspace, {
+          kind: "space-updated",
+          summary: `Updated space ${nextState.space.name}`,
+        });
+        nextWorkspaceForPersistence = syncedWorkspace;
+        return syncedWorkspace;
+      });
+
+      if (nextWorkspaceForPersistence) {
+        void persistWorkspace(
+          nextWorkspaceForPersistence,
+          ownerScopeKey,
+          privacyMode,
+        );
+      }
+
+      return result;
+    },
+    [ownerScopeKey, privacyMode, setWorkspace],
+  );
+
+  const archiveSpace = useCallback(
+    (spaceId: string) => {
+      let result: ArchiveSpaceResult = {
+        status: "not-found",
+        message: "We could not find that space in this workspace.",
+      };
+      let nextWorkspaceForPersistence: WorkspaceSnapshot | null = null;
+
+      setWorkspace((currentWorkspace) => {
+        const nextState = archiveWorkspaceSpace(currentWorkspace, spaceId);
+        result = {
+          status: nextState.status,
+          message: nextState.message,
+          spaceId: nextState.space?.id,
+        };
+
+        if (nextState.status !== "archived" || !nextState.space) {
+          return currentWorkspace;
+        }
+
+        const syncedWorkspace = enqueueWorkspaceSync(nextState.workspace, {
+          kind: "space-archived",
+          summary: `Archived space ${nextState.space.name}`,
+        });
+        nextWorkspaceForPersistence = syncedWorkspace;
+        return syncedWorkspace;
+      });
+
+      if (nextWorkspaceForPersistence) {
+        void persistWorkspace(
+          nextWorkspaceForPersistence,
+          ownerScopeKey,
+          privacyMode,
+        );
+      }
+
+      return result;
+    },
+    [ownerScopeKey, privacyMode, setWorkspace],
+  );
+
   const resetWorkspace = useCallback(() => {
     setWorkspace(createEmptyWorkspaceSnapshot());
     void clearPersistedWorkspace(ownerScopeKey);
@@ -928,6 +1108,8 @@ export function useWorkspaceMutations(
   return {
     saveLogForAction,
     saveLogForTemplate,
+    updateLog,
+    archiveLog,
     moveDashboardWidget,
     cycleWidgetSize,
     toggleWidgetVisibility,
@@ -945,6 +1127,8 @@ export function useWorkspaceMutations(
     importTemplateFromUrl,
     saveCustomTemplate,
     createSpace,
+    updateSpace,
+    archiveSpace,
     resetWorkspace,
     recoverBlockedWorkspace,
   };

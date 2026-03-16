@@ -50,6 +50,7 @@ const statusLabels: Record<SpaceStatus, string> = {
   stable: "Stable",
   watch: "Watch",
   planned: "Planned",
+  archived: "Archived",
 };
 
 const logTypeLabels: Record<LogKind, string> = {

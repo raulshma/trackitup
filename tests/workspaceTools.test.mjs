@@ -49,7 +49,7 @@ const {
 } = await import("../services/dashboard/dashboardWidgets.ts");
 const { getLogKindFormTemplate, getQuickActionFormTemplate } =
   await import("../constants/TrackItUpFormTemplates.ts");
-const { buildTimelineEntriesFromLogs, getSpaceSummaries } =
+const { buildTimelineEntriesFromLogs, getOverviewStats, getSpaceSummaries } =
   await import("../constants/TrackItUpSelectors.ts");
 const { createEmptyWorkspaceSnapshot } =
   await import("../constants/TrackItUpDefaults.ts");
@@ -83,12 +83,14 @@ const {
   customSchemaFieldPresets,
   hasCustomSchemaFieldLabelConflict,
 } = await import("../services/templates/customSchema.ts");
-const { createWorkspaceSpace } =
+const { archiveWorkspaceSpace, createWorkspaceSpace, updateWorkspaceSpace } =
   await import("../services/spaces/workspaceSpaces.ts");
 const { getSpaceCreationSuggestion, mapTemplateCategoryToSpaceCategory } =
   await import("../services/spaces/spaceCreationSuggestions.ts");
 const { getLinkedLogEntries } =
   await import("../services/logs/logRelationships.ts");
+const { archiveWorkspaceLog, updateWorkspaceLog } =
+  await import("../services/logs/workspaceLogs.ts");
 const { applyTemplateImportToWorkspace, parseTemplateImportUrl } =
   await import("../services/templates/templateImport.ts");
 const {
@@ -1631,6 +1633,69 @@ test("workspace spaces helper supports custom categories and humanized summaries
   assert.match(invalidCategory.message, /category/i);
 });
 
+test("workspace spaces helper updates existing spaces and preserves id", () => {
+  const snapshot = createSnapshot({
+    spaces: [
+      {
+        id: "reef-tank",
+        name: "Reef Tank",
+        category: "aquarium",
+        status: "stable",
+        themeColor: "#0f766e",
+        summary: "Existing summary",
+        createdAt: "2026-03-09T12:00:00.000Z",
+      },
+    ],
+  });
+
+  const result = updateWorkspaceSpace(
+    snapshot,
+    "reef-tank",
+    {
+      name: "Display Reef",
+      category: "home maintenance",
+      summary: "Updated summary",
+      status: "watch",
+    },
+    "2026-03-10T14:00:00.000Z",
+  );
+
+  assert.equal(result.status, "updated");
+  assert.equal(result.space?.id, "reef-tank");
+  assert.equal(result.space?.name, "Display Reef");
+  assert.equal(result.space?.category, "home-maintenance");
+  assert.equal(result.space?.summary, "Updated summary");
+  assert.equal(result.space?.status, "watch");
+  assert.equal(result.workspace.generatedAt, "2026-03-10T14:00:00.000Z");
+});
+
+test("workspace spaces helper archives spaces and selectors exclude archived by default", () => {
+  const snapshot = createSnapshot({
+    spaces: [
+      {
+        id: "reef-tank",
+        name: "Reef Tank",
+        category: "aquarium",
+        status: "stable",
+        themeColor: "#0f766e",
+        summary: "Existing summary",
+        createdAt: "2026-03-09T12:00:00.000Z",
+      },
+    ],
+  });
+
+  const archived = archiveWorkspaceSpace(
+    snapshot,
+    "reef-tank",
+    "2026-03-10T15:00:00.000Z",
+  );
+
+  assert.equal(archived.status, "archived");
+  assert.equal(archived.workspace.spaces[0]?.status, "archived");
+  assert.equal(getSpaceSummaries(archived.workspace).length, 0);
+  assert.equal(getOverviewStats(archived.workspace)[0]?.value, "0");
+});
+
 test("space creation suggestions map template categories into workspace categories", () => {
   assert.equal(mapTemplateCategoryToSpaceCategory("Aquarium"), "aquarium");
   assert.equal(mapTemplateCategoryToSpaceCategory("Gardening"), "gardening");
@@ -1729,6 +1794,86 @@ test("linked log helper surfaces parent and child routine logs", () => {
 
   assert.equal(linkedFromParent.childEntries.length, 2);
   assert.equal(linkedFromChild.parentEntry?.id, logs[0].id);
+});
+
+test("workspace logs helper updates editable fields and preserves log identity", () => {
+  const snapshot = createSnapshot({
+    logs: [
+      {
+        id: "log-edit-1",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: "Original title",
+        note: "Original note",
+        occurredAt: "2026-03-09T10:00:00.000Z",
+        tags: ["reef"],
+      },
+    ],
+  });
+
+  const result = updateWorkspaceLog(
+    snapshot,
+    "log-edit-1",
+    {
+      title: "Updated title",
+      note: "Updated note",
+      tags: ["reef", "maintenance"],
+    },
+    "2026-03-10T10:00:00.000Z",
+  );
+
+  assert.equal(result.status, "updated");
+  assert.equal(result.log?.id, "log-edit-1");
+  assert.equal(result.log?.title, "Updated title");
+  assert.equal(result.log?.note, "Updated note");
+  assert.deepEqual(result.log?.tags, ["reef", "maintenance"]);
+  assert.equal(result.workspace.generatedAt, "2026-03-10T10:00:00.000Z");
+});
+
+test("workspace logs helper archives entries and timeline excludes archived logs", () => {
+  const snapshot = createSnapshot({
+    logs: [
+      {
+        id: "log-keep",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: "Keep me",
+        note: "Still active",
+        occurredAt: "2026-03-09T10:00:00.000Z",
+      },
+      {
+        id: "log-hide",
+        spaceId: "reef",
+        kind: "asset-update",
+        title: "Archive me",
+        note: "Should disappear from timeline",
+        occurredAt: "2026-03-09T11:00:00.000Z",
+      },
+    ],
+  });
+
+  const archived = archiveWorkspaceLog(
+    snapshot,
+    "log-hide",
+    "2026-03-10T11:00:00.000Z",
+  );
+
+  assert.equal(archived.status, "archived");
+  assert.equal(archived.log?.archivedAt, "2026-03-10T11:00:00.000Z");
+
+  const timeline = buildTimelineEntriesFromLogs(
+    archived.workspace.logs,
+    archived.workspace.spaces,
+    archived.workspace.generatedAt,
+  );
+  assert.equal(
+    timeline.some((item) => item.id === "log-hide"),
+    false,
+  );
+  assert.equal(
+    timeline.some((item) => item.id === "log-keep"),
+    true,
+  );
 });
 
 test("captured locations format compact labels for the form and logs", () => {

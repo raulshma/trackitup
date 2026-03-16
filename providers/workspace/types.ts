@@ -1,33 +1,37 @@
 import {
-    getOverviewStats,
-    getQuickActionCards,
-    getSpaceSummaries,
-    getTimelineEntries,
+  getOverviewStats,
+  getQuickActionCards,
+  getSpaceSummaries,
+  getTimelineEntries,
 } from "@/constants/TrackItUpSelectors";
 import type { FormValueMap } from "@/services/forms/workspaceForm";
+import type { UpdateWorkspaceLogDraft } from "@/services/logs/workspaceLogs";
 import type { WorkspaceBiometricAvailability } from "@/services/offline/workspaceBiometric";
 import type { WorkspaceBiometricReauthTimeout } from "@/services/offline/workspaceBiometricSessionPolicy";
 import type { BlockedEncryptedWorkspaceReason } from "@/services/offline/workspaceEncryptedPersistence";
 import type { WorkspaceLocalProtectionStatus } from "@/services/offline/workspaceLocalProtection";
 import type { WorkspacePrivacyMode } from "@/services/offline/workspacePrivacyMode";
 import type {
-    CreateWorkspaceRestorePointResult,
-    DeleteWorkspaceRestorePointResult,
-    ExportWorkspaceRestorePointResult,
-    RestoreWorkspaceFromRestorePointResult,
-    WorkspaceRestorePointReason,
-    WorkspaceRestorePointSummary,
+  CreateWorkspaceRestorePointResult,
+  DeleteWorkspaceRestorePointResult,
+  ExportWorkspaceRestorePointResult,
+  RestoreWorkspaceFromRestorePointResult,
+  WorkspaceRestorePointReason,
+  WorkspaceRestorePointSummary,
 } from "@/services/offline/workspaceRestorePoints";
 import type { RecurringPromptMatchSuggestion } from "@/services/recurring/recurringPlans";
 import type { ReminderNotificationPermissionStatus } from "@/services/reminders/reminderNotifications";
-import type { CreateSpaceDraft } from "@/services/spaces/workspaceSpaces";
+import type {
+  CreateSpaceDraft,
+  UpdateSpaceDraft,
+} from "@/services/spaces/workspaceSpaces";
 import type { PersistenceMode } from "@/stores/useWorkspaceStore";
 import type {
-    RecurringPlan,
-    TemplateCatalogItem,
-    TemplateImportMethod,
-    WorkspaceRecommendation,
-    WorkspaceSnapshot,
+  RecurringPlan,
+  TemplateCatalogItem,
+  TemplateImportMethod,
+  WorkspaceRecommendation,
+  WorkspaceSnapshot,
 } from "@/types/trackitup";
 
 import type { SyncActionResult } from "@/services/offline/workspaceSync";
@@ -39,6 +43,18 @@ export type SaveLogResult = {
   recurringPromptMatchCount: number;
   recurringAutoLinkedCount: number;
   recurringPromptMatches?: RecurringPromptMatchSuggestion[];
+};
+
+export type UpdateLogResult = {
+  status: "updated" | "invalid" | "not-found";
+  message: string;
+  logId?: string;
+};
+
+export type ArchiveLogResult = {
+  status: "archived" | "invalid" | "not-found";
+  message: string;
+  logId?: string;
 };
 
 export type TemplateImportActionResult = {
@@ -55,6 +71,18 @@ export type SaveCustomTemplateResult = {
 
 export type CreateSpaceResult = {
   status: "created" | "invalid";
+  message: string;
+  spaceId?: string;
+};
+
+export type UpdateSpaceResult = {
+  status: "updated" | "invalid" | "not-found";
+  message: string;
+  spaceId?: string;
+};
+
+export type ArchiveSpaceResult = {
+  status: "archived" | "invalid" | "not-found";
   message: string;
   spaceId?: string;
 };
@@ -85,6 +113,8 @@ export type WorkspaceContextValue = {
     templateId: string,
     values: FormValueMap,
   ) => SaveLogResult;
+  updateLog: (logId: string, draft: UpdateWorkspaceLogDraft) => UpdateLogResult;
+  archiveLog: (logId: string) => ArchiveLogResult;
   moveDashboardWidget: (widgetId: string, direction: "up" | "down") => void;
   cycleDashboardWidgetSize: (widgetId: string) => void;
   toggleDashboardWidgetVisibility: (widgetId: string) => void;
@@ -120,6 +150,8 @@ export type WorkspaceContextValue = {
     template: TemplateCatalogItem,
   ) => SaveCustomTemplateResult;
   createSpace: (draft: CreateSpaceDraft) => CreateSpaceResult;
+  updateSpace: (spaceId: string, draft: UpdateSpaceDraft) => UpdateSpaceResult;
+  archiveSpace: (spaceId: string) => ArchiveSpaceResult;
   resetWorkspace: () => void;
   createRestorePoint: (options?: {
     reason?: WorkspaceRestorePointReason;

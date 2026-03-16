@@ -19,6 +19,7 @@ const statusLabels: Record<SpaceStatus, string> = {
   stable: "Stable",
   watch: "Watch",
   planned: "Planned",
+  archived: "Archived",
 };
 
 const logTypeLabels: Record<LogKind, string> = {
@@ -162,13 +163,18 @@ function countLogsThisWeek(logs: LogEntry[], nowTimestamp: string) {
   const now = new Date(nowTimestamp).getTime();
   const weekMs = 7 * 24 * 60 * 60 * 1000;
   return logs.filter(
-    (log) => now - new Date(log.occurredAt).getTime() <= weekMs,
+    (log) =>
+      !log.archivedAt && now - new Date(log.occurredAt).getTime() <= weekMs,
   ).length;
 }
 
 export function getOverviewStats(workspace: WorkspaceSnapshot): OverviewStat[] {
+  const activeSpaces = workspace.spaces.filter(
+    (space) => space.status !== "archived",
+  );
+
   return [
-    { label: "Active spaces", value: String(workspace.spaces.length) },
+    { label: "Active spaces", value: String(activeSpaces.length) },
     {
       label: "Due today",
       value: String(
@@ -187,7 +193,9 @@ export function getQuickActionCards(
   workspace: WorkspaceSnapshot,
 ): QuickActionCard[] {
   const spacesById = new Map(
-    workspace.spaces.map((space) => [space.id, space] as const),
+    workspace.spaces
+      .filter((space) => space.status !== "archived")
+      .map((space) => [space.id, space] as const),
   );
 
   return workspace.quickActions.map((action) => {
@@ -209,16 +217,21 @@ export function getQuickActionCards(
 export function getSpaceSummaries(
   workspace: WorkspaceSnapshot,
 ): SpaceSummary[] {
+  const activeSpaces = workspace.spaces.filter(
+    (space) => space.status !== "archived",
+  );
   const latestLogsBySpace = new Map(
-    workspace.spaces.map((space) => {
+    activeSpaces.map((space) => {
       const latestLog = sortByNewest(
-        workspace.logs.filter((log) => belongsToSpace(log, space.id)),
+        workspace.logs.filter(
+          (log) => !log.archivedAt && belongsToSpace(log, space.id),
+        ),
       )[0];
       return [space.id, latestLog] as const;
     }),
   );
 
-  return workspace.spaces.map((space) => {
+  return activeSpaces.map((space) => {
     const pendingTasks = workspace.reminders.filter(
       (reminder) =>
         belongsToSpace(reminder, space.id) && isReminderOpen(reminder),
@@ -265,7 +278,7 @@ export function buildTimelineEntriesFromLogs(
 ): TimelineEntry[] {
   const spacesById = new Map(spaces.map((space) => [space.id, space] as const));
 
-  return sortByNewest(logs).map((log) => {
+  return sortByNewest(logs.filter((log) => !log.archivedAt)).map((log) => {
     const resolvedSpaceId = primarySpaceId(log);
     const space = resolvedSpaceId ? spacesById.get(resolvedSpaceId) : undefined;
 

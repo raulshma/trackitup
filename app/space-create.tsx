@@ -1,7 +1,14 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
-import { Button, Chip, Surface, TextInput } from "react-native-paper";
+import {
+  Button,
+  Chip,
+  Dialog,
+  Portal,
+  Surface,
+  TextInput,
+} from "react-native-paper";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { Text } from "@/components/Themed";
@@ -13,12 +20,12 @@ import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import {
-    buildSpaceCategoryOptions,
-    DEFAULT_SPACE_CATEGORY,
-    formatSpaceCategoryLabel,
-    getSpaceCategoryNamePlaceholder,
-    getSpaceCategorySummaryPlaceholder,
-    normalizeSpaceCategoryValue,
+  buildSpaceCategoryOptions,
+  DEFAULT_SPACE_CATEGORY,
+  formatSpaceCategoryLabel,
+  getSpaceCategoryNamePlaceholder,
+  getSpaceCategorySummaryPlaceholder,
+  normalizeSpaceCategoryValue,
 } from "@/constants/TrackItUpSpaceCategories";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import { uiBorder, uiSpace, uiTypography } from "@/constants/UiTokens";
@@ -42,10 +49,17 @@ export default function SpaceCreateScreen() {
   const params = useLocalSearchParams<{
     actionId?: string | string[];
     templateId?: string | string[];
+    spaceId?: string | string[];
   }>();
   const actionId = pickParam(params.actionId);
   const templateId = pickParam(params.templateId);
-  const { createSpace, workspace } = useWorkspace();
+  const spaceId = pickParam(params.spaceId);
+  const { archiveSpace, createSpace, updateSpace, workspace } = useWorkspace();
+  const editingSpace = useMemo(
+    () => workspace.spaces.find((space) => space.id === spaceId),
+    [spaceId, workspace.spaces],
+  );
+  const isEditMode = Boolean(editingSpace);
   const action = workspace.quickActions.find((item) => item.id === actionId);
   const selectedTemplate = workspace.templates.find(
     (item) => item.id === templateId,
@@ -63,6 +77,7 @@ export default function SpaceCreateScreen() {
   const [hasChangedCategory, setHasChangedCategory] = useState(false);
   const [summary, setSummary] = useState("");
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isArchiveDialogVisible, setIsArchiveDialogVisible] = useState(false);
 
   const isFirstSpace = workspace.spaces.length === 0;
   const categoryOptions = useMemo(
@@ -90,6 +105,27 @@ export default function SpaceCreateScreen() {
     suggestion.summaryPlaceholder;
 
   useEffect(() => {
+    if (!editingSpace) return;
+
+    setName(editingSpace.name);
+    setSummary(editingSpace.summary ?? "");
+
+    const normalizedCategory = normalizeSpaceCategoryValue(
+      editingSpace.category,
+    );
+    setHasChangedCategory(true);
+    if (normalizedCategory) {
+      setSelectedCategory(normalizedCategory);
+      setCustomCategory("");
+      setIsAddingCustomCategory(false);
+      return;
+    }
+
+    setIsAddingCustomCategory(true);
+    setCustomCategory(editingSpace.category);
+  }, [editingSpace]);
+
+  useEffect(() => {
     if (!hasChangedCategory) {
       setSelectedCategory(
         suggestion.suggestedCategory ?? DEFAULT_SPACE_CATEGORY,
@@ -99,14 +135,28 @@ export default function SpaceCreateScreen() {
     }
   }, [hasChangedCategory, suggestion.suggestedCategory]);
 
-  const primaryActionLabel =
-    actionId || templateId
+  const primaryActionLabel = isEditMode
+    ? "Save changes"
+    : actionId || templateId
       ? suggestion.primaryActionLabel
       : isFirstSpace
         ? "Create first space"
         : "Save space";
 
   function handleSave() {
+    if (editingSpace) {
+      const result = updateSpace(editingSpace.id, {
+        name,
+        category: resolvedCategory,
+        summary,
+      });
+      setStatusMessage(result.message);
+      if (result.status !== "updated") return;
+
+      router.replace("/" as never);
+      return;
+    }
+
     const result = createSpace({ name, category: resolvedCategory, summary });
     setStatusMessage(result.message);
     if (result.status !== "created") return;
@@ -142,6 +192,18 @@ export default function SpaceCreateScreen() {
     });
   }
 
+  function handleArchiveSpace() {
+    if (!editingSpace) return;
+
+    const result = archiveSpace(editingSpace.id);
+    setStatusMessage(result.message);
+    setIsArchiveDialogVisible(false);
+
+    if (result.status === "archived") {
+      router.replace("/" as never);
+    }
+  }
+
   const pageQuickActions = [
     {
       id: "space-create-save",
@@ -150,6 +212,17 @@ export default function SpaceCreateScreen() {
       onPress: handleSave,
       accentColor: palette.tint,
     },
+    ...(isEditMode
+      ? [
+          {
+            id: "space-edit-archive",
+            label: "Archive space",
+            hint: "Hide this space from active lists while keeping historical logs and records.",
+            onPress: () => setIsArchiveDialogVisible(true),
+            accentColor: palette.danger,
+          },
+        ]
+      : []),
     {
       id: "space-create-logbook",
       label: "Open logbook",
@@ -186,10 +259,26 @@ export default function SpaceCreateScreen() {
       >
         <ScreenHero
           palette={palette}
-          title={isFirstSpace ? "Create your first space" : "Add a new space"}
-          subtitle={suggestion.heroSubtitle}
+          title={
+            isEditMode
+              ? `Edit ${editingSpace?.name ?? "space"}`
+              : isFirstSpace
+                ? "Create your first space"
+                : "Add a new space"
+          }
+          subtitle={
+            isEditMode
+              ? "Update the space details, then save changes or archive the space when you want it hidden from active views."
+              : suggestion.heroSubtitle
+          }
           badges={[
-            { label: isFirstSpace ? "First space" : "New space" },
+            {
+              label: isEditMode
+                ? "Edit mode"
+                : isFirstSpace
+                  ? "First space"
+                  : "New space",
+            },
             ...(suggestion.badgeLabel
               ? [{ label: suggestion.badgeLabel }]
               : []),
@@ -199,7 +288,11 @@ export default function SpaceCreateScreen() {
         <PageQuickActions
           palette={palette}
           title="Set up the next space quickly"
-          description="Finish the space, jump back to recording, or open the custom schema builder if this space needs a more tailored form setup."
+          description={
+            isEditMode
+              ? "Save updated details, archive this space, or jump to nearby tools without leaving setup context."
+              : "Finish the space, jump back to recording, or open the custom schema builder if this space needs a more tailored form setup."
+          }
           actions={pageQuickActions}
         />
 
@@ -323,6 +416,16 @@ export default function SpaceCreateScreen() {
         elevation={2}
       >
         <View style={styles.footerActions}>
+          {isEditMode ? (
+            <Button
+              mode="outlined"
+              onPress={() => setIsArchiveDialogVisible(true)}
+              style={styles.footerButton}
+              contentStyle={styles.footerButtonContent}
+            >
+              Archive
+            </Button>
+          ) : null}
           <Button
             mode="outlined"
             onPress={() => router.back()}
@@ -341,6 +444,27 @@ export default function SpaceCreateScreen() {
           </Button>
         </View>
       </Surface>
+
+      <Portal>
+        <Dialog
+          visible={isArchiveDialogVisible}
+          onDismiss={() => setIsArchiveDialogVisible(false)}
+        >
+          <Dialog.Title>Archive this space?</Dialog.Title>
+          <Dialog.Content>
+            <Text style={[styles.archiveDialogText, paletteStyles.mutedText]}>
+              Archiving hides the space from active lists while keeping history,
+              logs, and related records available.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setIsArchiveDialogVisible(false)}>
+              Cancel
+            </Button>
+            <Button onPress={handleArchiveSpace}>Archive</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -382,5 +506,8 @@ const styles = StyleSheet.create({
   },
   footerButtonContent: {
     minHeight: 40,
+  },
+  archiveDialogText: {
+    ...uiTypography.body,
   },
 });

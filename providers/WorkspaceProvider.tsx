@@ -101,7 +101,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (state) => state.setPersistenceMode,
   );
   const auth = useAppAuth();
-  const snapshotLogEntries = workspace.logs;
+  const snapshotLogEntries = useMemo(
+    () => workspace.logs.filter((log) => !log.archivedAt),
+    [workspace.logs],
+  );
   const snapshotTimelineEntries = useMemo(
     () => getTimelineEntries(workspace),
     [workspace],
@@ -410,6 +413,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const {
     saveLogForAction,
     saveLogForTemplate,
+    updateLog,
+    archiveLog,
     moveDashboardWidget,
     cycleWidgetSize,
     toggleWidgetVisibility,
@@ -427,6 +432,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     importTemplateFromUrl,
     saveCustomTemplate,
     createSpace,
+    updateSpace,
+    archiveSpace,
     resetWorkspace,
   } = useWorkspaceMutations(setWorkspace, ownerScopeKey, workspacePrivacyMode);
 
@@ -1016,6 +1023,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       saveLogForAction,
       moveDashboardWidget,
       saveLogForTemplate,
+      updateLog,
+      archiveLog,
       cycleDashboardWidgetSize: cycleWidgetSize,
       toggleDashboardWidgetVisibility: toggleWidgetVisibility,
       completeReminder,
@@ -1032,6 +1041,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       importTemplateFromUrl,
       saveCustomTemplate,
       createSpace,
+      updateSpace,
+      archiveSpace,
       resetWorkspace,
       createRestorePoint: createRestorePointForCurrentWorkspace,
       restoreWorkspaceFromRestorePoint,
@@ -1055,6 +1066,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       importTemplateFromUrl,
       isHydrated,
       createSpace,
+      updateSpace,
+      archiveSpace,
       createRestorePointForCurrentWorkspace,
       deleteRestorePointForCurrentWorkspace,
       blockedProtectionReason,
@@ -1086,6 +1099,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       saveRecurringPlan,
       saveLogForAction,
       saveLogForTemplate,
+      updateLog,
+      archiveLog,
       setBiometricLockEnabled,
       setBiometricReauthTimeout,
       setWorkspacePrivacyMode,

@@ -13,7 +13,7 @@ export type KnownSpaceCategory = (typeof knownSpaceCategories)[number];
 
 export type SpaceCategory = KnownSpaceCategory | (string & {});
 
-export type SpaceStatus = "stable" | "watch" | "planned";
+export type SpaceStatus = "stable" | "watch" | "planned" | "archived";
 
 export type AssetStatus = "active" | "archived" | "maintenance" | "deceased";
 
@@ -339,6 +339,7 @@ export type LogEntry = {
   parentLogId?: string;
   childLogIds?: string[];
   customFieldValues?: Record<string, CustomFieldValue>;
+  archivedAt?: string;
 };
 
 export type QuickAction = {
@@ -428,7 +429,11 @@ export type TemplateCatalogItem = {
 
 export type SyncOperationKind =
   | "space-created"
+  | "space-updated"
+  | "space-archived"
   | "log-created"
+  | "log-updated"
+  | "log-archived"
   | "reminder-updated"
   | "recurring-plan-saved"
   | "recurring-occurrence-updated"
