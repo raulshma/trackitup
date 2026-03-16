@@ -1,64 +1,35 @@
 import { useRouter } from "expo-router";
-import { SymbolView } from "expo-symbols";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
-import {
-    Button,
-    Chip,
-    SegmentedButtons,
-    Surface,
-    useTheme,
-    type MD3Theme,
-} from "react-native-paper";
+import { Chip, useTheme, type MD3Theme } from "react-native-paper";
 
-import { MiniMetricChart, type ChartMode } from "@/components/MiniMetricChart";
 import { Text } from "@/components/Themed";
-import { AiDraftReviewCard } from "@/components/ui/AiDraftReviewCard";
-import { AiPromptComposerCard } from "@/components/ui/AiPromptComposerCard";
-import { CardActionPill } from "@/components/ui/CardActionPill";
-import { CollapsibleSectionCard } from "@/components/ui/CollapsibleSectionCard";
-import { EmptyStateCard } from "@/components/ui/EmptyStateCard";
 import { useMaterialCompactTopAppBarHeight } from "@/components/ui/MaterialCompactTopAppBar";
-import { MotionPressable, MotionView } from "@/components/ui/Motion";
-import { PageQuickActions } from "@/components/ui/PageQuickActions";
-import { ReorderGestureCard } from "@/components/ui/ReorderGestureCard";
 import { ScreenHero } from "@/components/ui/ScreenHero";
 import { SectionSurface } from "@/components/ui/SectionSurface";
 import { useTabHeaderScroll } from "@/components/ui/TabHeaderScrollContext";
 import { useColorScheme } from "@/components/useColorScheme";
-import Colors, { getChartSeriesColor, withAlpha } from "@/constants/Colors";
+import Colors, { withAlpha } from "@/constants/Colors";
 import {
-    getShadowStyle,
-    uiMotion,
-    uiRadius,
-    uiSpace
+  getShadowStyle,
+  uiRadius,
+  uiSpace
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import { generateOpenRouterText } from "@/services/ai/aiClient";
-import { aiDashboardPulseCopy } from "@/services/ai/aiConsentCopy";
 import {
-    buildAiDashboardPulseGenerationPrompt,
-    buildAiDashboardPulseReviewItems,
-    formatAiDashboardPulseDestinationLabel,
-    formatAiDashboardPulseSourceLabel,
-    parseAiDashboardPulseDraft,
-    type AiDashboardPulseDraft,
-    type AiDashboardPulseSource,
+  buildAiDashboardPulseGenerationPrompt,
+  parseAiDashboardPulseDraft,
+  type AiDashboardPulseDraft,
+  type AiDashboardPulseSource
 } from "@/services/ai/aiDashboardPulse";
 import { buildDashboardPulsePrompt } from "@/services/ai/aiPromptBuilders";
 import { recordAiTelemetryEvent } from "@/services/ai/aiTelemetry";
-import { triggerSelectionFeedback } from "@/services/device/haptics";
-import {
-    loadHomeDashboardSectionPreference,
-    persistHomeDashboardSectionPreference,
-} from "@/services/insights/homeDashboardSectionPreferencePersistence";
-import { type HomeDashboardSection } from "@/services/insights/homeDashboardSectionPreferences";
 import { buildWorkspaceDashboardPulse } from "@/services/insights/workspaceDashboardPulse";
-import {
-    buildMetricChartPoints,
-    getReminderScheduleTimestamp,
-} from "@/services/insights/workspaceInsights";
+import { getReminderScheduleTimestamp } from "@/services/insights/workspaceInsights";
 import { buildWorkspaceVisualHistory } from "@/services/insights/workspaceVisualHistory";
+import { buildTodaysRoutineQueue } from "@/services/recurring/todaysRoutineQueue";
+import { buildReminderActionCenter } from "@/services/reminders/reminderActionCenter";
 import type { WorkspaceRecommendation } from "@/types/trackitup";
 
 type GeneratedAiDashboardPulse = {
@@ -74,8 +45,6 @@ type GeneratedAiDashboardPulse = {
   draft: AiDashboardPulseDraft;
 };
 
-type HomeSectionIconName = React.ComponentProps<typeof SymbolView>["name"];
-
 export default function TabOneScreen() {
   const colorScheme = useColorScheme();
   const palette = Colors[colorScheme];
@@ -83,12 +52,6 @@ export default function TabOneScreen() {
   const router = useRouter();
   const headerHeight = useMaterialCompactTopAppBarHeight();
   const headerScroll = useTabHeaderScroll("index");
-  const sectionTransition = useState(() => new Animated.Value(1))[0];
-  const [chartMode, setChartMode] = useState<ChartMode>("line");
-  const [activeSection, setActiveSection] =
-    useState<HomeDashboardSection>("overview");
-  const [isSectionPreferenceLoaded, setIsSectionPreferenceLoaded] =
-    useState(false);
   const [dashboardPulseRequest, setDashboardPulseRequest] = useState("");
   const [dashboardPulseStatusMessage, setDashboardPulseStatusMessage] =
     useState<string | null>(null);
@@ -99,13 +62,11 @@ export default function TabOneScreen() {
   const [appliedDashboardPulse, setAppliedDashboardPulse] =
     useState<GeneratedAiDashboardPulse | null>(null);
   const {
-    cycleDashboardWidgetSize,
-    moveDashboardWidget,
+    completeRecurringOccurrence,
     overviewStats,
     recommendations,
     quickActionCards,
     spaceSummaries,
-    toggleDashboardWidgetVisibility,
     workspace,
   } = useWorkspace();
 
@@ -123,17 +84,12 @@ export default function TabOneScreen() {
       ),
     [workspace],
   );
-  const metricDefinitionsById = useMemo(
-    () =>
-      new Map(
-        workspace.metricDefinitions.map(
-          (metric) => [metric.id, metric] as const,
-        ),
-      ),
-    [workspace.metricDefinitions],
-  );
   const dashboardPulse = useMemo(
     () => buildWorkspaceDashboardPulse(workspace),
+    [workspace],
+  );
+  const reminderActionCenter = useMemo(
+    () => buildReminderActionCenter(workspace),
     [workspace],
   );
   const attentionItems = useMemo(
@@ -161,60 +117,11 @@ export default function TabOneScreen() {
         .slice(0, 3),
     [workspace.reminders],
   );
-  const activeRecurringPlansById = useMemo(
-    () =>
-      new Map(
-        workspace.recurringPlans
-          .filter((plan) => plan.status === "active")
-          .map((plan) => [plan.id, plan] as const),
-      ),
-    [workspace.recurringPlans],
+  const todaysRoutineOccurrences = useMemo(
+    () => buildTodaysRoutineQueue(workspace),
+    [workspace],
   );
-  const todaysRoutineOccurrences = useMemo(() => {
-    const now = new Date(workspace.generatedAt);
 
-    return workspace.recurringOccurrences
-      .filter((occurrence) => occurrence.status === "scheduled")
-      .flatMap((occurrence) => {
-        const plan = activeRecurringPlansById.get(occurrence.planId);
-        if (!plan) return [];
-
-        const effectiveDueAt = new Date(
-          occurrence.snoozedUntil ?? occurrence.dueAt,
-        );
-        if (
-          effectiveDueAt.getFullYear() !== now.getFullYear() ||
-          effectiveDueAt.getMonth() !== now.getMonth() ||
-          effectiveDueAt.getDate() !== now.getDate()
-        ) {
-          return [];
-        }
-
-        return [
-          {
-            occurrenceId: occurrence.id,
-            title: plan.title,
-            proofRequired: Boolean(plan.proofRequired),
-            dueAt: effectiveDueAt,
-            spaceId: plan.spaceId,
-          },
-        ];
-      })
-      .sort((left, right) => left.dueAt.getTime() - right.dueAt.getTime());
-  }, [
-    activeRecurringPlansById,
-    workspace.generatedAt,
-    workspace.recurringOccurrences,
-  ]);
-
-  const visibleWidgets = useMemo(
-    () => workspace.dashboardWidgets.filter((widget) => !widget.hidden),
-    [workspace.dashboardWidgets],
-  );
-  const hiddenWidgets = useMemo(
-    () => workspace.dashboardWidgets.filter((widget) => widget.hidden),
-    [workspace.dashboardWidgets],
-  );
   const totalSpacePhotos = useMemo(
     () =>
       [...spacePhotoMap.values()].reduce(
@@ -233,116 +140,6 @@ export default function TabOneScreen() {
     recommendations.length > 0
       ? `${recommendations.length} recommendation${recommendations.length === 1 ? "" : "s"} ready`
       : "Everything looks steady";
-  const homeSectionOptions = useMemo(
-    () => [
-      {
-        id: "overview" as const,
-        label: "Overview",
-        icon: {
-          ios: "rectangle.grid.2x2.fill",
-          android: "dashboard",
-          web: "dashboard",
-        } satisfies HomeSectionIconName,
-        hint: "AI pulse, recommendations, and attention items",
-        meta: `${recommendations.length} priority${recommendations.length === 1 ? "" : "ies"}`,
-        badges: [
-          `${attentionItems.length} attention`,
-          recommendations.length > 0 ? "Needs review" : "Steady",
-        ],
-      },
-      {
-        id: "capture" as const,
-        label: "Capture",
-        icon: {
-          ios: "plus.bubble.fill",
-          android: "add_circle",
-          web: "add_circle",
-        } satisfies HomeSectionIconName,
-        hint: "Recording shortcuts and fast event entry",
-        meta: `${dashboardQuickActionCount} quick action${dashboardQuickActionCount === 1 ? "" : "s"}`,
-        badges: [
-          `${dashboardQuickActionCount} shortcut${dashboardQuickActionCount === 1 ? "" : "s"}`,
-          `${workspace.logs.length} logs`,
-        ],
-      },
-      {
-        id: "spaces" as const,
-        label: "Spaces",
-        icon: {
-          ios: "square.grid.2x2",
-          android: "grid_view",
-          web: "grid_view",
-        } satisfies HomeSectionIconName,
-        hint: "Tracked spaces, galleries, and active context",
-        meta: `${spaceSummaries.length} active space${spaceSummaries.length === 1 ? "" : "s"}`,
-        badges: [
-          `${spaceSummaries.length} live`,
-          `${totalSpacePhotos} photo${totalSpacePhotos === 1 ? "" : "s"}`,
-        ],
-      },
-      {
-        id: "manage" as const,
-        label: "Manage",
-        icon: {
-          ios: "slider.horizontal.3",
-          android: "tune",
-          web: "tune",
-        } satisfies HomeSectionIconName,
-        hint: "Widgets, templates, and workspace guidance",
-        meta: `${visibleWidgets.length} visible widget${visibleWidgets.length === 1 ? "" : "s"}`,
-        badges: [
-          `${hiddenWidgets.length} hidden`,
-          `${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"}`,
-        ],
-      },
-    ],
-    [
-      attentionItems.length,
-      dashboardQuickActionCount,
-      hiddenWidgets.length,
-      recommendations.length,
-      spaceSummaries.length,
-      totalSpacePhotos,
-      visibleWidgets.length,
-      workspace.logs.length,
-      workspace.templates.length,
-    ],
-  );
-  const activeSectionOption =
-    homeSectionOptions.find((section) => section.id === activeSection) ??
-    homeSectionOptions[0];
-  const workspaceGuidance = useMemo(() => {
-    const items: string[] = [];
-
-    if (workspace.spaces.length === 0) {
-      items.push("Add or sync a space to start tracking real activity.");
-    }
-    if (workspace.logs.length === 0) {
-      items.push(
-        "Use Quick log to capture your first real entry on this device.",
-      );
-    }
-    if (workspace.reminders.length === 0) {
-      items.push("Create routines or reminders to populate the planner.");
-    }
-    if (workspace.templates.length === 0) {
-      items.push("Import or build a template when you want reusable forms.");
-    }
-
-    if (items.length > 0) return items;
-
-    return [
-      `${workspace.logs.length} real logs are available in your unified timeline.`,
-      `${workspace.reminders.length} reminders are currently scheduled across your spaces.`,
-      `${workspace.assets.length} assets are linked to tracked spaces in this workspace.`,
-    ];
-  }, [
-    workspace.assets.length,
-    workspace.logs.length,
-    workspace.reminders.length,
-    workspace.spaces.length,
-    workspace.templates.length,
-  ]);
   const raisedCardShadow = useMemo(
     () =>
       getShadowStyle(palette.shadow, {
@@ -365,11 +162,21 @@ export default function TabOneScreen() {
     ...raisedCardShadow,
   };
 
-  const widgetButtonColor = theme.colors.elevation.level2;
-  const widgetButtonTextColor = theme.colors.onSurface;
-  const homeQuickActions = useMemo(
-    () => [
-      ...quickActionCards.map((action) => ({
+  const homeQuickActions = useMemo(() => {
+    const actions = [
+      ...(reminderActionCenter.summary.overdueCount > 0 ||
+      reminderActionCenter.summary.dueTodayCount > 0
+        ? [
+            {
+              id: "dashboard-open-action-center",
+              label: "Resolve due queue",
+              hint: "Overdue and due-today reminders are ready for action in one queue.",
+              accentColor: theme.colors.error,
+              onPress: () => router.push("/action-center"),
+            },
+          ]
+        : []),
+      ...quickActionCards.slice(0, 2).map((action) => ({
         id: action.id,
         label: action.label,
         hint: `${action.description} ${action.target}`,
@@ -381,33 +188,47 @@ export default function TabOneScreen() {
           }),
       })),
       {
-        id: "dashboard-open-action-center",
-        label: "Open action center",
-        hint: "Review attention items, due reminders, and suggested next steps.",
-        accentColor: theme.colors.error,
-        onPress: () => router.push("/action-center"),
-      },
-      {
         id: "dashboard-open-planner",
         label: "Open planner",
         hint: "Check calendar timelines, due reminders, and recurring plans.",
         accentColor: theme.colors.tertiary,
         onPress: () => router.push("/planner"),
       },
-      {
-        id: "dashboard-scan-barcode",
-        label: "Scan barcode",
-        hint: "Use the camera scanner to find assets and jump into updates.",
-        accentColor: theme.colors.primary,
-        onPress: () => router.push("/scanner"),
-      },
-      {
-        id: "dashboard-open-visual-history",
-        label: "Open visual history",
-        hint: "Review photos and timeline snapshots across every tracked space.",
-        accentColor: theme.colors.secondary,
-        onPress: () => router.push("/visual-history"),
-      },
+      ...(workspace.logs.length === 0
+        ? [
+            {
+              id: "dashboard-open-logbook",
+              label: "Record first log",
+              hint: "Start capturing updates so trends and recommendations become useful.",
+              accentColor: theme.colors.primary,
+              onPress: () => router.push("/logbook"),
+            },
+          ]
+        : []),
+      ...(recommendations.some(
+        (recommendation) => recommendation.action.kind === "open-inventory",
+      )
+        ? [
+            {
+              id: "dashboard-open-inventory",
+              label: "Review inventory",
+              hint: "Inventory signals suggest one or more assets need attention.",
+              accentColor: theme.colors.secondary,
+              onPress: () => router.push("/inventory"),
+            },
+          ]
+        : []),
+      ...(totalSpacePhotos > 0
+        ? [
+            {
+              id: "dashboard-open-visual-history",
+              label: "Open visual history",
+              hint: "Review photos and timeline snapshots across tracked spaces.",
+              accentColor: theme.colors.secondary,
+              onPress: () => router.push("/visual-history"),
+            },
+          ]
+        : []),
       {
         id: "dashboard-open-workspace-tools",
         label: "Open workspace tools",
@@ -415,60 +236,23 @@ export default function TabOneScreen() {
         accentColor: palette.tint,
         onPress: () => router.push("/workspace-tools"),
       },
-    ],
-    [
-      palette.tint,
-      quickActionCards,
-      router,
-      theme.colors.error,
-      theme.colors.primary,
-      theme.colors.secondary,
-      theme.colors.tertiary,
-    ],
-  );
+    ];
 
-  useEffect(() => {
-    let isMounted = true;
-
-    void loadHomeDashboardSectionPreference().then((section) => {
-      if (!isMounted) return;
-      setActiveSection(section);
-      setIsSectionPreferenceLoaded(true);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isSectionPreferenceLoaded) return;
-    void persistHomeDashboardSectionPreference(activeSection);
-  }, [activeSection, isSectionPreferenceLoaded]);
-
-  useEffect(() => {
-    sectionTransition.setValue(0);
-    Animated.timing(sectionTransition, {
-      toValue: 1,
-      duration: 180,
-      useNativeDriver: true,
-    }).start();
-  }, [activeSection, sectionTransition]);
-
-  const sectionContentAnimatedStyle = useMemo(
-    () => ({
-      opacity: sectionTransition,
-      transform: [
-        {
-          translateY: sectionTransition.interpolate({
-            inputRange: [0, 1],
-            outputRange: [10, 0],
-          }),
-        },
-      ],
-    }),
-    [sectionTransition],
-  );
+    return actions.slice(0, 6);
+  }, [
+    reminderActionCenter.summary.dueTodayCount,
+    reminderActionCenter.summary.overdueCount,
+    palette.tint,
+    quickActionCards,
+    recommendations,
+    router,
+    theme.colors.error,
+    theme.colors.primary,
+    theme.colors.secondary,
+    theme.colors.tertiary,
+    totalSpacePhotos,
+    workspace.logs.length,
+  ]);
 
   function getSeverityBadgeColors(
     severity: WorkspaceRecommendation["severity"],
@@ -517,9 +301,42 @@ export default function TabOneScreen() {
     router.push("/action-center");
   }
 
-  function moveWidgetWithFeedback(widgetId: string, direction: "up" | "down") {
-    moveDashboardWidget(widgetId, direction);
-    triggerSelectionFeedback();
+  function getNextStepActionLabel(
+    suggestedAction: "complete-now" | "log-proof" | "snooze" | "open-planner",
+  ) {
+    if (suggestedAction === "complete-now") return "Complete now";
+    if (suggestedAction === "log-proof") return "Log proof";
+    if (suggestedAction === "snooze") return "Review snooze";
+    return "Open planner";
+  }
+
+  function formatLastCompleted(lastCompletedAt?: Date) {
+    if (!lastCompletedAt) return "No previous completion";
+    return `Last completed ${lastCompletedAt.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    })}`;
+  }
+
+  function handleRoutineDone(item: (typeof todaysRoutineOccurrences)[number]) {
+    if (!item.proofRequired) {
+      completeRecurringOccurrence(item.occurrenceId);
+      return;
+    }
+
+    router.push({
+      pathname: "/logbook",
+      params: {
+        actionId: "quick-log",
+        spaceId: item.spaceIds[0] ?? item.spaceId,
+        ...(item.spaceIds.length ? { spaceIds: item.spaceIds.join(",") } : {}),
+        recurringOccurrenceId: item.occurrenceId,
+        recurringPlanId: item.planId,
+        source: "home-routine-queue",
+      },
+    });
   }
 
   function openDashboardPulseDestination(
@@ -651,178 +468,6 @@ export default function TabOneScreen() {
     );
   }
 
-  function renderWidgetBody(
-    widget: (typeof workspace.dashboardWidgets)[number],
-  ) {
-    const itemLimit =
-      widget.size === "small" ? 2 : widget.size === "medium" ? 3 : 5;
-
-    if (widget.type === "attention") {
-      return attentionItems.slice(0, itemLimit).map((item) => (
-        <View key={item} style={styles.widgetListItem}>
-          <View style={[styles.focusDot, { backgroundColor: palette.tint }]} />
-          <Text style={[styles.focusText, { color: palette.muted }]}>
-            {item}
-          </Text>
-        </View>
-      ));
-    }
-
-    if (widget.type === "quick-actions") {
-      return quickActionCards.slice(0, itemLimit).map((action) => (
-        <Pressable
-          key={action.id}
-          onPress={() =>
-            router.push({
-              pathname: "/logbook",
-              params: { actionId: action.id },
-            })
-          }
-          style={({ pressed }) => [
-            styles.widgetShortcut,
-            nestedCardSurfaceStyle,
-            {
-              borderColor: `${action.accent}22`,
-              opacity: pressed ? 0.94 : 1,
-            },
-          ]}
-        >
-          <Text style={styles.widgetShortcutLabel}>{action.label}</Text>
-          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
-            {action.target}
-          </Text>
-        </Pressable>
-      ));
-    }
-
-    if (widget.type === "recommendations") {
-      return recommendations.slice(0, itemLimit).map((recommendation) => (
-        <Pressable
-          key={recommendation.id}
-          onPress={() => openRecommendation(recommendation)}
-          style={({ pressed }) => [
-            styles.widgetShortcut,
-            styles.recommendationCard,
-            nestedCardSurfaceStyle,
-            { opacity: pressed ? 0.94 : 1 },
-          ]}
-        >
-          {(() => {
-            const badgeColors = getSeverityBadgeColors(recommendation.severity);
-
-            return (
-              <View style={styles.widgetRecommendationHeader}>
-                <Text style={styles.widgetShortcutLabel}>
-                  {recommendation.title}
-                </Text>
-                <View
-                  style={[
-                    styles.severityBadge,
-                    { backgroundColor: badgeColors.backgroundColor },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.severityBadgeLabel,
-                      { color: badgeColors.color },
-                    ]}
-                  >
-                    {recommendation.severity}
-                  </Text>
-                </View>
-              </View>
-            );
-          })()}
-          <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
-            {recommendation.explanation}
-          </Text>
-          <Text style={[styles.actionCta, { color: palette.tint }]}>
-            {recommendation.action.label}
-          </Text>
-        </Pressable>
-      ));
-    }
-
-    if (widget.type === "reminders") {
-      return upcomingReminders.slice(0, itemLimit).map((reminder) => {
-        const space = spacesById.get(reminder.spaceId);
-
-        return (
-          <View key={reminder.id} style={styles.widgetListItem}>
-            <View
-              style={[
-                styles.focusDot,
-                { backgroundColor: space?.themeColor ?? palette.tint },
-              ]}
-            />
-            <View style={styles.widgetListCopy}>
-              <Text style={styles.widgetListTitle}>{reminder.title}</Text>
-              <Text
-                style={[styles.widgetShortcutMeta, { color: palette.muted }]}
-              >
-                {space?.name ?? "Unknown space"} •{" "}
-                {new Date(
-                  getReminderScheduleTimestamp(reminder),
-                ).toLocaleDateString([], {
-                  month: "short",
-                  day: "numeric",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </Text>
-            </View>
-          </View>
-        );
-      });
-    }
-
-    if (widget.type === "chart" && widget.metricIds?.length) {
-      const metrics = widget.metricIds.flatMap((metricId, index) => {
-        const metric = metricDefinitionsById.get(metricId);
-        if (!metric) return [];
-
-        return [
-          {
-            id: metric.id,
-            label: metric.name,
-            unitLabel: metric.unitLabel,
-            color: getChartSeriesColor(palette, index),
-          },
-        ];
-      });
-      const points = buildMetricChartPoints(
-        workspace,
-        metrics.map((metric) => metric.id),
-      );
-
-      return (
-        <>
-          <SegmentedButtons
-            value={chartMode}
-            onValueChange={(value: string) => setChartMode(value as ChartMode)}
-            density="small"
-            style={styles.chartModeRow}
-            buttons={(["line", "bar", "scatter"] as ChartMode[]).map(
-              (mode) => ({
-                value: mode,
-                label: mode,
-              }),
-            )}
-          />
-          <MiniMetricChart
-            points={points}
-            metrics={metrics}
-            mode={chartMode}
-            mutedColor={palette.muted}
-            borderColor={palette.border}
-          />
-        </>
-      );
-    }
-
-    return null;
-  }
-
   return (
     <Animated.ScrollView
       {...headerScroll}
@@ -835,12 +480,12 @@ export default function TabOneScreen() {
     >
       <ScreenHero
         palette={palette}
-        eyebrow="Streamlined workspace command center"
-        title="Run the workspace from one calmer dashboard."
-        subtitle="See what matters, record the next update, and keep every space moving without digging through noisy panels."
+        eyebrow="Routine-first home"
+        title="Track what’s due and mark it done."
+        subtitle="Built for repeatable care tasks like water changes, feeding, and cleaning—with clear proof status and last completion transparency."
         badges={[
           {
-            label: "TrackItUp",
+            label: "Today’s routine queue",
             backgroundColor: theme.colors.primaryContainer,
             textColor: theme.colors.onPrimaryContainer,
           },
@@ -869,933 +514,127 @@ export default function TabOneScreen() {
               {item}
             </Chip>
           ))}
+          <Chip compact style={styles.heroStatPill}>
+            {`${reminderActionCenter.summary.overdueCount} overdue`}
+          </Chip>
+          <Chip compact style={styles.heroStatPill}>
+            {`${reminderActionCenter.summary.dueTodayCount} due today`}
+          </Chip>
         </View>
       </ScreenHero>
 
-      <View style={styles.statRow}>
-        {overviewStats.map((stat, index) => (
-          <MotionView
-            key={stat.label}
-            delay={uiMotion.stagger * (index + 1)}
-            style={styles.statCardMotion}
-          >
-            <Surface
-              style={[styles.statCard, nestedCardSurfaceStyle]}
-              elevation={1}
-            >
-              <Text style={[styles.statEyebrow, { color: palette.muted }]}>
-                Live
-              </Text>
-              <Text style={styles.statValue}>{stat.value}</Text>
-              <Text style={[styles.statLabel, { color: palette.muted }]}>
-                {stat.label}
-              </Text>
-            </Surface>
-          </MotionView>
-        ))}
-      </View>
-
       <SectionSurface
         palette={palette}
-        label="Feature groups"
-        title="Focus on one workspace layer at a time"
-        motionDelay={uiMotion.stagger * 4}
+        label="Today's routine"
+        title="One queue for today’s recurring work"
       >
         <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-          Switch between overview, capture, spaces, and management tools so the
-          home screen stays organized instead of showing every feature at once.
+          Tap done to complete now. If proof is required, TrackItUp opens proof
+          capture first.
         </Text>
-        <View style={styles.sectionSwitcherGrid}>
-          {homeSectionOptions.map((section, index) => {
-            const isActive = activeSection === section.id;
-
+        {todaysRoutineOccurrences.length === 0 ? (
+          <Text style={[styles.focusText, { color: palette.muted }]}>
+            No recurring occurrences are due today.
+          </Text>
+        ) : (
+          todaysRoutineOccurrences.slice(0, 12).map((item) => {
+            const space = spacesById.get(item.spaceId);
             return (
-              <MotionView
-                key={section.id}
-                delay={uiMotion.stagger * (index + 1)}
-                style={styles.sectionSwitchMotionWrap}
-              >
-                <MotionPressable
-                  accessibilityLabel={`Show ${section.label} section`}
-                  onPress={() => setActiveSection(section.id)}
-                  style={[
-                    styles.sectionSwitchCard,
-                    {
-                      backgroundColor: isActive
-                        ? theme.colors.primaryContainer
-                        : theme.colors.elevation.level1,
-                      borderColor: isActive
-                        ? theme.colors.primary
-                        : withAlpha(theme.colors.outlineVariant, 0.6),
-                      ...(isActive ? raisedCardShadow : {}),
+              <Pressable
+                key={item.occurrenceId}
+                onPress={() =>
+                  router.push({
+                    pathname: "/action-center",
+                    params: {
+                      recurringOccurrenceId: item.occurrenceId,
+                      source: "home-routine-queue",
                     },
-                  ]}
-                >
-                  <View style={styles.sectionSwitchHeader}>
-                    <View
-                      style={[
-                        styles.sectionSwitchIconWrap,
-                        {
-                          backgroundColor: isActive
-                            ? theme.colors.elevation.level1
-                            : theme.colors.elevation.level2,
-                          borderColor: isActive
-                            ? theme.colors.primary
-                            : theme.colors.outlineVariant,
-                        },
-                      ]}
-                    >
-                      <SymbolView
-                        name={section.icon}
-                        size={18}
-                        tintColor={
-                          isActive
-                            ? theme.colors.onPrimaryContainer
-                            : theme.colors.onSurfaceVariant
-                        }
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.sectionSwitchTitle,
-                        {
-                          color: isActive
-                            ? theme.colors.onPrimaryContainer
-                            : theme.colors.onSurface,
-                        },
-                      ]}
-                    >
-                      {section.label}
-                    </Text>
-                  </View>
-                  <View style={styles.sectionSwitchBadgeRow}>
-                    {section.badges.map((badge) => (
-                      <View
-                        key={`${section.id}-${badge}`}
-                        style={[
-                          styles.sectionSwitchBadge,
-                          {
-                            backgroundColor: isActive
-                              ? theme.colors.elevation.level1
-                              : theme.colors.elevation.level2,
-                            borderColor: isActive
-                              ? theme.colors.primary
-                              : theme.colors.outlineVariant,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.sectionSwitchBadgeLabel,
-                            {
-                              color: isActive
-                                ? theme.colors.onPrimaryContainer
-                                : theme.colors.onSurfaceVariant,
-                            },
-                          ]}
-                        >
-                          {badge}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                  <Text
-                    style={[
-                      styles.sectionSwitchHint,
-                      {
-                        color: isActive
-                          ? theme.colors.onPrimaryContainer
-                          : theme.colors.onSurfaceVariant,
-                      },
-                    ]}
-                  >
-                    {section.hint}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.sectionSwitchMeta,
-                      {
-                        color: isActive
-                          ? theme.colors.onPrimaryContainer
-                          : palette.tint,
-                      },
-                    ]}
-                  >
-                    {section.meta}
-                  </Text>
-                </MotionPressable>
-              </MotionView>
-            );
-          })}
-        </View>
-        <MotionView key={activeSectionOption.id} delay={uiMotion.stagger}>
-          <Surface
-            style={[styles.activeSectionCard, nestedCardSurfaceStyle]}
-            elevation={1}
-          >
-            <View style={styles.activeSectionSummaryRow}>
-              <View
-                style={[
-                  styles.activeSectionIconWrap,
-                  {
-                    backgroundColor: theme.colors.elevation.level3,
-                    borderColor: theme.colors.outlineVariant,
-                  },
+                  })
+                }
+                style={({ pressed }) => [
+                  styles.recommendationRow,
+                  nestedCardSurfaceStyle,
+                  { opacity: pressed ? 0.94 : 1 },
                 ]}
               >
-                <SymbolView
-                  name={activeSectionOption.icon}
-                  size={18}
-                  tintColor={theme.colors.onSurface}
-                />
-              </View>
-              <Text style={styles.widgetListTitle}>
-                {activeSectionOption.label} view
-              </Text>
-            </View>
-            <Text style={[styles.widgetShortcutMeta, { color: palette.muted }]}>
-              {activeSectionOption.hint}. Use the section switcher above to jump
-              between feature clusters without scrolling through the full page.
-            </Text>
-          </Surface>
-        </MotionView>
-      </SectionSurface>
-
-      <Animated.View style={sectionContentAnimatedStyle}>
-        {activeSection === "overview" ? (
-          <>
-            <AiPromptComposerCard
-              palette={palette}
-              label="AI dashboard pulse"
-              title="Generate a grounded dashboard brief"
-              value={dashboardPulseRequest}
-              onChangeText={setDashboardPulseRequest}
-              onSubmit={() => void handleGenerateDashboardPulse()}
-              isBusy={isGeneratingDashboardPulse}
-              contextChips={[
-                `${dashboardPulse.summary.recommendationCount} recommendation${dashboardPulse.summary.recommendationCount === 1 ? "" : "s"}`,
-                `${dashboardPulse.attentionItems.length} attention item${dashboardPulse.attentionItems.length === 1 ? "" : "s"}`,
-                `${dashboardPulse.activeSpaces.length} active space${dashboardPulse.activeSpaces.length === 1 ? "" : "s"}`,
-              ]}
-              placeholder="Example: Summarize what needs attention first across the dashboard and tell me which screen to open next."
-              helperText={aiDashboardPulseCopy.helperText}
-              consentLabel={aiDashboardPulseCopy.consentLabel}
-              footerNote={aiDashboardPulseCopy.promptFooterNote}
-              submitLabel="Generate pulse brief"
-            />
-
-            {dashboardPulseStatusMessage ? (
-              <Surface
-                style={[styles.focusCard, baseCardSurfaceStyle]}
-                elevation={1}
-              >
-                <Text style={styles.widgetListTitle}>AI dashboard pulse</Text>
-                <Text
-                  style={[styles.widgetShortcutMeta, { color: palette.muted }]}
-                >
-                  {dashboardPulseStatusMessage}
-                </Text>
-              </Surface>
-            ) : null}
-
-            {generatedDashboardPulse ? (
-              <AiDraftReviewCard
-                palette={palette}
-                title="Review the AI dashboard pulse"
-                draftKindLabel="Home dashboard"
-                summary={`Prompt: ${generatedDashboardPulse.request}`}
-                consentLabel={generatedDashboardPulse.consentLabel}
-                footerNote={aiDashboardPulseCopy.reviewFooterNote}
-                statusLabel="Draft ready"
-                modelLabel={generatedDashboardPulse.modelId}
-                usage={generatedDashboardPulse.usage}
-                contextChips={[
-                  `${generatedDashboardPulse.draft.citedSourceIds.length} cited source${generatedDashboardPulse.draft.citedSourceIds.length === 1 ? "" : "s"}`,
-                ]}
-                items={buildAiDashboardPulseReviewItems(
-                  generatedDashboardPulse.draft,
-                  generatedDashboardPulse.sources,
-                )}
-                acceptLabel="Apply brief"
-                editLabel="Dismiss draft"
-                regenerateLabel="Generate again"
-                onAccept={handleApplyDashboardPulse}
-                onEdit={handleDismissDashboardPulse}
-                onRegenerate={() => void handleGenerateDashboardPulse()}
-                isBusy={isGeneratingDashboardPulse}
-              />
-            ) : null}
-
-            {appliedDashboardPulse ? (
-              <Surface
-                style={[styles.focusCard, baseCardSurfaceStyle]}
-                elevation={1}
-              >
-                <View style={styles.pulseHeaderRow}>
-                  <Text style={styles.sectionTitle}>
-                    {appliedDashboardPulse.draft.headline}
-                  </Text>
-                  {appliedDashboardPulse.draft.suggestedDestination ? (
-                    <Chip compact style={styles.heroStatPill}>
-                      {formatAiDashboardPulseDestinationLabel(
-                        appliedDashboardPulse.draft.suggestedDestination,
-                      )}
-                    </Chip>
-                  ) : null}
-                </View>
-                {appliedDashboardPulse.draft.summary ? (
-                  <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                    {appliedDashboardPulse.draft.summary}
-                  </Text>
-                ) : null}
-                {appliedDashboardPulse.draft.priorities.map((priority) => (
-                  <View key={priority} style={styles.focusItem}>
-                    <View
-                      style={[
-                        styles.focusDot,
-                        { backgroundColor: theme.colors.primary },
-                      ]}
-                    />
-                    <Text style={[styles.focusText, { color: palette.muted }]}>
-                      {priority}
-                    </Text>
-                  </View>
-                ))}
-                {appliedDashboardPulse.draft.caution ? (
+                <View style={styles.widgetListCopy}>
+                  <Text style={styles.widgetListTitle}>{item.title}</Text>
                   <Text
                     style={[
                       styles.widgetShortcutMeta,
                       { color: palette.muted },
                     ]}
                   >
-                    Caution: {appliedDashboardPulse.draft.caution}
+                    {space?.name ?? "Unknown space"} • due{" "}
+                    {item.dueAt.toLocaleTimeString([], {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
                   </Text>
-                ) : null}
-                {appliedDashboardPulse.sources
-                  .filter((source) =>
-                    appliedDashboardPulse.draft.citedSourceIds.includes(
-                      source.id,
-                    ),
-                  )
-                  .map((source) => (
-                    <Surface
-                      key={source.id}
-                      style={[styles.pulseSourceCard, nestedCardSurfaceStyle]}
-                      elevation={1}
-                    >
-                      <View style={styles.widgetListCopy}>
-                        <Text style={styles.widgetListTitle}>
-                          {formatAiDashboardPulseSourceLabel(source)}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.widgetShortcutMeta,
-                            { color: palette.muted },
-                          ]}
-                        >
-                          {source.snippet}
-                        </Text>
-                      </View>
-                      <View style={styles.pulseSourceActionRow}>
-                        <CardActionPill
-                          label={formatAiDashboardPulseDestinationLabel(
-                            source.route,
-                          )}
-                          onPress={() => openDashboardPulseSource(source)}
-                        />
-                      </View>
-                    </Surface>
-                  ))}
-                <View style={styles.pulseActionRow}>
-                  <CardActionPill
-                    label="Clear brief"
-                    onPress={() => setAppliedDashboardPulse(null)}
-                  />
-                  <CardActionPill
-                    label={formatAiDashboardPulseDestinationLabel(
-                      appliedDashboardPulse.draft.suggestedDestination ??
-                        "action-center",
-                    )}
-                    onPress={() =>
-                      openDashboardPulseDestination(
-                        appliedDashboardPulse.draft.suggestedDestination,
-                      )
-                    }
-                  />
+                  <Text
+                    style={[
+                      styles.widgetShortcutMeta,
+                      { color: palette.muted },
+                    ]}
+                  >
+                    {formatLastCompleted(item.lastCompletedAt)}
+                  </Text>
                 </View>
-              </Surface>
-            ) : null}
-
-            <SectionSurface
-              palette={palette}
-              label="Next best actions"
-              title="Recommended next actions"
-            >
-              <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-                TrackItUp now promotes the most useful next step from reminders,
-                metrics, and asset history.
-              </Text>
-              {recommendations.length === 0 ? (
-                <Text style={[styles.focusText, { color: palette.muted }]}>
-                  Recommendations will appear here as your spaces build up
-                  reminders, readings, and maintenance history.
-                </Text>
-              ) : (
-                recommendations.slice(0, 3).map((recommendation) => {
-                  const badgeColors = getSeverityBadgeColors(
-                    recommendation.severity,
-                  );
-
-                  return (
-                    <Pressable
-                      key={recommendation.id}
-                      onPress={() => openRecommendation(recommendation)}
-                      style={({ pressed }) => [
-                        styles.recommendationRow,
-                        nestedCardSurfaceStyle,
-                        { opacity: pressed ? 0.94 : 1 },
-                      ]}
-                    >
-                      <View style={styles.widgetListCopy}>
-                        <Text style={styles.widgetListTitle}>
-                          {recommendation.title}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.widgetShortcutMeta,
-                            { color: palette.muted },
-                          ]}
-                        >
-                          {recommendation.explanation}
-                        </Text>
-                      </View>
-                      <View style={styles.recommendationAside}>
-                        <View
-                          style={[
-                            styles.severityBadge,
-                            {
-                              backgroundColor: badgeColors.backgroundColor,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.severityBadgeLabel,
-                              { color: badgeColors.color },
-                            ]}
-                          >
-                            {recommendation.severity}
-                          </Text>
-                        </View>
-                        <Text
-                          style={[styles.actionCta, { color: palette.tint }]}
-                        >
-                          {recommendation.action.label}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
-            </SectionSurface>
-
-            <SectionSurface
-              palette={palette}
-              label="Attention"
-              title="Items needing attention"
-            >
-              <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-                Safe-zone alerts and urgent reminders surfaced from the shared
-                workspace.
-              </Text>
-              <Surface
-                style={[styles.focusCard, baseCardSurfaceStyle]}
-                elevation={1}
-              >
-                {attentionItems.map((item) => (
-                  <View key={item} style={styles.focusItem}>
-                    <View
-                      style={[
-                        styles.focusDot,
-                        { backgroundColor: palette.tint },
-                      ]}
-                    />
-                    <Text style={[styles.focusText, { color: palette.muted }]}>
-                      {item}
-                    </Text>
-                  </View>
-                ))}
-              </Surface>
-            </SectionSurface>
-
-            <SectionSurface
-              palette={palette}
-              label="Today's routine"
-              title="Recurring occurrences due today"
-            >
-              <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-                Finish recurring routines from one place and jump directly into
-                proof capture when needed.
-              </Text>
-              {todaysRoutineOccurrences.length === 0 ? (
-                <Text style={[styles.focusText, { color: palette.muted }]}>
-                  No recurring occurrences are due today.
-                </Text>
-              ) : (
-                todaysRoutineOccurrences.slice(0, 5).map((item) => {
-                  const space = spacesById.get(item.spaceId);
-                  return (
-                    <Pressable
-                      key={item.occurrenceId}
-                      onPress={() => router.push("/action-center")}
-                      style={({ pressed }) => [
-                        styles.recommendationRow,
-                        nestedCardSurfaceStyle,
-                        { opacity: pressed ? 0.94 : 1 },
-                      ]}
-                    >
-                      <View style={styles.widgetListCopy}>
-                        <Text style={styles.widgetListTitle}>{item.title}</Text>
-                        <Text
-                          style={[
-                            styles.widgetShortcutMeta,
-                            { color: palette.muted },
-                          ]}
-                        >
-                          {space?.name ?? "Unknown space"} • due{" "}
-                          {item.dueAt.toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </Text>
-                      </View>
-                      <View style={styles.recommendationAside}>
-                        <View
-                          style={[
-                            styles.severityBadge,
-                            {
-                              backgroundColor: item.proofRequired
-                                ? theme.colors.secondaryContainer
-                                : theme.colors.primaryContainer,
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.severityBadgeLabel,
-                              {
-                                color: item.proofRequired
-                                  ? theme.colors.onSecondaryContainer
-                                  : theme.colors.onPrimaryContainer,
-                              },
-                            ]}
-                          >
-                            {item.proofRequired ? "proof" : "routine"}
-                          </Text>
-                        </View>
-                        <Text
-                          style={[styles.actionCta, { color: palette.tint }]}
-                        >
-                          Open queue
-                        </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })
-              )}
-            </SectionSurface>
-          </>
-        ) : null}
-
-        {activeSection === "capture" ? (
-          <PageQuickActions
-            palette={palette}
-            title="Start recording"
-            description="Choose what happened and TrackItUp will guide you into the right event-entry flow."
-            actions={homeQuickActions}
-            compact
-          />
-        ) : null}
-
-        {activeSection === "spaces" ? (
-          <SectionSurface
-            palette={palette}
-            label="Spaces"
-            title="Active spaces"
-          >
-            <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-              Spaces from your real workspace appear here after you sync,
-              import, or start tracking on this device.
-            </Text>
-            {spaceSummaries.length === 0 ? (
-              <EmptyStateCard
-                palette={palette}
-                icon={{
-                  ios: "square.grid.2x2",
-                  android: "dashboard",
-                  web: "dashboard",
-                }}
-                title="No tracked spaces yet"
-                message="Create your first space to give new events, routines, and metrics a home in the workspace."
-                actionLabel="Create first space"
-                onAction={() => router.push("/space-create")}
-                style={styles.emptyStateCard}
-              />
-            ) : (
-              spaceSummaries.map((space) => (
-                <Surface
-                  key={space.id}
-                  style={[styles.spaceCard, baseCardSurfaceStyle]}
-                  elevation={1}
-                >
-                  <View style={styles.spaceHeader}>
-                    <View style={styles.spaceHeadingCopy}>
-                      <Text style={styles.spaceName}>{space.name}</Text>
-                      <Text
-                        style={[styles.spaceMeta, { color: palette.muted }]}
-                      >
-                        {space.category}
-                      </Text>
-                      {spacesById.get(space.id)?.parentSpaceId ? (
-                        <Text
-                          style={[styles.nestedMeta, { color: palette.muted }]}
-                        >
-                          Nested in{" "}
-                          {
-                            spacesById.get(
-                              spacesById.get(space.id)?.parentSpaceId ?? "",
-                            )?.name
-                          }
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View
-                      style={[
-                        styles.badge,
-                        { backgroundColor: `${space.accent}22` },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.badgeLabel, { color: space.accent }]}
-                      >
-                        {space.status}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                    {space.note}
-                  </Text>
-
-                  <View style={styles.widgetToolbar}>
-                    <CardActionPill
-                      label={
-                        spacePhotoMap.get(space.id)?.photoCount
-                          ? `Visual history (${spacePhotoMap.get(space.id)?.photoCount})`
-                          : "Visual history"
-                      }
-                      accentColor={space.accent}
-                      onPress={() =>
-                        router.push(
-                          `/visual-history?spaceId=${space.id}` as never,
-                        )
-                      }
-                    />
-                    <CardActionPill
-                      label="Edit space"
-                      onPress={() =>
-                        router.push({
-                          pathname: "/space-create",
-                          params: { spaceId: space.id },
-                        })
-                      }
-                    />
-                  </View>
-
-                  <View style={styles.spaceFooter}>
-                    <Text style={styles.spaceFooterLabel}>
-                      {space.pendingTasks} task(s)
-                    </Text>
-                    <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                      {space.lastLog}
-                    </Text>
-                  </View>
-                </Surface>
-              ))
-            )}
-          </SectionSurface>
-        ) : null}
-
-        {activeSection === "manage" ? (
-          <SectionSurface
-            palette={palette}
-            label="Workspace controls"
-            title="Customize tools and reference panels"
-          >
-            <Text style={[styles.sectionSubtitle, { color: palette.muted }]}>
-              Keep the dashboard focused, then expand setup and customization
-              only when you need it.
-            </Text>
-            <Surface
-              style={[styles.sidebarHintCard, nestedCardSurfaceStyle]}
-              elevation={1}
-            >
-              <Text style={styles.widgetListTitle}>
-                Open screens from the sidebar
-              </Text>
-              <Text
-                style={[styles.widgetShortcutMeta, { color: palette.muted }]}
-              >
-                The new slide-out navigation menu keeps setup, import, scanner,
-                and workspace-admin screens close by without packing extra jump
-                buttons into the dashboard itself.
-              </Text>
-            </Surface>
-
-            <CollapsibleSectionCard
-              title="Dashboard widgets"
-              description="Reorder, resize, and hide widgets so each hobby can keep a different dashboard layout."
-              badge={`${visibleWidgets.length} visible`}
-            >
-              {visibleWidgets.map((widget, index) => (
-                <ReorderGestureCard
-                  key={widget.id}
-                  axis="vertical"
-                  onMoveBackward={
-                    index > 0
-                      ? () => moveWidgetWithFeedback(widget.id, "up")
-                      : undefined
-                  }
-                  onMoveForward={
-                    index < visibleWidgets.length - 1
-                      ? () => moveWidgetWithFeedback(widget.id, "down")
-                      : undefined
-                  }
-                >
-                  <Surface
-                    style={[styles.spaceCard, baseCardSurfaceStyle]}
-                    elevation={1}
+                <View style={styles.recommendationAside}>
+                  <View
+                    style={[
+                      styles.severityBadge,
+                      {
+                        backgroundColor: item.proofRequired
+                          ? theme.colors.secondaryContainer
+                          : theme.colors.primaryContainer,
+                      },
+                    ]}
                   >
-                    <View style={styles.spaceHeader}>
-                      <View style={styles.spaceHeadingCopy}>
-                        <Text style={styles.spaceName}>{widget.title}</Text>
-                        <Text
-                          style={[styles.spaceMeta, { color: palette.muted }]}
-                        >
-                          {widget.type} • {widget.size} card
-                        </Text>
-                      </View>
-                      <View style={styles.widgetControls}>
-                        <Button
-                          onPress={() =>
-                            moveWidgetWithFeedback(widget.id, "up")
-                          }
-                          mode="contained-tonal"
-                          buttonColor={widgetButtonColor}
-                          textColor={widgetButtonTextColor}
-                          compact
-                          style={styles.widgetButton}
-                          contentStyle={styles.widgetButtonContent}
-                          labelStyle={styles.widgetButtonLabel}
-                        >
-                          Up
-                        </Button>
-                        <Button
-                          onPress={() =>
-                            moveWidgetWithFeedback(widget.id, "down")
-                          }
-                          mode="contained-tonal"
-                          buttonColor={widgetButtonColor}
-                          textColor={widgetButtonTextColor}
-                          compact
-                          style={styles.widgetButton}
-                          contentStyle={styles.widgetButtonContent}
-                          labelStyle={styles.widgetButtonLabel}
-                        >
-                          Down
-                        </Button>
-                        <Button
-                          onPress={() => cycleDashboardWidgetSize(widget.id)}
-                          mode="contained-tonal"
-                          buttonColor={widgetButtonColor}
-                          textColor={widgetButtonTextColor}
-                          compact
-                          style={styles.widgetButton}
-                          contentStyle={styles.widgetButtonContent}
-                          labelStyle={styles.widgetButtonLabel}
-                        >
-                          Size
-                        </Button>
-                        <Button
-                          onPress={() =>
-                            toggleDashboardWidgetVisibility(widget.id)
-                          }
-                          mode="contained-tonal"
-                          buttonColor={widgetButtonColor}
-                          textColor={widgetButtonTextColor}
-                          compact
-                          style={styles.widgetButton}
-                          contentStyle={styles.widgetButtonContent}
-                          labelStyle={styles.widgetButtonLabel}
-                        >
-                          Hide
-                        </Button>
-                      </View>
-                    </View>
-                    <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                      {widget.description}
-                    </Text>
-                    <View style={styles.widgetBody}>
-                      {renderWidgetBody(widget)}
-                    </View>
-                    <Text style={styles.spaceFooterLabel}>
-                      Widget #{index + 1}
-                    </Text>
-                  </Surface>
-                </ReorderGestureCard>
-              ))}
-              {hiddenWidgets.length > 0 ? (
-                <Surface
-                  style={[styles.focusCard, baseCardSurfaceStyle]}
-                  elevation={1}
-                >
-                  <Text style={styles.sectionTitle}>Hidden widgets</Text>
-                  {hiddenWidgets.map((widget) => (
-                    <View key={widget.id} style={styles.hiddenWidgetRow}>
-                      <View style={styles.widgetListCopy}>
-                        <Text style={styles.widgetListTitle}>
-                          {widget.title}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.widgetShortcutMeta,
-                            { color: palette.muted },
-                          ]}
-                        >
-                          {widget.type} • {widget.size} card
-                        </Text>
-                      </View>
-                      <CardActionPill
-                        label="Show"
-                        onPress={() =>
-                          toggleDashboardWidgetVisibility(widget.id)
-                        }
-                      />
-                    </View>
-                  ))}
-                </Surface>
-              ) : null}
-            </CollapsibleSectionCard>
-
-            <CollapsibleSectionCard
-              title="Template catalog"
-              description="Official and community templates expose the schema engine and import paths."
-              badge={`${workspace.templates.length} template${workspace.templates.length === 1 ? "" : "s"}`}
-            >
-              <Text
-                style={[
-                  styles.widgetShortcutMeta,
-                  { color: palette.muted, marginBottom: 14 },
-                ]}
-              >
-                Need to build a schema or import a shared template? Open the
-                sidebar from the header and jump there when you need it.
-              </Text>
-              {workspace.templates.length === 0 ? (
-                <EmptyStateCard
-                  palette={palette}
-                  icon={{
-                    ios: "square.stack.3d.up",
-                    android: "inventory_2",
-                    web: "inventory_2",
-                  }}
-                  title="No templates in this workspace yet"
-                  message="Import a template or build your own schema to populate this catalog."
-                  actionLabel="Import template"
-                  onAction={() => router.push("/template-import")}
-                  style={styles.emptyStateCard}
-                />
-              ) : (
-                workspace.templates.map((template) => (
-                  <Surface
-                    key={template.id}
-                    style={[styles.spaceCard, baseCardSurfaceStyle]}
-                    elevation={1}
-                  >
-                    <View style={styles.spaceHeader}>
-                      <View style={styles.spaceHeadingCopy}>
-                        <Text style={styles.spaceName}>{template.name}</Text>
-                        <Text
-                          style={[styles.spaceMeta, { color: palette.muted }]}
-                        >
-                          {template.origin} • {template.category}
-                        </Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.badge,
-                          { backgroundColor: `${palette.tint}22` },
-                        ]}
-                      >
-                        <Text
-                          style={[styles.badgeLabel, { color: palette.tint }]}
-                        >
-                          {template.importMethods.join(" • ")}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.spaceNote, { color: palette.muted }]}>
-                      {template.summary}
-                    </Text>
-                    <Text style={[styles.spaceMeta, { color: palette.muted }]}>
-                      Fields:{" "}
-                      {template.supportedFieldTypes.slice(0, 5).join(", ")}
-                    </Text>
-                    {template.formTemplate ? (
-                      <View style={styles.widgetToolbar}>
-                        <CardActionPill
-                          label="Open form"
-                          onPress={() =>
-                            router.push({
-                              pathname: "/logbook",
-                              params: { templateId: template.id },
-                            })
-                          }
-                        />
-                      </View>
-                    ) : null}
-                  </Surface>
-                ))
-              )}
-            </CollapsibleSectionCard>
-
-            <CollapsibleSectionCard
-              title="Workspace guide"
-              description="Tips here reflect your current real workspace state."
-              badge={`${workspaceGuidance.length} tip${workspaceGuidance.length === 1 ? "" : "s"}`}
-            >
-              <Surface
-                style={[styles.focusCard, baseCardSurfaceStyle]}
-                elevation={1}
-              >
-                {workspaceGuidance.map((item) => (
-                  <View key={item} style={styles.focusItem}>
-                    <View
+                    <Text
                       style={[
-                        styles.focusDot,
-                        { backgroundColor: palette.tint },
+                        styles.severityBadgeLabel,
+                        {
+                          color: item.proofRequired
+                            ? theme.colors.onSecondaryContainer
+                            : theme.colors.onPrimaryContainer,
+                        },
                       ]}
-                    />
-                    <Text style={[styles.focusText, { color: palette.muted }]}>
-                      {item}
+                    >
+                      {item.proofRequired ? "proof required" : "routine"}
                     </Text>
                   </View>
-                ))}
-              </Surface>
-            </CollapsibleSectionCard>
-          </SectionSurface>
-        ) : null}
-      </Animated.View>
+                  <Pressable
+                    onPress={() => handleRoutineDone(item)}
+                    style={({ pressed }) => [
+                      styles.routineDoneButton,
+                      {
+                        opacity: pressed ? 0.9 : 1,
+                        backgroundColor: item.proofRequired
+                          ? theme.colors.secondaryContainer
+                          : theme.colors.primaryContainer,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.routineDoneButtonLabel,
+                        {
+                          color: item.proofRequired
+                            ? theme.colors.onSecondaryContainer
+                            : theme.colors.onPrimaryContainer,
+                        },
+                      ]}
+                    >
+                      {item.proofRequired ? "Log proof" : "Done"}
+                    </Text>
+                  </Pressable>
+                </View>
+              </Pressable>
+            );
+          })
+        )}
+      </SectionSurface>
     </Animated.ScrollView>
   );
 }
@@ -2171,6 +1010,17 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     minWidth: 92,
     gap: 8,
+  },
+  routineDoneButton: {
+    minWidth: 92,
+    borderRadius: uiRadius.pill,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    alignItems: "center",
+  },
+  routineDoneButtonLabel: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   widgetToolbar: {
     flexDirection: "row",

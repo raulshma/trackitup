@@ -28,19 +28,27 @@ test("home dashboard section preference normalizes to supported feature groups",
 
 test("home dashboard remembers the selected feature group", () => {
   const homeScreen = readWorkspaceFile("app/(tabs)/index.tsx");
-  const persistence = readWorkspaceFile(
-    "services/insights/homeDashboardSectionPreferencePersistence.ts",
-  );
 
-  assert.match(homeScreen, /loadHomeDashboardSectionPreference/);
-  assert.match(homeScreen, /persistHomeDashboardSectionPreference/);
-  assert.match(homeScreen, /setIsSectionPreferenceLoaded\(true\)/);
-  assert.match(homeScreen, /sectionSwitchBadgeRow/);
-  assert.match(homeScreen, /sectionSwitchIconWrap/);
-  assert.match(homeScreen, /Animated\.timing\(sectionTransition/);
-  assert.match(homeScreen, /translateY: sectionTransition\.interpolate/);
-  assert.match(homeScreen, /hiddenWidgets\.length/);
-  assert.match(homeScreen, /workspace\.templates\.length/);
-  assert.match(persistence, /HOME_DASHBOARD_SECTION_STORAGE_KEY/);
-  assert.match(persistence, /home-dashboard-section-v1\.json/);
+  assert.doesNotMatch(homeScreen, /loadHomeDashboardSectionPreference/);
+  assert.doesNotMatch(homeScreen, /persistHomeDashboardSectionPreference/);
+  assert.doesNotMatch(homeScreen, /activeSection === "overview"/);
+  assert.doesNotMatch(homeScreen, /activeSection === "capture"/);
+  assert.doesNotMatch(homeScreen, /activeSection === "spaces"/);
+  assert.doesNotMatch(homeScreen, /activeSection === "manage"/);
+
+  assert.doesNotMatch(homeScreen, /label="Action now"/);
+  assert.doesNotMatch(
+    homeScreen,
+    /title="Start with what needs attention first"/,
+  );
+  assert.doesNotMatch(homeScreen, /title="Quick capture"/);
+  assert.doesNotMatch(homeScreen, /label="Next best actions"/);
+  assert.doesNotMatch(homeScreen, /label="Attention"/);
+  assert.doesNotMatch(homeScreen, /label="Spaces"/);
+  assert.doesNotMatch(homeScreen, /Generate a grounded dashboard brief/);
+
+  assert.match(homeScreen, /label="Today's routine"/);
+  assert.match(homeScreen, /One queue for today’s recurring work/);
+  assert.match(homeScreen, /Tap done to complete now/);
+  assert.match(homeScreen, /formatLastCompleted/);
 });

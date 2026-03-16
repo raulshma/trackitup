@@ -128,12 +128,12 @@ const sidebarGroups: Array<{
   items: SidebarRoute[];
 }> = [
   {
-    title: "Workspace",
+    title: "Daily tracking",
     items: [
       {
         id: "home",
         label: "Home",
-        hint: "Dashboard pulse, recommendations, and active spaces",
+        hint: "Today’s routine queue and due work overview",
         href: "/",
         icon: { ios: "house.fill", android: "home", web: "home" },
         matches: (pathname) => pathname === "/",
@@ -149,42 +149,6 @@ const sidebarGroups: Array<{
           web: "list",
         },
         matches: (pathname) => pathname === "/two",
-      },
-      {
-        id: "planner",
-        label: "Planner",
-        hint: "Manage reminders, routines, and upcoming work",
-        href: "/planner",
-        icon: {
-          ios: "calendar",
-          android: "calendar_month",
-          web: "calendar_month",
-        },
-        matches: (pathname) => pathname === "/planner",
-      },
-      {
-        id: "inventory",
-        label: "Inventory",
-        hint: "Track assets, counts, and related history",
-        href: "/inventory",
-        icon: {
-          ios: "shippingbox.fill",
-          android: "inventory_2",
-          web: "inventory_2",
-        },
-        matches: (pathname) => pathname === "/inventory",
-      },
-      {
-        id: "action-center",
-        label: "Action center",
-        hint: "Triaged reminders, AI explainers, and next steps",
-        href: "/action-center",
-        icon: {
-          ios: "bell.badge.fill",
-          android: "notifications",
-          web: "notifications",
-        },
-        matches: (pathname) => pathname.startsWith("/action-center"),
       },
       {
         id: "logbook",
@@ -210,11 +174,88 @@ const sidebarGroups: Array<{
         },
         matches: (pathname) => pathname.startsWith("/log-calendar"),
       },
+      {
+        id: "visual-history",
+        label: "Visual history",
+        hint: "Browse photos and visual changes over time",
+        href: "/visual-history",
+        icon: {
+          ios: "photo.on.rectangle.angled",
+          android: "photo_library",
+          web: "photo_library",
+        },
+        matches: (pathname) => pathname.startsWith("/visual-history"),
+      },
     ],
   },
   {
-    title: "Build and capture",
+    title: "Planning and routines",
     items: [
+      {
+        id: "planner",
+        label: "Planner",
+        hint: "Manage reminders, routines, and upcoming work",
+        href: "/planner",
+        icon: {
+          ios: "calendar",
+          android: "calendar_month",
+          web: "calendar_month",
+        },
+        matches: (pathname) => pathname === "/planner",
+      },
+      {
+        id: "action-center",
+        label: "Action center",
+        hint: "Triage due work and follow next suggested actions",
+        href: "/action-center",
+        icon: {
+          ios: "bell.badge.fill",
+          android: "notifications",
+          web: "notifications",
+        },
+        matches: (pathname) => pathname.startsWith("/action-center"),
+      },
+      {
+        id: "recurring-plan-editor",
+        label: "Recurring plans",
+        hint: "Create and adjust recurring schedules",
+        href: "/recurring-plan-editor",
+        icon: {
+          ios: "repeat.circle",
+          android: "repeat",
+          web: "repeat",
+        },
+        matches: (pathname) => pathname.startsWith("/recurring-plan-editor"),
+      },
+      {
+        id: "recurring-history",
+        label: "Recurring history",
+        hint: "Review completed, missed, skipped, and snoozed occurrences",
+        href: "/recurring-history",
+        icon: {
+          ios: "clock.arrow.trianglehead.counterclockwise.rotate.90",
+          android: "history",
+          web: "history",
+        },
+        matches: (pathname) => pathname.startsWith("/recurring-history"),
+      },
+    ],
+  },
+  {
+    title: "Capture and build",
+    items: [
+      {
+        id: "inventory",
+        label: "Inventory",
+        hint: "Track assets, counts, and related history",
+        href: "/inventory",
+        icon: {
+          ios: "shippingbox.fill",
+          android: "inventory_2",
+          web: "inventory_2",
+        },
+        matches: (pathname) => pathname === "/inventory",
+      },
       {
         id: "space-create",
         label: "Create space",
@@ -260,22 +301,34 @@ const sidebarGroups: Array<{
         matches: (pathname) => pathname.startsWith("/scanner"),
       },
       {
-        id: "visual-history",
-        label: "Visual history",
-        hint: "Browse photo timelines and visual change over time",
-        href: "/visual-history",
+        id: "live-dictation-action",
+        label: "Live dictation",
+        hint: "Capture and interpret voice-guided entries",
+        href: "/live-dictation-action",
         icon: {
-          ios: "photo.on.rectangle.angled",
-          android: "photo_library",
-          web: "photo_library",
+          ios: "waveform.badge.mic",
+          android: "keyboard_voice",
+          web: "keyboard_voice",
         },
-        matches: (pathname) => pathname.startsWith("/visual-history"),
+        matches: (pathname) => pathname.startsWith("/live-dictation-action"),
       },
     ],
   },
   {
-    title: "Settings",
+    title: "Workspace admin",
     items: [
+      {
+        id: "modal",
+        label: "Legacy tools route",
+        hint: "Compatibility redirect to workspace tools",
+        href: "/modal",
+        icon: {
+          ios: "arrow.triangle.branch",
+          android: "alt_route",
+          web: "alt_route",
+        },
+        matches: (pathname) => pathname.startsWith("/modal"),
+      },
       {
         id: "workspace-tools",
         label: "Workspace tools",
@@ -289,6 +342,35 @@ const sidebarGroups: Array<{
         matches: (pathname) => pathname.startsWith("/workspace-tools"),
       },
       {
+        id: "workspace-database",
+        label: "Workspace database",
+        hint: "Browse and edit persisted spaces in a table view",
+        href: "/workspace-database",
+        icon: {
+          ios: "tablecells",
+          android: "table_view",
+          web: "table_view",
+        },
+        matches: (pathname) => pathname.startsWith("/workspace-database"),
+      },
+      {
+        id: "workspace-diagnostics",
+        label: "Workspace diagnostics",
+        hint: "Run health checks and inspect workspace status",
+        href: "/workspace-diagnostics",
+        icon: {
+          ios: "stethoscope",
+          android: "monitor_heart",
+          web: "monitor_heart",
+        },
+        matches: (pathname) => pathname.startsWith("/workspace-diagnostics"),
+      },
+    ],
+  },
+  {
+    title: "Preferences and models",
+    items: [
+      {
         id: "account",
         label: "Account",
         hint: "Profile, AI settings, sync, privacy, and security",
@@ -299,6 +381,18 @@ const sidebarGroups: Array<{
           web: "account_circle",
         },
         matches: (pathname) => pathname.startsWith("/account"),
+      },
+      {
+        id: "openrouter-model-picker",
+        label: "AI model picker",
+        hint: "Select and compare OpenRouter models",
+        href: "/openrouter-model-picker",
+        icon: {
+          ios: "brain.head.profile",
+          android: "psychology",
+          web: "psychology",
+        },
+        matches: (pathname) => pathname.startsWith("/openrouter-model-picker"),
       },
     ],
   },

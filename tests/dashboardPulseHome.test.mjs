@@ -6,18 +6,21 @@ function readWorkspaceFile(relativePath) {
   return readFileSync(new URL(`../${relativePath}`, import.meta.url), "utf8");
 }
 
-test("home dashboard wires grounded AI pulse brief flow", () => {
+test("home dashboard focuses on routine queue with direct done and proof handoff", () => {
   const homeScreen = readWorkspaceFile("app/(tabs)/index.tsx");
-  const promptBuilders = readWorkspaceFile("services/ai/aiPromptBuilders.ts");
-  const consentCopy = readWorkspaceFile("services/ai/aiConsentCopy.ts");
-  const telemetry = readWorkspaceFile("services/ai/aiTelemetry.ts");
+  const queueHelper = readWorkspaceFile(
+    "services/recurring/todaysRoutineQueue.ts",
+  );
 
-  assert.match(homeScreen, /surface: "dashboard-pulse"/);
-  assert.match(homeScreen, /buildDashboardPulsePrompt/);
-  assert.match(homeScreen, /Generate a grounded dashboard brief/);
-  assert.match(homeScreen, /acceptLabel="Apply brief"/);
-  assert.match(homeScreen, /openDashboardPulseSource/);
-  assert.match(promptBuilders, /export function buildDashboardPulsePrompt/);
-  assert.match(consentCopy, /export const aiDashboardPulseCopy = \{/);
-  assert.match(telemetry, /"dashboard-pulse"/);
+  assert.match(homeScreen, /buildTodaysRoutineQueue/);
+  assert.match(homeScreen, /label="Today's routine"/);
+  assert.match(homeScreen, /One queue for today’s recurring work/);
+  assert.match(homeScreen, /handleRoutineDone/);
+  assert.match(homeScreen, /completeRecurringOccurrence\(item\.occurrenceId\)/);
+  assert.match(homeScreen, /recurringOccurrenceId: item\.occurrenceId/);
+  assert.match(homeScreen, /recurringPlanId: item\.planId/);
+  assert.match(homeScreen, /formatLastCompleted\(item\.lastCompletedAt\)/);
+
+  assert.match(queueHelper, /export function buildTodaysRoutineQueue/);
+  assert.match(queueHelper, /lastCompletedAt/);
 });
