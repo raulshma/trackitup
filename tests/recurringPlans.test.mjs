@@ -5,6 +5,7 @@ const { trackItUpWorkspace } = await import("../constants/TrackItUpData.ts");
 const {
   bulkSnoozeRecurringOccurrences,
   buildRecurringPlanAnalytics,
+  completeRecurringOccurrence,
   ensureRecurringOccurrencesWindow,
   findCurrentRecurringOccurrenceForPlan,
   resolveRecurringPromptMatchWithLog,
@@ -487,4 +488,54 @@ test("findCurrentRecurringOccurrenceForPlan falls back to soonest upcoming when 
 
   const current = findCurrentRecurringOccurrenceForPlan(workspace, "plan-b");
   assert.equal(current?.id, "occ-plan-b-next");
+});
+
+test("completing a recurring occurrence appends a completion history entry", () => {
+  const workspace = clone(trackItUpWorkspace);
+  workspace.generatedAt = "2026-03-10T10:00:00.000Z";
+  workspace.recurringPlans = [
+    {
+      id: "plan-history-check",
+      spaceId: "reef",
+      title: "Add aquatic fertilizer",
+      scheduleRule: { type: "weekly", daysOfWeek: [2], times: ["09:00"] },
+      startDate: "2026-03-03T09:00:00.000Z",
+      timezone: "UTC",
+      status: "active",
+      createdAt: "2026-03-01T00:00:00.000Z",
+      updatedAt: "2026-03-01T00:00:00.000Z",
+    },
+  ];
+  workspace.recurringOccurrences = [
+    {
+      id: "occ-history-check",
+      planId: "plan-history-check",
+      spaceId: "reef",
+      dueAt: "2026-03-10T09:00:00.000Z",
+      status: "scheduled",
+      createdAt: "2026-03-10T00:00:00.000Z",
+      updatedAt: "2026-03-10T00:00:00.000Z",
+    },
+  ];
+
+  const completed = completeRecurringOccurrence(
+    workspace,
+    "occ-history-check",
+    {
+      actionAt: "2026-03-10T10:05:00.000Z",
+      actionSource: "manual",
+      note: "Completed from planner",
+    },
+  );
+
+  const updated = completed.recurringOccurrences.find(
+    (item) => item.id === "occ-history-check",
+  );
+
+  assert.equal(updated?.status, "completed");
+  assert.equal(updated?.completedAt, "2026-03-10T10:05:00.000Z");
+  assert.ok(updated?.history?.length);
+  assert.equal(updated?.history?.[0]?.action, "completed");
+  assert.equal(updated?.history?.[0]?.actionSource, "manual");
+  assert.equal(updated?.history?.[0]?.at, "2026-03-10T10:05:00.000Z");
 });

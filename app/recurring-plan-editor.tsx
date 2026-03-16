@@ -2,14 +2,14 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Platform, ScrollView, StyleSheet, View } from "react-native";
 import {
-    Button,
-    Chip,
-    SegmentedButtons,
-    Surface,
-    Switch,
-    TextInput,
-    useTheme,
-    type MD3Theme,
+  Button,
+  Chip,
+  SegmentedButtons,
+  Surface,
+  Switch,
+  TextInput,
+  useTheme,
+  type MD3Theme,
 } from "react-native-paper";
 
 import { Text } from "@/components/Themed";
@@ -20,16 +20,16 @@ import { useColorScheme } from "@/components/useColorScheme";
 import Colors from "@/constants/Colors";
 import { createCommonPaletteStyles } from "@/constants/UiStyleBuilders";
 import {
-    uiBorder,
-    uiRadius,
-    uiSpace,
-    uiTypography,
+  uiBorder,
+  uiRadius,
+  uiSpace,
+  uiTypography,
 } from "@/constants/UiTokens";
 import { useWorkspace } from "@/providers/WorkspaceProvider";
 import type {
-    RecurringPlan,
-    RecurringPlanScheduleRule,
-    RecurringSmartMatchMode,
+  RecurringPlan,
+  RecurringPlanScheduleRule,
+  RecurringSmartMatchMode,
 } from "@/types/trackitup";
 
 const weekdayChoices = [
@@ -97,14 +97,31 @@ function parseTimes(timesText: string) {
   );
 }
 
+function deriveWeekdayFromDateInput(
+  value: string,
+): 0 | 1 | 2 | 3 | 4 | 5 | 6 | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+}
+
 function toEditorState(
   plan?: RecurringPlan,
   options?: { duplicateMode?: boolean },
 ): PlanEditorState {
+  const startDateInput =
+    !options?.duplicateMode && plan?.startDate
+      ? plan.startDate.slice(0, 16)
+      : new Date().toISOString().slice(0, 16);
   const schedule = plan?.scheduleRule;
   const scheduleType = schedule?.type ?? "daily";
   let everyNInterval = 3;
-  let weeklyDays: Array<0 | 1 | 2 | 3 | 4 | 5 | 6> = [1, 3, 5];
+  let weeklyDays: Array<0 | 1 | 2 | 3 | 4 | 5 | 6> = [
+    deriveWeekdayFromDateInput(startDateInput) ?? 1,
+  ];
   let monthlyMode: "day-of-month" | "nth-weekday" = "day-of-month";
   let monthlyDayOfMonth = "1";
   let monthlyNthWeekText: "1" | "2" | "3" | "4" | "5" | "-1" = "1";
@@ -158,7 +175,7 @@ function toEditorState(
         ? [plan.spaceId]
         : [],
     timezone: plan?.timezone ?? defaultTimezone(),
-    startDate: new Date().toISOString().slice(0, 16),
+    startDate: startDateInput,
     status: options?.duplicateMode ? "active" : (plan?.status ?? "active"),
     gracePeriodMinutesText:
       typeof plan?.gracePeriodMinutes === "number"
@@ -478,7 +495,27 @@ export default function RecurringPlanEditorScreen() {
           mode="outlined"
           label="Start date/time (ISO or local input)"
           value={state.startDate}
-          onChangeText={(startDate) => updateState({ startDate })}
+          onChangeText={(startDate) => {
+            if (state.scheduleType !== "weekly") {
+              updateState({ startDate });
+              return;
+            }
+
+            const nextWeekday = deriveWeekdayFromDateInput(startDate);
+            const previousWeekday = deriveWeekdayFromDateInput(state.startDate);
+            const shouldSyncWeeklyDayToStartDate =
+              typeof nextWeekday === "number" &&
+              typeof previousWeekday === "number" &&
+              state.weeklyDays.length === 1 &&
+              state.weeklyDays[0] === previousWeekday;
+
+            if (shouldSyncWeeklyDayToStartDate) {
+              updateState({ startDate, weeklyDays: [nextWeekday] });
+              return;
+            }
+
+            updateState({ startDate });
+          }}
           error={Boolean(saveErrors.startDate)}
           style={styles.field}
         />
@@ -501,9 +538,24 @@ export default function RecurringPlanEditorScreen() {
 
         <SegmentedButtons
           value={state.scheduleType}
-          onValueChange={(value) =>
-            updateState({ scheduleType: value as ScheduleKind })
-          }
+          onValueChange={(value) => {
+            const nextScheduleType = value as ScheduleKind;
+            if (nextScheduleType !== "weekly") {
+              updateState({ scheduleType: nextScheduleType });
+              return;
+            }
+
+            const startWeekday = deriveWeekdayFromDateInput(state.startDate);
+            updateState({
+              scheduleType: nextScheduleType,
+              weeklyDays:
+                typeof startWeekday === "number"
+                  ? [startWeekday]
+                  : state.weeklyDays.length > 0
+                    ? state.weeklyDays
+                    : [1],
+            });
+          }}
           buttons={[
             { value: "daily", label: "Daily" },
             { value: "every-n-days", label: "Every N days" },
